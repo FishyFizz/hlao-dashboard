@@ -6,6 +6,8 @@ type Size = "sm" | "md" | "lg";
 
 export type DashboardButtonProps = Omit<ButtonProps, "className"> & {
   className?: string;
+  /** Native tooltip text; RAC does not expose it in ButtonProps. */
+  title?: string;
   variant?: Variant;
   size?: Size;
 };

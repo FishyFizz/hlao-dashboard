@@ -5,7 +5,7 @@
  * itself is the same rgb(108, 210, 255) in both.
  */
 
-@layer reset, base, primitives, gallery;
+@layer reset, base, primitives, gallery, app;
 
 :root {
   color-scheme: dark;

@@ -7,14 +7,20 @@
 > parent `docs/protocol-stability.md`.
 >
 > **Verified against registries and upstream pages on 2026-10-20.**
+>
+> **Implemented since this decision:** the browser client, the local bridge
+> (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
+> surface, the external store, persistence, and Vitest model tests. Playwright
+> and axe remain the next test layer. The client bundle is 616.95 kB minified /
+> 179.07 kB gzip; the gallery is lazy-loaded into a 165.99 kB / 42.02 kB chunk.
 
 ## Decision
 
 **TypeScript on Node ≥ 22.13, with React 19.3.1 and Vite 8.3.4.** Primitive behavior comes
 from **React Aria Components 1.22.1**; the visual system is **hand-authored CSS** on semantic
-tokens, not a utility framework. The bootstrap ships as a browser SPA; the eventual shell is a
-**local Node bridge** that holds the supervisor token and serves the page on loopback. Tauri is
-the packaging path if a standalone app is wanted; no Rust or Electron is needed now.
+tokens, not a utility framework. The client ships as a browser SPA served by the **local Node
+bridge**, which holds the supervisor token and serves the page on loopback. Tauri is the
+packaging path if a standalone app is wanted; no Rust or Electron is needed now.
 
 The load-bearing capability is not "a web page". It is a **long-lived, high-frequency operator
 surface over 10–100 live sessions**, where the two hard parts are (a) accessible, keyboard-first
@@ -38,10 +44,10 @@ supervisor token in the page. The stack is chosen to satisfy that contract, not 
 | Shell (now) | browser + local Node bridge | — | The protocol doc's recommended shape: the process holds `supervisor.json`; the page never receives the token. |
 | Shell (later) | Tauri | `2.12.3` | Small desktop packaging path if a standalone app is required. Deferred; adds Rust + WebView2. |
 | Tables / virtualization (later) | `@tanstack/react-virtual` / `@tanstack/react-table` | `3.14.21` / `9.3.1` | First choice for a sortable fleet grid and a windowed transcript if RAC's own Table/Virtualizer is not enough. |
-| Charts (later) | ECharts | `6.1.0` | Apache-2.0, active (2026-05-19), tree-shakeable. No chart dependency in the bootstrap; the sparkline is inline SVG. |
+| Charts (later) | ECharts | `6.1.0` | Apache-2.0, active (2026-05-19), tree-shakeable. No chart dependency in v1; the sparkline is inline SVG. |
 | State | own store + `useSyncExternalStore` | — | The event cache is small and specialized: apply full views by id, append event batches, advance cursors, ignore duplicate/out-of-order seq. No Redux/Zustand needed. |
-| Routing | none in the bootstrap | — | One design surface. Use `@tanstack/react-router` `1.170.45` if the app grows real routes with typed search params. |
-| Tests (next) | `vitest` + `@testing-library/react` + `@playwright/test` + `@axe-core/playwright` | `5.0.5` / `16.3.3` / `1.64.1` / `4.14.0` | Unit-test the frame client and event reducer; e2e the real supervisor; axe the real UI. Not installed yet: the bootstrap has no logic to test. |
+| Routing | hash selection + `/design` path | — | Fleet/session selection is a hash route (`#/fleet`, `#/s/<id>?created=...`); the specimen is `/design`. No router dependency. Use `@tanstack/react-router` `1.170.45` if typed search params or more routes land. |
+| Tests | `vitest` + `@testing-library/react` + `@playwright/test` + `@axe-core/playwright` | `5.0.5` / `16.3.3` / `1.64.1` / `4.14.0` | Vitest is installed and covers attention, sequencing, coalescing, target resolution, and the demo supervisor. Testing Library, Playwright, and axe are the next layer; the bridge-backed UI is exercised manually first. |
 
 ### Why React over the runner-up
 
@@ -107,19 +113,21 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The gallery is 555.93 kB minified / 163.19 kB gzip (RAC + Lucide + React).
-  Vite warns above 500 kB. This is a local app, not a network product; when the real app lands,
-  code-split the inspector/charts and lazy-load the gallery.
+- **Bundle size.** The client is 616.95 kB minified / 179.07 kB gzip (RAC + Lucide + React +
+  the demo supervisor); the gallery is 165.99 kB / 42.02 kB. Vite warns above 500 kB. This is a local app, not a network product; the
+  gallery is lazy-loaded, and the inspector/charts can be split next. The demo remains in the
+  main chunk because it is one click from the setup screen.
 - **Fontsource copies every subset.** The browser downloads latin only via `unicode-range`, but
   the build directory includes Cyrillic/Vietnamese files. Replace with two hand-written
   `@font-face` rules if distribution size matters.
-- **No socket, no token, no business logic here.** The page is a design system, not the client.
-  Theme preference is the only persistence.
+- **No token in the page.** The bridge owns `supervisor.json`; the page receives a per-run UI
+  key and a projection. The page's only credentials are the bridge key and local operator state.
 - **Windows-first.** Local Node is 26.8.1. No native addons. Tauri, if used, requires the Rust
   toolchain and WebView2, neither installed on this machine.
 - **Accessibility is inherited, not automatic.** RAC supplies keyboard/focus semantics for its
-  components; the static tables/transcripts in the gallery are semantic HTML but not a substitute
-  for testing the real app. Run axe + Playwright against the bridge-backed UI before trusting it.
+  components; the real surfaces use semantic tables/buttons, labelled icon buttons, text status,
+  focus restoration through RAC dialogs, and an assertive attention announcer. Run axe + Playwright
+  against the bridge-backed UI before trusting it.
 
 ## Prior art
 
@@ -192,10 +200,10 @@ friendly kanban.
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "typescript": "7.0.2",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
   },
   "future": {
-    "vitest": "5.0.5",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
     "@playwright/test": "1.64.1",
@@ -223,8 +231,9 @@ friendly kanban.
   adopted it as the default primitive layer in July 2026. (registry + 2026 comparison write-ups)
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
-- **Build:** `npm run typecheck` passes with TS 7.0.2; `npm run build` emits 555.93 kB JS /
-  163.19 kB gzip and 56.40 kB CSS / 9.77 kB gzip in 462 ms on this machine (2026-10-20).
+- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes nine Vitest cases.
+  `npm run build` emits 616.95 kB JS / 179.07 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
+  chunk, and 105.96 kB CSS / 16.74 kB gzip in ~500 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

@@ -1,9 +1,11 @@
 # Design system — HLAO dashboard
 
-The living specimen is the app itself: `npm run dev`, then scroll the numbered sections. This
-file records the rules the specimen is built on, so the next screen does not have to reverse
-engineer them. The interaction contract is `docs/ux-interaction-model.md`; this file is the
-visual system that satisfies it.
+There are two living surfaces. The **dashboard** at `/` is the product: fleet, session lens,
+transcript, permission gate, composer, and inspector composed in `src/styles/app.css`. The
+**specimen** at `/design` is the primitive inventory with numbered sections. This file records
+the rules both are built on, so the next screen does not have to reverse engineer them. The
+interaction contract is `docs/ux-interaction-model.md`; this file is the visual system that
+satisfies it.
 
 ## Intent
 
@@ -101,6 +103,11 @@ Rules:
 | Feedback | `.toast`, `.banner`, `.empty` | `styles/primitives.css` |
 | Palette | `.palette`, `.palette__*` | `styles/primitives.css` |
 | Console | `.console`, `.console__*` | `styles/primitives.css` |
+| Application shell | `.dash`, `.dash-top`, `.dash-body`, `.dash-rail`, `.dash-main`, `.dash-inspector`, `.dash-status` | `styles/app.css` |
+| Fleet rail | `.rail-*`, attention cards, fleet home table, orphaned drafts | `styles/app.css` |
+| Session lens | `.session-*`, `.permission-gate`, `.state-strip`, `.transcript-*`, `.composer`, `.queue-*` | `styles/app.css` |
+| Inspector | `.inspector__*`, config toggles, lineage counts | `styles/app.css` |
+| Setup | `.setup__*`, `.boot`, error boundary | `styles/app.css` |
 | Gallery chrome | topbar, sidebar, hero, section, specimen, swatches, type rows | `styles/gallery.css` |
 
 Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`, `Tag`, `Kbd`,
@@ -146,6 +153,16 @@ Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`,
 - **Truncation** must be a visible banner/notice in the transcript, not a silent gap.
 - **Lineage** is context, not authority: the tree is read from `parentId`/`rootId`/`depth` and
   never gates addressing. Every session in the instance is addressable by every caller.
+- **The shell** is one screen: fleet rail, main lens, inspector. The inspector is a details
+  surface, not a second source of truth; below 1180px it becomes a dialog. The rail is a
+  navigator, not a scope: every row still addresses a session.
+- **Attention cards** are structural summaries, not notifications. They always name the session
+  and handle, show age from the server timestamp, and expose the next action (answer, inspect,
+  acknowledge, dismiss). No card invents importance.
+- **The demo** uses the same components and states as a real instance, but carries a persistent
+  `demo` tag and banner. Simulated data is never shown without that label.
+- **Setup** is a state, not a landing page: no fleet scaffold, no sample rows, no fake activity.
+  The instance home, the error code, and the next valid action are always visible.
 
 ## Do / don't
 
@@ -155,8 +172,10 @@ Do:
 - Order the fleet by attention; keep the selected row selected as updates arrive.
 - Let a 1px rule separate; if it still needs a shadow, the surface step is wrong.
 - Keep the fleet a table and the transcript a list. The fleet is not a card wall.
-- Preserve identifier case and use tabular figures.
+- Preserve identifier case and use tabular figures. Use `.ident` inside uppercase parents.
 - Hide a provider panel when its capability is absent.
+- Keep the permission gate's provider options visually equal; make the client's policy-changing
+  assembly a separate, explicitly labelled action.
 - Say "reported" for cost and usage; say "quiet" or "idle" for a session with no active turn.
 
 Don't:
