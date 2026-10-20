@@ -11,12 +11,10 @@ import { copyWithToast } from "./ui";
 export function Composer({
   state,
   session,
-  onSpawnReplacement,
   onDrop,
 }: {
   state: DashboardState;
   session: SessionView;
-  onSpawnReplacement: () => void;
   onDrop: (item: QueueItemView) => void;
 }) {
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -172,30 +170,20 @@ export function Composer({
         </div>
       ) : null}
 
-      {terminal ? (
-        <div className="composer__ended">
+      {!terminal ? (
+        <div className="composer__foot">
           <span>
-            {session.status === "failed"
-              ? "This session failed. The transcript remains readable for the retention period."
-              : "This session is closed. The transcript remains readable for the retention period."}
+            <span className="mono">Enter</span> newline ·{" "}
+            <span className="mono">Ctrl/Cmd+Enter</span>{" "}
+            {busy || waiting ? "queue" : "send"}
           </span>
-          <Button size="sm" onPress={onSpawnReplacement}>
-            Spawn a replacement
-          </Button>
+          <span>
+            {canRetrySafely
+              ? "Text only · no attachments"
+              : "Text only · retry may duplicate"}
+          </span>
         </div>
       ) : null}
-
-      <div className="composer__foot">
-        <span>
-          <span className="mono">Enter</span> newline ·{" "}
-          <span className="mono">Ctrl/Cmd+Enter</span> {busy || waiting ? "queue" : "send"}
-        </span>
-        <span>
-          {canRetrySafely
-            ? "Text only · no attachments"
-            : "Text only · retry may duplicate"}
-        </span>
-      </div>
     </section>
   );
 }

@@ -21,6 +21,12 @@
   cost, timestamps, creator, and instance are behind "More". Provider details,
   usage details, permission consequences, lineage, and diagnostics are
   collapsed until requested.
+- Removed the duplicate "Spawn a replacement" action from the disabled
+  terminal composer; the terminal banner is the single action.
+- Normalized structural transcript text to the 9px event scale (usage,
+  permission, plan rows).
+- Hid usage, plan, and compaction stream rows by default behind a "System"
+  transcript toggle; current usage remains in the state strip and inspector.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

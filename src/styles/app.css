@@ -1831,6 +1831,11 @@
     font-size: 9px;
   }
 
+  .event__body--structural .event__text {
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
   .event__structural-icon svg {
     width: 11px;
     height: 11px;

@@ -318,12 +318,7 @@ export function SessionLens({
       />
 
       {!state.removed ? (
-        <Composer
-          state={state}
-          session={session}
-          onSpawnReplacement={onSpawnReplacement}
-          onDrop={onDrop}
-        />
+        <Composer state={state} session={session} onDrop={onDrop} />
       ) : (
         <div className="composer composer--removed">
           <span>

@@ -87,10 +87,11 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   no auto-answer, explicit "Allow always & set policy..." confirmation, and a
   collapsed explanation of the option consequences.
 - **Transcript**: turn skeleton, coalesced message chunks, one tool row updated
-  in place, inline permission history, provider plan/compaction/usage/notice
-  rows, unknown-type fallback with inspectable data. Tail-follow only at the
-  bottom; last-read divider, new-events affordance, automatic backward paging as
-  the view approaches the top, and visible truncation/gap markers.
+  in place, inline permission history, provider notice rows, unknown-type
+  fallback with inspectable data. Usage, plan, and compaction stream rows are
+  hidden by default and revealed by the **System** toggle. Tail-follow only at
+  the bottom; last-read divider, new-events affordance, automatic backward
+  paging as the view approaches the top, and visible truncation/gap markers.
 - **Composer and queue**: drafts per session, multi-line text, explicit send,
   queue when busy or permission-parked, idempotent retry, message-id
   reconciliation, queue previews, and permanent drop confirmation. Ended

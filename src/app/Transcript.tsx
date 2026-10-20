@@ -18,6 +18,15 @@ import {
 import type { SessionView } from "../wire/protocol";
 import { EventRow } from "./EventRow";
 
+const SYSTEM_EVENT_TYPES = new Set(["usage", "plan", "plan.update"]);
+
+function isSystemItem(item: RenderItem): boolean {
+  if (item.kind === "compaction") {
+    return item.status === "completed" && !item.error;
+  }
+  return item.kind === "event" && SYSTEM_EVENT_TYPES.has(item.event.type);
+}
+
 export function Transcript({
   state,
   session,
@@ -37,12 +46,22 @@ export function Transcript({
   const [atBottom, setAtBottom] = useState(true);
   const key = sessionLocalKey(session);
   const lastSeen = state.local.lastSeen[key] ?? 0;
-  const items = useMemo(
+  const [showSystem, setShowSystem] = useState(false);
+  const renderItems = useMemo(
     () =>
       buildRenderItems(eventsState.events).filter(
         (item) => !(item.kind === "event" && item.event.type === "turn.started"),
       ),
     [eventsState.events],
+  );
+  const hiddenSystemCount = useMemo(
+    () => renderItems.filter(isSystemItem).length,
+    [renderItems],
+  );
+  const items = useMemo(
+    () =>
+      showSystem ? renderItems : renderItems.filter((item) => !isSystemItem(item)),
+    [renderItems, showSystem],
   );
   const count = eventsState.events.length;
   const live = state.connection === "open" && !state.removed;
@@ -262,6 +281,17 @@ export function Transcript({
                 events paused
               </span>
             ) : null}
+            {hiddenSystemCount > 0 ? (
+              <Button
+                size="sm"
+                variant={showSystem ? "secondary" : "ghost"}
+                aria-pressed={showSystem}
+                title={`${hiddenSystemCount} usage, plan, or compaction events`}
+                onPress={() => setShowSystem((value) => !value)}
+              >
+                System
+              </Button>
+            ) : null}
             <Button size="sm" variant="ghost" onPress={onSearch}>
               <Search className="btn__icon icon" />
               Find
@@ -317,12 +347,29 @@ export function Transcript({
           ) : null}
           {items.length === 0 ? (
             <div className="transcript-empty">
-              <span className="transcript-empty__title">No events yet.</span>
-              <span className="transcript-empty__text">
-                {canUseLocal(state, "session.lastEvent")
-                  ? "The supervisor reports no events for this session."
-                  : "This supervisor does not report the last event."}
-              </span>
+              {hiddenSystemCount > 0 ? (
+                <>
+                  <span className="transcript-empty__title">
+                    Provider events are hidden.
+                  </span>
+                  <span className="transcript-empty__text">
+                    Usage, plan, and compaction snapshots are shown in the
+                    inspector. This session has no other loaded events.
+                  </span>
+                  <Button size="sm" onPress={() => setShowSystem(true)}>
+                    Show system events
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="transcript-empty__title">No events yet.</span>
+                  <span className="transcript-empty__text">
+                    {canUseLocal(state, "session.lastEvent")
+                      ? "The supervisor reports no events for this session."
+                      : "This supervisor does not report the last event."}
+                  </span>
+                </>
+              )}
             </div>
           ) : (
             <div className="transcript__list">
