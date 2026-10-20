@@ -29,6 +29,7 @@ import {
   unreadFor,
   type AttentionItem,
 } from "../store/model";
+import type { SessionView } from "../wire/protocol";
 import { useNow } from "./hooks";
 import { copyWithToast } from "./ui";
 
@@ -217,7 +218,12 @@ export function FleetHome({
                 return (
                   <tr key={session.id} onClick={() => onSelect(session.id)}>
                     <td>
-                      <Status status={session.status} />
+                      <span title={session.status === "waiting_permission" ? "Waiting for permission" : undefined}>
+                        <Status
+                          status={session.status}
+                          label={tableStatusLabel(session.status)}
+                        />
+                      </span>
                     </td>
                     <td>
                       <button
@@ -304,6 +310,10 @@ export function FleetHome({
       </footer>
     </div>
   );
+}
+
+function tableStatusLabel(status: SessionView["status"]): string {
+  return status === "waiting_permission" ? "Waiting permission" : status === "busy" ? "Running" : status === "idle" ? "Idle" : status === "starting" ? "Starting" : status === "failed" ? "Failed" : "Closed";
 }
 
 function OrphanDrafts({
