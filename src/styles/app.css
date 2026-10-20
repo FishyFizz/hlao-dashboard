@@ -417,6 +417,16 @@
     gap: 4px;
   }
 
+  .rail-head__controls .btn--icon.btn--sm {
+    width: 24px;
+    height: 24px;
+  }
+
+  .rail-head__controls .btn--icon .icon {
+    width: 14px;
+    height: 14px;
+  }
+
   .rail-sort {
     display: inline-flex;
     align-items: center;
