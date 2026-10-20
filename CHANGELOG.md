@@ -47,6 +47,9 @@
   session initialization, and session info, so adapter startup chatter no longer
   floods the beginning of a session. Errored/in-progress compaction remains
   visible.
+- Turned the closed/failed terminal status into a full-width band with a single
+  bottom rule, aligned with the state strip and transcript instead of retaining
+  the old inset card frame.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

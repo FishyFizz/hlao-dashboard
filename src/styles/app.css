@@ -1302,17 +1302,16 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-3);
-    margin: var(--sp-2) var(--sp-3) 0;
+    margin: 0;
     padding: var(--sp-2) var(--sp-3);
-    border: var(--bw) solid var(--line);
-    border-left: 2px solid var(--text-3);
+    border: 0;
+    border-bottom: var(--bw) solid var(--line);
     background: var(--raise);
     color: var(--text-2);
     font-size: var(--fs-11);
   }
 
   .session-terminal--danger {
-    border-left-color: var(--danger);
     background: var(--danger-soft);
   }
 
