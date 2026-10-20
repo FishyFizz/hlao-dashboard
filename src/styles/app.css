@@ -1902,6 +1902,43 @@
     color: var(--danger);
   }
 
+  .tool__head-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border-bottom: var(--bw) solid var(--line);
+    padding-right: 8px;
+  }
+
+  .tool__head {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    border-bottom: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .tool__head:hover {
+    background: var(--hover);
+  }
+
+  .tool__head--static,
+  .tool__head--static:hover {
+    cursor: default;
+    background: transparent;
+  }
+
+  .tool__toggle {
+    flex: none;
+    width: 10px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-align: center;
+  }
+
   .tool__title {
     min-width: 0;
     overflow: hidden;

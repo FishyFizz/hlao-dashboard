@@ -234,6 +234,32 @@ describe("event merge", () => {
     expect(gapped.gap).toBe(true);
   });
 
+  it("pairs permission requests with replies and stringifies object payloads", () => {
+    const items = buildRenderItems([
+      event(1, "permission.requested", { requestId: "r1", title: "Run shell command" }, 2),
+      event(2, "permission.resolved", { requestId: "r1", optionId: "allow", by: "operator" }, 2),
+      event(
+        3,
+        "tool.call",
+        {
+          toolCallId: "t1",
+          name: "Bash",
+          status: "running",
+          rawInput: { command: "ls -la" },
+        },
+        2,
+      ),
+    ]);
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      kind: "permission",
+      title: "Run shell command",
+      resolution: { seq: 2 },
+    });
+    expect(items[1]).toMatchObject({ kind: "tool" });
+    expect((items[1] as { input: string | null }).input).toContain("ls -la");
+  });
+
   it("coalesces message chunks and tool updates by their ids", () => {
     const items = buildRenderItems([
       event(1, "agent.message", { messageId: "m1", text: "one ", chunk: true }, 1),

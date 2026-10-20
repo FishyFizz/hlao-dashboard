@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Check,
   CircleAlert,
@@ -50,10 +50,12 @@ export function EventRow({
   if (item.kind === "compaction") {
     return <CompactionRow item={item} focused={focused} />;
   }
+  if (item.kind === "permission") {
+    return <PermissionRow item={item} session={session} />;
+  }
   return (
     <SingleEventRow
       event={item.event}
-      session={session}
       focused={focused}
       onOpenSession={onOpenSession}
     />
@@ -165,6 +167,48 @@ function MessageRow({
   );
 }
 
+function PermissionRow({
+  item,
+  session,
+}: {
+  item: Extract<RenderItem, { kind: "permission" }>;
+  session: SessionView;
+}) {
+  const resolution = item.resolution;
+  const pending =
+    !resolution &&
+    item.requestId !== null &&
+    session.pendingPermission?.requestId === item.requestId;
+  const optionId = resolution
+    ? stringField(resolution.data, ["optionId"])
+    : null;
+  const reason = resolution ? stringField(resolution.data, ["reason"]) : null;
+  const actor = resolution ? eventActor(resolution) : null;
+  const text = resolution
+    ? `${item.title} · ${optionId ? `Option ${optionId}` : "Cancelled"}${
+        reason ? ` · ${reason}` : ""
+      }${actor ? ` · by ${actor}` : ""}`
+    : pending
+      ? `Waiting in the gate above · ${item.title}`
+      : `History · ${item.title}`;
+  return (
+    <StructuralRow
+      id={`event-${item.seq}`}
+      seq={item.seq}
+      at={item.at}
+      type="permission"
+      text={text}
+      icon={
+        resolution ? (
+          <Check className="icon" />
+        ) : (
+          <Shield className="icon" />
+        )
+      }
+    />
+  );
+}
+
 function ToolRow({
   item,
   focused,
@@ -172,13 +216,17 @@ function ToolRow({
   item: Extract<RenderItem, { kind: "tool" }>;
   focused: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const tone =
     item.status === "completed" || item.status === "ok"
       ? "ok"
       : item.status === "failed" || item.status === "error"
         ? "danger"
         : "warn";
-  const payload = [item.input, item.output].filter(Boolean).join("\n\n");
+  const input = item.input ?? item.title ?? null;
+  const output = item.output;
+  const payload = [input, output].filter(Boolean).join("\n\n");
+  const hasPayload = payload.length > 0;
   return (
     <div
       className={`event${focused ? " event--focus" : ""}`}
@@ -188,38 +236,49 @@ function ToolRow({
       <Gutter seq={item.seq} at={item.at} />
       <div className="event__body">
         <div className="tool">
-          <div className="tool__head">
-            <Terminal className="icon" />
-            <span className="tool__name">{item.name}</span>
-            <span className="tool__title">{item.title || item.id}</span>
-            {item.turn !== null ? (
-              <span className="tool__turn">turn {item.turn}</span>
-            ) : null}
-            <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
+          <div className="tool__head-wrap">
+            <button
+              type="button"
+              className={`tool__head${hasPayload ? "" : " tool__head--static"}`}
+              aria-expanded={hasPayload ? open : undefined}
+              title={hasPayload ? (open ? "Hide payload" : "Show payload") : undefined}
+              onClick={() => {
+                if (hasPayload) setOpen((value) => !value);
+              }}
+            >
+              <Terminal className="icon" />
+              <span className="tool__name">{item.name}</span>
+              <span className="tool__title">{item.title || item.id}</span>
+              {item.turn !== null ? (
+                <span className="tool__turn">turn {item.turn}</span>
+              ) : null}
+              <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
+              {hasPayload ? (
+                <span className="tool__toggle" aria-hidden="true">
+                  {open ? "-" : "+"}
+                </span>
+              ) : null}
+            </button>
             {payload ? (
               <CopyButton text={payload} label="tool payload" className="event__copy" />
             ) : null}
           </div>
-          <details className="tool__details">
-            <summary>Inspect payload</summary>
+          {open && hasPayload ? (
             <div className="tool__body">
-              {item.input ? (
+              {input ? (
                 <>
                   <span className="tool__prompt">input</span>
-                  <pre className="event__pre">{safeText(item.input)}</pre>
+                  <pre className="event__pre">{safeText(input)}</pre>
                 </>
               ) : null}
-              {item.output ? (
+              {output ? (
                 <>
                   <span className="tool__prompt">output</span>
-                  <pre className="event__pre">{safeText(item.output)}</pre>
+                  <pre className="event__pre">{safeText(output)}</pre>
                 </>
               ) : null}
-              {!item.input && !item.output ? (
-                <span className="tool__prompt">No payload reported.</span>
-              ) : null}
             </div>
-          </details>
+          ) : null}
         </div>
       </div>
     </div>
@@ -270,12 +329,10 @@ function CompactionRow({
 
 function SingleEventRow({
   event,
-  session,
   focused,
   onOpenSession,
 }: {
   event: EventView;
-  session: SessionView;
   focused: boolean;
   onOpenSession?: (sessionId: string) => void;
 }) {
@@ -388,43 +445,6 @@ function SingleEventRow({
           <p className="event__text event__text--danger">{text || "No message reported"}</p>
         </div>
       </div>
-    );
-  }
-
-  if (event.type === "permission.requested") {
-    const requestId = stringField(event.data, ["requestId"]);
-    const isCurrent = session.pendingPermission?.requestId === requestId;
-    const detail = text || "Permission";
-    return (
-      <StructuralRow
-        id={id}
-        seq={event.seq}
-        at={event.at}
-        type="permission.requested"
-        text={
-          isCurrent
-            ? `Waiting in the gate above · ${detail}`
-            : `History · ${detail}`
-        }
-        icon={<Shield className="icon" />}
-      />
-    );
-  }
-
-  if (event.type === "permission.resolved") {
-    const optionId = stringField(event.data, ["optionId"]);
-    const reason = stringField(event.data, ["reason"]);
-    return (
-      <StructuralRow
-        id={id}
-        seq={event.seq}
-        at={event.at}
-        type="permission.resolved"
-        text={`${optionId ? `Option ${optionId}` : "Cancelled"}${
-          reason ? ` · ${reason}` : ""
-        } · by ${actor ?? "unknown actor"}`}
-        icon={<Check className="icon" />}
-      />
     );
   }
 

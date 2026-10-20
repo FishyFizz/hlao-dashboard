@@ -38,6 +38,11 @@
   details, and the session header.
 - Removed the redundant LIVE/handle title from the transcript bar; the range
   and follow state remain.
+- Coalesced permission requests and their resolutions into one transcript line.
+- Removed the separate "Inspect payload" row: the tool header is now the
+  toggle, with a compact `+`/`-` marker.
+- Serialized object-shaped tool input/output and fell back to the reported tool
+  title, eliminating false "No payload reported" rows for Bash calls.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

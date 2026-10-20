@@ -348,6 +348,17 @@ export type RenderItem =
       events: EventView[];
     }
   | {
+      kind: "permission";
+      id: string;
+      requestId: string | null;
+      title: string;
+      request: EventView | null;
+      resolution: EventView | null;
+      at: string;
+      turn: number | null;
+      seq: number;
+    }
+  | {
       kind: "event";
       id: string;
       event: EventView;
@@ -365,6 +376,7 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
   const messageIndex = new Map<string, number>();
   const toolIndex = new Map<string, number>();
   const compactionIndex = new Map<string, number>();
+  const permissionIndex = new Map<string, number>();
 
   for (const event of events) {
     const messageId = stringField(event.data, ["messageId", "id"]);
@@ -391,6 +403,39 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
       continue;
     }
 
+    if (
+      event.type === "permission.requested" ||
+      event.type === "permission.resolved"
+    ) {
+      const requestId = stringField(event.data, ["requestId"]);
+      const key = requestId ?? `permission-${event.seq}`;
+      const existing = permissionIndex.get(key);
+      if (existing !== undefined) {
+        const item = items[existing];
+        if (item && item.kind === "permission") {
+          if (event.type === "permission.requested") item.request = event;
+          else item.resolution = event;
+        }
+        continue;
+      }
+      permissionIndex.set(key, items.length);
+      items.push({
+        kind: "permission",
+        id: key,
+        requestId,
+        title:
+          event.type === "permission.requested"
+            ? eventText(event) || "Permission"
+            : "Permission",
+        request: event.type === "permission.requested" ? event : null,
+        resolution: event.type === "permission.resolved" ? event : null,
+        at: event.at,
+        turn: event.turn,
+        seq: event.seq,
+      });
+      continue;
+    }
+
     if (event.type === "tool.call" || event.type === "tool.update") {
       const callId =
         stringField(event.data, ["toolCallId", "callId", "id"]) ?? `tool-${event.seq}`;
@@ -400,8 +445,12 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
         if (item && item.kind === "tool") {
           item.status =
             stringField(event.data, ["status", "state"]) ?? item.status;
+          item.input =
+            item.input ??
+            payloadField(event.data, ["input", "rawInput", "arguments"]);
           item.output =
-            stringField(event.data, ["output", "text", "content"]) ?? item.output;
+            payloadField(event.data, ["output", "rawOutput", "text", "content"]) ??
+            item.output;
           item.at = event.at;
           item.events.push(event);
         }
@@ -413,8 +462,8 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
           name: stringField(event.data, ["name", "tool", "toolName"]) ?? "tool",
           title: stringField(event.data, ["title", "command", "description"]) ?? "",
           status: stringField(event.data, ["status", "state"]) ?? "running",
-          input: stringField(event.data, ["input", "rawInput", "arguments"]),
-          output: stringField(event.data, ["output", "rawOutput", "content"]),
+          input: payloadField(event.data, ["input", "rawInput", "arguments"]),
+          output: payloadField(event.data, ["output", "rawOutput", "content"]),
           at: event.at,
           turn: event.turn,
           seq: event.seq,
@@ -492,6 +541,25 @@ export function eventTitle(event: EventView): string {
 
 export function eventActor(event: EventView): string | null {
   return stringField(event.data, ["by", "from", "actor", "createdBy"]);
+}
+
+export function payloadField(
+  data: Record<string, unknown>,
+  keys: readonly string[],
+): string | null {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "string" && value.trim().length > 0) return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (value !== null && typeof value === "object") {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        // Fall through to the next candidate.
+      }
+    }
+  }
+  return null;
 }
 
 export function stringField(
