@@ -31,7 +31,7 @@ simulated supervisor. Demo mode is always named in the UI.
 | `src/store/persistence.ts` | Versioned localStorage projection | `loadPersistence`, `savePersistence`, `emptyInstanceState` |
 | `src/store/store.ts` | Live state, subscriptions, actions, search, export | `store`, `DashboardState`, selectors |
 | `src/app/` | Interaction surfaces and dialogs | React components |
-| `server/bridge.mjs` | Loopback HTTP + SSE + supervisor IPC | `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
+| `server/bridge.mjs` | Loopback HTTP + SSE + supervisor IPC; stable-per-home UI key, never the supervisor token | `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
 
 ## Invariants
 

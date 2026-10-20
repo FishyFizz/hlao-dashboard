@@ -11,8 +11,8 @@
 > **Implemented since this decision:** the browser client, the local bridge
 > (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
 > surface, the external store, persistence, and Vitest model tests. Playwright
-> and axe remain the next test layer. The client bundle is 616.95 kB minified /
-> 179.07 kB gzip; the gallery is lazy-loaded into a 165.99 kB / 42.02 kB chunk.
+> and axe remain the next test layer. The client bundle is 616.26 kB minified /
+> 178.96 kB gzip; the gallery is lazy-loaded into a 165.99 kB / 42.02 kB chunk.
 
 ## Decision
 
@@ -95,7 +95,7 @@ token. The bridge shape is:
 
 1. A Node process reads `<HLAO_HOME>/supervisor.json`, opens the local IPC connection, and
    speaks the frame protocol.
-2. It serves the built SPA on `127.0.0.1` with a per-run secret and strict Origin checks.
+2. It serves the built SPA on `127.0.0.1` with a loopback UI key and strict Origin checks.
 3. It forwards frames (or a projection of them) to the page; it does not reimplement semantics
    (ADR 0009). The page never sees the token or opens the supervisor socket.
 
@@ -113,14 +113,14 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The client is 616.95 kB minified / 179.07 kB gzip (RAC + Lucide + React +
+- **Bundle size.** The client is 616.26 kB minified / 178.96 kB gzip (RAC + Lucide + React +
   the demo supervisor); the gallery is 165.99 kB / 42.02 kB. Vite warns above 500 kB. This is a local app, not a network product; the
   gallery is lazy-loaded, and the inspector/charts can be split next. The demo remains in the
   main chunk because it is one click from the setup screen.
 - **Fontsource copies every subset.** The browser downloads latin only via `unicode-range`, but
   the build directory includes Cyrillic/Vietnamese files. Replace with two hand-written
   `@font-face` rules if distribution size matters.
-- **No token in the page.** The bridge owns `supervisor.json`; the page receives a per-run UI
+- **No token in the page.** The bridge owns `supervisor.json`; the page receives a loopback UI
   key and a projection. The page's only credentials are the bridge key and local operator state.
 - **Windows-first.** Local Node is 26.8.1. No native addons. Tauri, if used, requires the Rust
   toolchain and WebView2, neither installed on this machine.
@@ -232,8 +232,8 @@ friendly kanban.
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
 - **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes nine Vitest cases.
-  `npm run build` emits 616.95 kB JS / 179.07 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
-  chunk, and 105.96 kB CSS / 16.74 kB gzip in ~500 ms on this machine (2026-10-20).
+  `npm run build` emits 616.26 kB JS / 178.96 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
+  chunk, and 106.63 kB CSS / 16.85 kB gzip in ~500 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

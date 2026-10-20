@@ -540,13 +540,6 @@ export class DashboardStore {
 
     if (connectToken !== this.connectToken) return;
     await this.subscribeToFleet();
-    if (hello.lastCrash) {
-      this.addToast({
-        tone: "info",
-        title: "Previous supervisor did not stop cleanly",
-        text: `pid ${hello.lastCrash.pid} · detected ${hello.lastCrash.detectedAt}`,
-      });
-    }
   }
 
   private loadLocal(home: string): InstanceLocalState {
@@ -796,13 +789,7 @@ export class DashboardStore {
           if (!loaded?.loaded) {
             await this.loadSession(selection.id);
           } else {
-            const result = await this.transport.request<ReadResult>("sessions.read", {
-              sessionId: selection.id,
-              since: loaded.lastSeq,
-              limit: 100,
-            });
-            this.applySession(result.session);
-            this.applyReadAppend(selection.id, result);
+            await this.fillGap(selection.id, loaded.lastSeq);
           }
           await this.refreshQueue(selection.id);
         }
@@ -955,14 +942,21 @@ export class DashboardStore {
   private async fillGap(sessionId: string, since: number): Promise<void> {
     const transport = this.transport;
     if (!transport) return;
+    let cursor = since;
     try {
-      const result = await transport.request<ReadResult>("sessions.read", {
-        sessionId,
-        since,
-        limit: 200,
-      });
-      this.applySession(result.session);
-      this.applyReadAppend(sessionId, result);
+      for (let page = 0; page < 10; page += 1) {
+        const result = await transport.request<ReadResult>("sessions.read", {
+          sessionId,
+          since: cursor,
+          limit: 200,
+        });
+        this.applySession(result.session);
+        this.applyReadAppend(sessionId, result);
+        if (!result.hasMore) return;
+        const next = result.nextSeq;
+        if (next <= cursor) return;
+        cursor = next;
+      }
     } catch {
       // The subscription will retry; do not replace history with a guess.
     }
@@ -970,11 +964,12 @@ export class DashboardStore {
 
   private applyReadAppend(sessionId: string, result: ReadResult): void {
     const current = this.state.events[sessionId];
+    const nextCursor = result.hasMore ? result.nextSeq : result.lastSeq;
     if (!current?.loaded) {
       this.patchSessionEvents(sessionId, {
         events: result.events,
         earliestRetainedSeq: result.earliestRetainedSeq,
-        lastSeq: result.lastSeq,
+        lastSeq: nextCursor,
         nextBefore: result.nextBefore,
         hasMoreOlder: result.nextBefore !== null,
         truncated: result.truncated,
@@ -989,9 +984,10 @@ export class DashboardStore {
         result.truncated && first && first.seq > current.lastSeq + 1
           ? { from: current.lastSeq + 1, to: first.seq - 1 }
           : current.gap;
+      const nextLastSeq = Math.max(current.lastSeq, nextCursor);
       this.patchSessionEvents(sessionId, {
         events: appended.events,
-        lastSeq: Math.max(current.lastSeq, result.lastSeq),
+        lastSeq: nextLastSeq,
         earliestRetainedSeq: result.truncated
           ? result.earliestRetainedSeq
           : current.earliestRetainedSeq,
@@ -1000,7 +996,7 @@ export class DashboardStore {
       });
       if (appended.added > 0 && this.state.selection?.id === sessionId) {
         if (this.state.followTail[sessionId]) {
-          this.markSeen(sessionId, Math.max(current.lastSeq, result.lastSeq));
+          this.markSeen(sessionId, nextLastSeq);
         } else {
           this.bumpNewEvents(sessionId, appended.added);
         }

@@ -17,7 +17,6 @@ import {
   type DashboardState,
 } from "../store/store";
 import {
-  contextPercent,
   displayLabel,
   failureReason,
   formatAge,
@@ -207,7 +206,6 @@ export function FleetHome({
                 <th scope="col">Turn</th>
                 <th scope="col">Queue</th>
                 <th scope="col">Age</th>
-                <th scope="col">Context</th>
               </tr>
             </thead>
             <tbody>
@@ -216,7 +214,6 @@ export function FleetHome({
                 const lastSeen = state.local.lastSeen[key] ?? 0;
                 const earliest = state.events[session.id]?.earliestRetainedSeq ?? 1;
                 const unread = unreadFor(session, lastSeen, earliest);
-                const percent = contextPercent(session.usage ?? null);
                 return (
                   <tr key={session.id} onClick={() => onSelect(session.id)}>
                     <td>
@@ -262,23 +259,6 @@ export function FleetHome({
                       <span className="table__age" title={formatDateTime(lastEventTime(session))}>
                         {formatAge(lastEventTime(session), now)}
                       </span>
-                    </td>
-                    <td>
-                      {session.usage && percent !== null ? (
-                        <span className="table__meter">
-                          <span className="table__meter-track">
-                            <span
-                              className="table__meter-fill"
-                              data-warn={percent >= 75 ? "true" : undefined}
-                              data-danger={percent >= 90 ? "true" : undefined}
-                              style={{ width: `${percent}%` }}
-                            />
-                          </span>
-                          <span className="table__num">{percent}%</span>
-                        </span>
-                      ) : (
-                        <span className="dim caption">not reported</span>
-                      )}
                     </td>
                   </tr>
                 );

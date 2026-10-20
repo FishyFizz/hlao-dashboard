@@ -9,11 +9,17 @@
  */
 
 import { createServer } from "node:http";
-import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import {
+  createReadStream,
+  existsSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { connect } from "node:net";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const HERE = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -57,12 +63,38 @@ if (!["127.0.0.1", "localhost", "::1"].includes(options.host)) {
   );
   process.exit(1);
 }
-const uiKey = randomBytes(24).toString("hex");
+/**
+ * The UI key is a loopback capability, not the supervisor token. Keeping it
+ * stable per home lets an open page's EventSource reconnect after a bridge
+ * restart without a manual refresh. It is readable by local processes, which
+ * can already read supervisor.json; Origin checks remain the browser fence.
+ */
+const uiKeyPath = join(
+  tmpdir(),
+  `hlao-dashboard-${createHash("sha256").update(options.home).digest("hex").slice(0, 16)}.key`,
+);
+const uiKey = loadUiKey();
 const lockPath = join(options.home, "supervisor.json");
 const configPath = join(options.home, "config.json");
 
 function log(...args) {
   console.log(new Date().toISOString(), ...args);
+}
+
+function loadUiKey() {
+  try {
+    const existing = readFileSync(uiKeyPath, "utf8").trim();
+    if (/^[a-f0-9]{48}$/.test(existing)) return existing;
+  } catch {
+    // Create the key below.
+  }
+  const key = randomBytes(24).toString("hex");
+  try {
+    writeFileSync(uiKeyPath, `${key}\n`, { mode: 0o600 });
+  } catch {
+    // A read-only temp directory still works with an in-memory key.
+  }
+  return key;
 }
 
 function readLock() {
@@ -185,6 +217,7 @@ class SupervisorConnection {
             error: this.lastError,
           });
           rejectOpen(this.lastError);
+          this.scheduleRetry();
         } else {
           this.connected = true;
           this.backoff = 0;

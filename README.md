@@ -119,8 +119,9 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 ### Connection, persistence, honesty
 
-- The bridge owns the token. It serves a per-run UI key and enforces loopback
-  Origin checks. The page never sees `supervisor.json`.
+- The bridge owns the token. It serves a loopback UI key (stable per home, so an
+  open EventSource survives a bridge restart) and enforces loopback Origin
+  checks. The page never sees `supervisor.json`.
 - Full session views replace by handle; events append by `seq`; responses and
   notifications may arrive in either order. Reconnect reloads the fleet,
   resumes with cursors, and marks only server-reported gaps.

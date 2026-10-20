@@ -16,8 +16,10 @@ persistent NDJSON stream, and serves the built SPA on `127.0.0.1`.
 
 - `POST /api/rpc` carries one method call and returns one result.
 - `GET /api/events` is SSE: `hello`, `connection`, and `notification` events.
-- `/api/session` returns a per-run UI key, a home path, and a platform. The key
+- `/api/session` returns a loopback UI key, a home path, and a platform. The key
   is required on RPC and SSE; it is a UI capability, not the supervisor token.
+  It is stable per home (stored under the OS temp directory) so an open
+  EventSource can reconnect after a bridge restart without refreshing the page.
 - Origin checks accept the bridge's own origin and the local Vite development
   origin only.
 - The bridge forwards frames. It does not reinterpret methods or store
