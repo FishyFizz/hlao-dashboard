@@ -11,8 +11,8 @@
 > **Implemented since this decision:** the browser client, the local bridge
 > (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
 > surface, the external store, persistence, and Vitest model tests. Playwright
-> and axe remain the next test layer. The client bundle is 646.59 kB minified /
-> 188.64 kB gzip; the gallery is lazy-loaded into a 139.19 kB / 34.62 kB chunk.
+> and axe remain the next test layer. The client bundle is 804.25 kB minified /
+> 236.20 kB gzip; the gallery is lazy-loaded into a 139.19 kB / 34.62 kB chunk.
 
 ## Decision
 
@@ -39,6 +39,7 @@ supervisor token in the page. The stack is chosen to satisfy that contract, not 
 | Language / check | `typescript` | `7.0.2` (pin exact) | TS 7 native compiler; `tsc --noEmit` passes against React 19.3 types. Vite/Oxc does the transpile; TS only checks. |
 | Primitive behavior | `react-aria-components` | `1.22.1` (pin exact) | Stable 1.x, Apache-2.0, Adobe-maintained. Broadest coverage of the exact hard parts: Table, Tree, GridList, **Virtualizer**, Menu, Select, Dialog, Tabs, Tooltip, Meter. |
 | Styling | own CSS: tokens, cascade layers, nesting, `color-mix()` | — | The aesthetic is the product. Semantic classes keep the design authority in this repo; no utility layer to fight. Zero styling dependencies. |
+| Markdown | `react-markdown` + `remark-gfm` + `remark-breaks` | `10.1.0` / `4.0.1` / `4.0.0` | Unified/CommonMark renderer with GFM tables, task lists, autolinks, and chat-style soft breaks. Emits React nodes, keeps raw HTML inert, and lets the app replace images with explicit links rather than auto-loading remote content. |
 | Fonts | `@fontsource-variable/geist-mono` | `5.3.0` | OFL; self-hosted (a local app must not call a CDN); one variable family for the whole UI. |
 | Icons | `lucide-react` | `1.60.0` | ISC; very active (2026-10-20); tree-shakeable; 1.5px stroke with square caps overridden in CSS. |
 | Shell (now) | browser + local Node bridge | — | The protocol doc's recommended shape: the process holds `supervisor.json`; the page never receives the token. |
@@ -113,10 +114,11 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The client is 646.59 kB minified / 188.64 kB gzip (RAC + Lucide + React +
-  the demo supervisor); the gallery is 139.19 kB / 34.62 kB. Vite warns above 500 kB. This is a local app, not a network product; the
-  gallery is lazy-loaded, and the inspector/charts can be split next. The demo remains in the
-  main chunk because it is one click from the setup screen.
+- **Bundle size.** The client is 804.25 kB minified / 236.20 kB gzip (RAC + Lucide + React +
+  unified markdown + the demo supervisor); the gallery is 139.19 kB / 34.62 kB. Vite warns above
+  500 kB. This is a local app, not a network product; the gallery is lazy-loaded, and the
+  markdown renderer, inspector, and charts can be split next. The demo remains in the main chunk
+  because it is one click from the setup screen.
 - **Fontsource copies every subset.** The browser downloads latin only via `unicode-range`, but
   the build directory includes Cyrillic/Vietnamese files. Replace with two hand-written
   `@font-face` rules if distribution size matters.
@@ -230,9 +232,9 @@ friendly kanban.
   adopted it as the default primitive layer in July 2026. (registry + 2026 comparison write-ups)
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
-- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes eleven Vitest cases.
-  `npm run build` emits 646.59 kB JS / 188.64 kB gzip, a 139.19 kB / 34.62 kB lazy gallery
-  chunk, and 109.34 kB CSS / 17.32 kB gzip in ~440 ms on this machine (2026-10-20).
+- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes sixteen Vitest cases.
+  `npm run build` emits 804.25 kB JS / 236.20 kB gzip, a 139.19 kB / 34.62 kB lazy gallery
+  chunk, and 113.31 kB CSS / 18.06 kB gzip in ~520 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

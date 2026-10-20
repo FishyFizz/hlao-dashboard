@@ -22,6 +22,7 @@ import {
 import type { EventView, SessionView } from "../wire/protocol";
 import { formatClock, formatDateTime } from "../store/model";
 import { CopyButton, safeText } from "./ui";
+import { MarkdownText } from "./MarkdownText";
 
 export function EventRow({
   item,
@@ -140,10 +141,15 @@ function MessageRow({
             <summary>
               Thought · {text.length.toLocaleString()} characters · secondary
             </summary>
-            <p className="event__text event__text--pre event__text--muted">{text}</p>
+            <MarkdownText
+              text={text}
+              className="event__text event__text--muted event__markdown"
+            />
           </details>
+        ) : text ? (
+          <MarkdownText text={text} className="event__text event__markdown" />
         ) : (
-          <p className="event__text event__text--pre">{text || "(empty message)"}</p>
+          <p className="event__text event__text--muted">(empty message)</p>
         )}
         {item.type === "session.message" &&
         stringField(event.data, ["senderSessionId"]) &&
@@ -369,7 +375,7 @@ function SingleEventRow({
             <span className="event__meta-spacer" />
             <CopyButton text={text} label="prompt" className="event__copy" />
           </div>
-          <p className="event__text event__text--pre">{text}</p>
+          <MarkdownText text={text} className="event__text event__markdown" />
           {event.data.injected ? (
             <span className="event__injected">
               <Check className="icon" /> Skill pointer injected by the supervisor
@@ -392,9 +398,10 @@ function SingleEventRow({
             <span className="event__sep">/</span>
             <span>{String(event.data.reason ?? "discarded")}</span>
           </div>
-          <p className="event__text event__text--muted event__text--pre">
-            {text || "A queued prompt was discarded."}
-          </p>
+          <MarkdownText
+            text={text || "A queued prompt was discarded."}
+            className="event__text event__text--muted event__markdown"
+          />
         </div>
       </div>
     );
@@ -462,7 +469,7 @@ function SingleEventRow({
               <Handle id={sender ?? "?"} /> → <Handle id={recipient ?? "?"} />
             </span>
           </div>
-          <p className="event__text event__text--pre">{text}</p>
+          <MarkdownText text={text} className="event__text event__markdown" />
           {sender && onOpenSession ? (
             <Button size="sm" variant="ghost" onPress={() => onOpenSession(sender)}>
               <MessageSquare className="btn__icon icon" />

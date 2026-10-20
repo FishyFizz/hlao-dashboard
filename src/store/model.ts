@@ -371,6 +371,18 @@ const MESSAGE_TYPES = new Set([
   "session.message",
 ]);
 
+/**
+ * Message chunks may be whitespace-only. Keep them: they carry the spaces
+ * between words and the blank lines that separate Markdown blocks.
+ */
+function messageChunk(data: Record<string, unknown>): string {
+  for (const key of ["text", "delta", "content"]) {
+    const value = data[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return "";
+}
+
 export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
   const items: RenderItem[] = [];
   const messageIndex = new Map<string, number>();
@@ -383,7 +395,7 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
     if (MESSAGE_TYPES.has(event.type)) {
       const key = `${event.type}:${messageId ?? event.seq}`;
       const existing = messageIndex.get(key);
-      const text = stringField(event.data, ["text", "delta", "content"]) ?? "";
+      const text = messageChunk(event.data);
       if (existing !== undefined) {
         const item = items[existing];
         if (item && item.kind === "message") item.text += text;

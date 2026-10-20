@@ -271,6 +271,18 @@ describe("event merge", () => {
     expect(items[0]).toMatchObject({ kind: "message", text: "one two" });
     expect(items[1]).toMatchObject({ kind: "tool", status: "completed", output: "ok" });
   });
+
+  it("preserves whitespace-only message chunks for markdown structure", () => {
+    const items = buildRenderItems([
+      event(1, "agent.message", { messageId: "m1", text: "# Result", chunk: true }, 1),
+      event(2, "agent.message", { messageId: "m1", text: "\n\n", chunk: true }, 1),
+      event(3, "agent.message", { messageId: "m1", text: "Body", chunk: true }, 1),
+    ]);
+    expect(items[0]).toMatchObject({
+      kind: "message",
+      text: "# Result\n\nBody",
+    });
+  });
 });
 
 describe("demo supervisor", () => {

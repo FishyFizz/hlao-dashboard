@@ -1038,8 +1038,9 @@ They should be decided in the prototype and recorded, not silently assumed:
 7. **Default sort within non-attention groups.** Recent activity is the recommended default;
    stable creation order is the conservative alternative. Either way, the stability rules in
    FL5 apply.
-8. **How provider markdown is rendered.** Safe rendering, no raw HTML, links explicit; the
-   exact renderer is a prototype choice.
+8. **How provider markdown is rendered.** CommonMark + GFM through a maintained React
+   renderer. Raw HTML stays inert, remote images are links rather than auto-loads, and links
+   are explicit. The package choice is recorded in `STACK.md`.
 9. **Whether spawn exposes pre-session provider options** as free-form advanced fields, or only
    post-spawn from the advertised modes/config options. The honesty rule is the same either
    way.

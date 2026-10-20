@@ -86,10 +86,13 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - **Permission gate**: provider options exactly as named, no preselected allow,
   no auto-answer, explicit "Allow always & set policy..." confirmation, and a
   collapsed explanation of the option consequences.
-- **Transcript**: turn skeleton, coalesced message chunks, one tool row updated
-  in place (click the header to inspect its payload), permission request/reply
-  pairs collapsed into one row, provider notice rows, unknown-type fallback
-  with inspectable data. Usage, plan, compaction, commands, stderr, and session
+- **Transcript**: turn skeleton, coalesced message chunks, safe GitHub-flavored
+  Markdown for agent, prompt, user, and inter-session messages, copyable code
+  blocks, one tool row updated in place (click the header to inspect its
+  payload), permission request/reply pairs collapsed into one row, provider
+  notice rows, unknown-type fallback with inspectable data. Raw HTML stays
+  inert, external links open explicitly, and remote images are links rather
+  than auto-loads. Usage, plan, compaction, commands, stderr, and session
   metadata are hidden by default and revealed by the **System** toggle.
   Tail-follow only at the bottom;
   last-read divider, new-events affordance, automatic backward paging as the

@@ -91,8 +91,10 @@ No client-side task, job, workflow, or rollup status exists.
 ## Tests
 
 `src/store/model.test.ts` covers attention ranking, local acknowledgements,
-target resolution ambiguity, event sequencing, transcript coalescing, and the
-demo supervisor's read/permit path. `src/store/store.test.ts` covers the
-notification coalescing window. The bridge and the real supervisor are
+target resolution ambiguity, event sequencing, transcript coalescing
+(including whitespace-only chunks), and the demo supervisor's read/permit path. `src/store/store.test.ts` covers the
+notification coalescing window. `src/app/MarkdownText.test.tsx` covers GFM
+blocks, soft breaks, code-copy controls, inert raw HTML, explicit external
+links, and link-only remote images. The bridge and the real supervisor are
 exercised manually against a temporary `HLAO_HOME`; Playwright/axe are the next
 layer named in `STACK.md`.

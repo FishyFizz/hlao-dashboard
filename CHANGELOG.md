@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Rendered provider markdown in transcript messages with `react-markdown`,
+  `remark-gfm`, and `remark-breaks`: headings, lists, tables, task lists,
+  quotes, links, and fenced code. Code blocks have their own copy control.
+  Raw HTML stays inert, external links open explicitly, and remote images are
+  shown as links instead of being auto-loaded.
+- Preserved whitespace-only streamed message chunks. They carry spaces and the
+  blank lines that separate Markdown headings, lists, and tables; dropping them
+  merged those blocks into the preceding line (seen in smoke-run2 seq 12652).
+- Matched the fleet refresh control to the 24px Sort/Ended row and reduced its
+  icon to 14px.
 - Fixed the shell grid when no banner is present: the status bar no longer
   lands in the zero-height row and the 24px footer stays at the bottom.
 - Removed infinite lamp animations. State is carried by static fill/outline;
