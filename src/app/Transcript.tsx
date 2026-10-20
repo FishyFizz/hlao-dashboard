@@ -75,6 +75,7 @@ export function Transcript({
     lastSeen > 0 && lastSeen < eventsState.lastSeq && lastSeen >= eventsState.earliestRetainedSeq;
   const lastReadEvicted = lastSeen > 0 && lastSeen < eventsState.earliestRetainedSeq;
   const gap = eventsState.gap;
+  const showFoot = lastReadVisible || !atBottom || unseen > 0;
 
   const scrollToBottom = (markSeen = true) => {
     const element = scrollRef.current;
@@ -238,16 +239,13 @@ export function Transcript({
 
   if (!eventsState.loaded && eventsState.loading) {
     return (
-      <div className="transcript-wrap">
-        <div className="transcript-loading">Loading the latest bounded page…</div>
-      </div>
+      <div className="transcript-loading">Loading the latest bounded page…</div>
     );
   }
 
   return (
-    <div className="transcript-wrap">
-      <div className="transcript">
-        <div className="transcript__bar">
+    <div className="transcript">
+      <div className="transcript__bar">
           <span className="transcript__title">
             <span
               className={`lamp ${live ? "lamp--accent" : "lamp--off"}`}
@@ -431,34 +429,28 @@ export function Transcript({
           )}
         </div>
 
-        <div className="transcript__foot">
-          <span className="caption">
-            {eventsState.loaded
-              ? `${eventsState.earliestRetainedSeq}–${eventsState.lastSeq} · ${formatDateTime(
-                  eventsState.events[eventsState.events.length - 1]?.at ?? new Date().toISOString(),
-                )}`
-              : "no page loaded"}
-          </span>
-          <span className="transcript__foot-actions">
-            {lastReadVisible ? (
-              <Button size="sm" variant="ghost" onPress={jumpToLastRead}>
-                Last read
-              </Button>
-            ) : null}
-            {!atBottom ? (
-              <Button size="sm" onPress={jumpToLatest}>
-                <ArrowDown className="btn__icon icon" />
-                Jump to latest
-              </Button>
-            ) : null}
-            {unseen > 0 ? (
-              <Button size="sm" variant="primary" onPress={jumpToLatest}>
-                {unseen} new event{unseen === 1 ? "" : "s"}
-              </Button>
-            ) : null}
-          </span>
-        </div>
-      </div>
+        {showFoot ? (
+          <div className="transcript__foot">
+            <span className="transcript__foot-actions">
+              {lastReadVisible ? (
+                <Button size="sm" variant="ghost" onPress={jumpToLastRead}>
+                  Last read
+                </Button>
+              ) : null}
+              {!atBottom ? (
+                <Button size="sm" onPress={jumpToLatest}>
+                  <ArrowDown className="btn__icon icon" />
+                  Jump to latest
+                </Button>
+              ) : null}
+              {unseen > 0 ? (
+                <Button size="sm" variant="primary" onPress={jumpToLatest}>
+                  {unseen} new event{unseen === 1 ? "" : "s"}
+                </Button>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
     </div>
   );
 }

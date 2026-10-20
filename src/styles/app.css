@@ -1639,19 +1639,13 @@
   /* Transcript                                                         */
   /* ------------------------------------------------------------------ */
 
-  .transcript-wrap {
-    display: flex;
-    flex: 1 1 0;
-    min-height: 0;
-    padding: var(--sp-2) var(--sp-3) 0;
-  }
-
   .transcript {
     display: flex;
     flex: 1;
     flex-direction: column;
     min-height: 0;
     border: var(--bw) solid var(--line);
+    border-top: 0;
     background: var(--panel);
   }
 
@@ -1701,7 +1695,7 @@
   .transcript__foot {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--sp-2);
     flex: none;
     min-height: 30px;
@@ -1937,9 +1931,18 @@
     display: grid;
     gap: 4px;
     flex: none;
-    padding: var(--sp-2) var(--sp-3) var(--sp-2);
-    border-top: var(--bw) solid var(--line);
-    background: var(--panel);
+    padding: 0;
+    border-top: 0;
+    background: transparent;
+  }
+
+  .composer > .queue-strip {
+    margin: 4px 8px 0;
+  }
+
+  .composer > .composer__error,
+  .composer > .composer__ended {
+    margin: 4px 8px;
   }
 
   .composer--removed {
@@ -2040,7 +2043,9 @@
   }
 
   .composer__box {
-    border: var(--bw) solid var(--line-2);
+    border: 0;
+    border-right: var(--bw) solid var(--line-2);
+    border-left: var(--bw) solid var(--line-2);
     background: var(--raise);
   }
 
@@ -2055,8 +2060,9 @@
   .composer__input {
     display: block;
     width: 100%;
-    min-height: 42px;
-    max-height: 120px;
+    min-height: 54px;
+    max-height: 180px;
+    resize: vertical;
     padding: var(--sp-2) var(--sp-3);
     border: 0;
     background: transparent;
@@ -2124,19 +2130,6 @@
     gap: var(--sp-3);
     color: var(--text-3);
     font-size: var(--fs-10);
-  }
-
-  .composer__foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    color: var(--text-3);
-    font-size: 9px;
-  }
-
-  .composer__foot .mono {
-    color: var(--text-2);
   }
 
   /* ------------------------------------------------------------------ */

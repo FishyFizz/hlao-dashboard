@@ -30,6 +30,10 @@
 - Aligned the state-strip facts on one 16px line and turned "More" into a fixed
   anchor with an overlaying details panel, so opening it no longer reflows the
   strip or moves the toggle.
+- Removed the extra transcript/composer frame layers, made the editor three
+  rows tall and vertically resizable, removed the always-on composer footer,
+  and showed transcript jump/action controls only when they are needed. The
+  transcript and editor now use the reclaimed height for content.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

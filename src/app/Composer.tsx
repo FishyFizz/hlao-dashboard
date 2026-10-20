@@ -100,7 +100,7 @@ export function Composer({
           ref={textarea}
           className="composer__input"
           value={draft}
-          rows={2}
+          rows={3}
           placeholder={
             terminal
               ? "This session has ended. The draft stays local and copyable."
@@ -112,6 +112,7 @@ export function Composer({
           }
           readOnly={terminal}
           aria-label="Prompt"
+          title="Orchestration text only; no attachments."
           onChange={(event) => store.setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && isMod(event)) {
@@ -135,7 +136,7 @@ export function Composer({
                 Runs after the current turn.
               </>
             ) : (
-              "Draft stays local."
+              "Draft stays local · text only."
             )}
           </span>
           <span className="composer__count">{draft.length.toLocaleString()} chars</span>
@@ -156,6 +157,11 @@ export function Composer({
             isDisabled={!canSend}
             onPress={submit}
             aria-label={label}
+            title={
+              canRetrySafely
+                ? undefined
+                : "This supervisor does not advertise send.idempotency; a retry after a disconnect may duplicate."
+            }
           >
             <Send className="btn__icon icon" />
             {pending ? "Sending…" : terminal ? "Ended" : busy || waiting ? "Queue" : "Send"}
@@ -170,20 +176,6 @@ export function Composer({
         </div>
       ) : null}
 
-      {!terminal ? (
-        <div className="composer__foot">
-          <span>
-            <span className="mono">Enter</span> newline ·{" "}
-            <span className="mono">Ctrl/Cmd+Enter</span>{" "}
-            {busy || waiting ? "queue" : "send"}
-          </span>
-          <span>
-            {canRetrySafely
-              ? "Text only · no attachments"
-              : "Text only · retry may duplicate"}
-          </span>
-        </div>
-      ) : null}
     </section>
   );
 }
