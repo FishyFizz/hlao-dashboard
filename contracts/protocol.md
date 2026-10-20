@@ -1,0 +1,961 @@
+# Contract — `protocol`
+
+The wire between the supervisor and any client. The bundled CLI is the reference client; a
+TUI, web dashboard, or MCP server is another client and must not need private access. This
+contract covers the whole interface: the transport that carries frames, the envelope that
+gives a frame meaning, the methods, and the projections they return. Core owns session state,
+addressing, and these methods. It owns no presentation.
+
+An HLAO instance — one `HLAO_HOME`, supervisor, socket, and token — is one address space and
+one swarm boundary. Every session in it is addressable by every client. Isolation is another
+instance; there is no cross-instance visibility.
+
+```
+human  -> dashboard / TUI  --\
+                              >-- socket protocol -> core (supervisor)
+agent  -> CLI / MCP        --/
+```
+
+The interface is layered. Method semantics do not depend on the transport, and a transport
+adapter does not interpret frames:
+
+```
+methods (hello, sessions.*, ...)         semantics
+        │
+   RequestEnvelope / Response            frames
+        │
+      WireStream                         transport seam
+        │
+  pipe / unix socket / TCP / ...         adapters
+```
+
+## Contents
+
+- [Layers and terms](#layers-and-terms)
+- [Transport](#transport) — frames, encodings, lifecycle, adapter interface, policy
+- [Envelope](#envelope)
+- [Error codes](#error-codes)
+- [Versioning](#versioning)
+- [Client model](#client-model)
+- [Addressing](#addressing)
+- [Methods](#methods)
+- [Notifications](#notifications)
+- [Event view](#event-view)
+- [Session view](#session-view)
+
+## Layers and terms
+
+- A **frame** is one JSON object that satisfies the request or response envelope, or a server
+  notification. A stream carries frames; it does not interpret them.
+- A **stream** is an ordered, reliable, bidirectional, boundary-preserving channel of frames.
+  `src/stream.ts` is the transport seam.
+- A **connection** is one stream and its lifecycle: either one-shot or persistent.
+- An **instance** is one `HLAO_HOME`, supervisor, endpoint, and token. The token is the only
+  authority boundary.
+
+## Transport
+
+The wire is defined over application **frames**, not over a socket implementation. One JSON
+object per frame, ordered, reliable, bidirectional, boundary-preserving, and bounded. A
+transport adapter maps this contract onto a channel; swapping the channel does not change this
+protocol.
+
+### The frame
+
+A **frame** is one JSON object that satisfies the request or response envelope. A stream
+carries frames; it does not interpret them.
+
+Required properties:
+
+- **Ordered.** Frames arrive in the order they were written.
+- **Reliable.** No loss, duplication, or reordering while the stream is open.
+- **Bidirectional.** Both ends may write.
+- **Boundary-preserving.** Each write is delivered as exactly one frame.
+- **Bounded.** One frame may not exceed `MAX_FRAME_BYTES` (16 MiB) on the supervisor's inbound
+  direction. A peer that exceeds it is violating the contract.
+
+Encodings per adapter:
+
+| Adapter | Encoding |
+|---|---|
+| Named pipe, Unix domain socket, TCP | NDJSON: one frame per `\n`-terminated line. A frame may span reads; one read may hold several frames. |
+| WebSocket (planned) | One frame per WebSocket message; no delimiter is added. |
+| SSE + POST (composed, planned) | SSE `data:` carries server frames; POST carries client frames. Two channels, correlated by the envelope `id`. |
+
+A client must not depend on a transport's message boundaries. The canonical framing for
+byte-stream transports is NDJSON; a message-oriented adapter delivers the same JSON text.
+Empty lines are not frames.
+
+### Endpoint and authentication
+
+- Endpoint: named pipe on Windows (`\\.\pipe\hlao-<hash of HLAO_HOME>`), Unix domain socket
+  at `<HLAO_HOME>/supervisor.sock` elsewhere.
+- Authentication: every request carries the token from `<HLAO_HOME>/supervisor.json`. Any
+  local process holding that token is an operator; the token is the authority. The token is
+  local-IPC authority, not a network or browser credential (ADR 0009).
+- Maximum request frame: 16 MiB. Longer frames are rejected with `bad_request`.
+
+### Lifecycle
+
+#### One-shot (default, protocol 2.0)
+
+A connection that does not negotiate persistence carries exactly one request, one response,
+then closes:
+
+1. The client connects.
+2. The client writes one request frame.
+3. The supervisor writes one response frame.
+4. The supervisor closes the stream.
+
+The supervisor ignores frames after the first on such a connection and closes after replying.
+A stream that sends no frame within 15 s is closed. This is what the bundled CLI uses.
+
+#### Persistent (protocol 2.1)
+
+`hello` with `stream: { persistent: true }` keeps the connection open and multiplexes requests
+by `id`:
+
+1. The client connects and writes `hello` with `stream: { persistent: true }`.
+2. The supervisor validates the token and version and replies. On success the connection
+   stays open; on failure the reply is an error and the connection closes.
+3. Every later frame is a request. Requests carry the client-chosen `id`; several may be in
+   flight, and responses may arrive out of order. At most 64 may be in flight
+   (`too_many_requests`).
+4. `stream.subscribe` registers interest. The supervisor emits notification frames (a server
+   frame with `type: "notification"`) at the same append point that wakes a waiter.
+   `stream.unsubscribe` removes one subscription.
+5. Either side may close. A reconnect supplies per-session cursors so the server replays from
+   `seq > cursor` and reports `truncated` when history was evicted.
+
+Every request frame still carries the token. Persistence does not weaken per-frame
+authentication. The first frame gates the connection: frames that arrive before the hello
+reply are queued and then processed, so a client may pipeline safely.
+
+None of this changes `wait`: it remains one-shot. Push and wait are two ways to observe the
+same append point, not two authorities. The supervisor owns no timer in either mode.
+
+### Adapter interface
+
+`src/stream.ts` exports the seam. Other clients may implement the same shape:
+
+```ts
+type StreamTarget =
+  | { kind: "path"; path: string }        // named pipe or Unix socket
+  | { kind: "tcp"; host: string; port: number };
+
+interface WireStream {
+  write(frame: string): void;
+  close(): void;                           // flush, then FIN
+  terminate(): void;                       // drop immediately
+  bufferedBytes(): number;                 // accepted but not yet flushed
+  onFrame(handler: (frame: string) => void): void;
+  onError(handler: (error: Error) => void): void;
+  onClose(handler: () => void): void;
+}
+
+interface WireStreamServer {
+  readonly target: StreamTarget;
+  onConnection(handler: (stream: WireStream) => void): void;
+  onError(handler: (error: Error) => void): void;
+  endpoint(): StreamTarget;                // a TCP port 0 reports the bound port
+  listen(): Promise<void>;
+  close(): Promise<void>;
+}
+```
+
+`FrameTooLargeError` distinguishes a framing violation from a transport failure. Frames that
+arrive before `onFrame` is attached are buffered; a handler registered later still sees them.
+
+### Transport policy
+
+The protocol does not make transports equally trusted. A transport is enabled only with the
+authentication model below.
+
+| Target | Default | Authentication | Notes |
+|---|---|---|---|
+| Named pipe (`\\.\pipe\hlao-<hash>`) | yes | supervisor token | Per-user namespace; Windows ACLs. |
+| Unix socket (`<HLAO_HOME>/supervisor.sock`) | yes | supervisor token | Created `0600`; the directory is the user's home. |
+| Loopback TCP (`127.0.0.1`) | no | supervisor token plus an explicit opt-in | The adapter exists; the supervisor does not bind it by default. Any local process can connect. |
+| Non-loopback TCP / TLS | no | dedicated credential, TLS, explicit config | The supervisor token is **not** a network credential. |
+| WebSocket | no | origin allowlist plus a short-lived session credential | Intended for a browser client through an operator-initiated exchange. Never ship the supervisor token to page JavaScript. |
+
+The supervisor token means "a local process that can read the runtime home is an operator"
+(see *Endpoint and authentication*). That is a local trust statement. It must not be reused as
+a network or browser credential.
+
+### Transport and framing errors
+
+| Condition | Supervisor | Client |
+|---|---|---|
+| Inbound frame over the limit | respond `bad_request`, close the stream | treat as `internal` ("response was too large") |
+| Transport failure before a response | abort, close | `supervisor_unavailable` |
+| Stream closed with no response | — | `supervisor_unavailable` |
+| More than 64 requests in flight | respond `too_many_requests`, keep the connection | retry later |
+| Subscriber buffer over 8 MiB | close the stream | reconnect with cursors |
+
+Framing errors are reported before any method is dispatched, so they carry `id: 0`.
+
+## Envelope
+
+```ts
+type RequestEnvelope = {
+  id: number;                    // client-chosen, echoed in the response
+  method: string;                // one of the methods below
+  params?: unknown;              // method-specific, validated at the boundary
+  token: string;                 // from supervisor.json
+  callerSessionId?: string | null; // from HLAO_SESSION_ID; attribution and self-defaulting
+};
+
+type Response =
+  | { id: number; ok: true; result: unknown }
+  | { id: number; ok: false; error: WireError };
+
+type WireError = {
+  code: ErrorCode;
+  message: string;
+  details?: unknown;
+};
+```
+
+`callerSessionId` is **attribution, not permission**. It records who acted (`by`) and supplies
+self-defaulting; it is not a security boundary and it does not filter what the caller can see.
+The token is the instance boundary.
+
+## Error codes
+
+| Code | Meaning |
+|---|---|
+| `bad_request` | malformed envelope or invalid params |
+| `unauthorized` | wrong or missing token |
+| `version_mismatch` | client and supervisor protocol versions differ |
+| `not_found` | no session matching the id, name, or prefix in this instance |
+| `ambiguous_id` | a name or prefix matches more than one session (`details.candidates`) |
+| `forbidden` | reserved; core session methods do not emit it after protocol 2.0 |
+| `operator_only` | method is reserved for an operator shell (no `callerSessionId`) |
+| `backend_not_found` | no such backend manifest |
+| `backend_unavailable` | manifest resolved but its command is missing |
+| `spawn_failed` | the adapter failed to start or complete the ACP handshake |
+| `session_closed` | session is closed or failed |
+| `session_not_ready` | session exists but has no ACP session yet |
+| `no_pending_permission` | `sessions.permit` with nothing pending |
+| `bad_option` | permission option id not offered by the request |
+| `config_invalid` | user or project config is invalid; the message names the file |
+| `session_failed` | a prompt turn failed for a reason the adapter reported |
+| `timeout` | a supervisor-side bounded operation expired (connections, shutdown) |
+| `too_many_requests` | a persistent connection has more than 64 requests in flight |
+| `supervisor_unavailable` | client-side: the supervisor could not be reached or started |
+| `internal` | an unexpected supervisor error; message is safe to display |
+
+## Versioning
+
+`protocolVersion` is `{ major, minor }`.
+
+- **Major** changes only when a client written for the previous major can no longer work.
+  A client must require major equality. `hello` with a different major returns
+  `version_mismatch` with `details.client` and `details.supervisor`.
+- **Minor** grows with additive methods, fields, and event types. A newer supervisor is
+  compatible with an older client; a newer client must use capabilities or version checks
+  before relying on an addition.
+- `capabilities` lists additive features this supervisor implements. Unknown capabilities must
+  be ignored. Known values: `backends.list`, `session.usage`, `read.filters`, `read.before`,
+  `wait.multi`, `stream.persistent`, `stream.subscribe`, `stream.resume`, `wait.settled`,
+  `wait.filters`, `session.settled`, `session.lastEvent`, `send.messageId`, `send.idempotency`,
+  `spawn.idempotency`, `spawn.createdBy`, `supervisor.lastCrash`, `prompt.injected`,
+  `session.compaction`, `session.notices`, `session.plan`, `session.title`, `session.agent`,
+  `session.messages`.
+- Adding an optional request field, a result field, a method, or an event type is a minor
+  change. Changing or removing existing semantics is a major change.
+- **2.0** removes the `scope` field and makes every session in an instance addressable by every
+  caller. There is no per-session visibility filter. Isolation is a separate instance.
+- **2.1** adds persistent connections, `stream.subscribe`, and resume. The 2.0 one-request
+  lifecycle, envelope, errors, and frame limits are unchanged; a 2.0 client sees only new
+  capabilities it may ignore.
+- **2.2** adds `wait --until settled`, `change` filters, `SessionView.settled` and
+  `lastEvent`, `shutdown.retainedDiscarded`, and corrects `nextSeq` to be a real cursor. All
+  additions are optional; `idle` keeps its existing "no active turn" meaning.
+- **2.3** adds message ids and idempotency to `sessions.send`, spawn idempotency and the
+  skill toggle to `sessions.spawn`, `QueueItemView.id` and drop-by-id, and
+  `SessionView.createdBy`. Every prompt result now carries `messageId`; a client that ignores
+  it is unaffected.
+- **2.4** adds `hello.lastCrash` (the lock owner this supervisor replaced after it stopped
+  answering) and `prompt.sent.data.injected` (the skill version, path, and block count for
+  the first prompt). Capabilities: `supervisor.lastCrash`, `prompt.injected`. Both are
+  optional; a client that ignores them is unaffected.
+- **2.5** adds optional provider-native fields to `SessionView` (`compaction`, `plan`, `title`,
+  `agentName`, `agentVersion`), the `session.message` event type, normalized `plan.update`
+  data, and structured `compaction` data. Capabilities: `session.compaction`,
+  `session.notices`, `session.plan`, `session.title`, `session.agent`, `session.messages`.
+  A client that ignores the fields and event type is unaffected.
+
+## Client model
+
+- Call `hello` first. It reports the protocol version, capabilities, and supervisor health.
+- Poll `sessions.list` for a fleet view and `sessions.read` with `nextSeq`/`nextBefore` for a
+  session's log. Polling is the protocol 2.0 model and remains supported. A client that needs a
+  live view may instead negotiate a persistent stream and subscribe (2.1); the supervisor owns
+  no recurring timer either way.
+- Use `sessions.wait` when a client would otherwise poll a blocking condition. It is one-shot:
+  it resolves once and must be re-armed. A subscription does not change `wait`.
+- All timestamps are ISO-8601 strings. Durations such as "pending for" are computed by the
+  client.
+- A client that wants a composite operation (`cancel` then wait, broadcast to a subtree, bulk
+  permit) loops over these methods. Such compositions are client assemblies, not protocol
+  concepts.
+
+## Addressing
+
+Every session in the instance is addressable by every caller. `callerSessionId` is recorded as
+attribution but does not restrict addressing. `parentId`/`rootId`/`depth` are lineage, not
+authority. The only isolation boundary is another instance (`HLAO_HOME`, socket, and token).
+
+All `sessionId` params accept an exact handle first, then a unique session name, then a unique
+handle prefix, resolved within **this HLAO instance**. Duplicate names are `ambiguous_id` with
+`details.candidates`; the full handle still resolves.
+
+## Methods
+
+Method index:
+
+| Method | Params | Result |
+|---|---|---|| `hello` | `HelloParams` | `HelloResult` |
+| `backends.list` | `{ cwd? }` | `{ backends: AgentView[] }` |
+| `sessions.spawn` | `SpawnParams` | `SpawnResult` |
+| `sessions.list` | `{ includeClosed?, cwd? }` | `{ sessions: SessionView[] }` |
+| `sessions.get` | `{ sessionId }` | `{ session: SessionView }` |
+| `sessions.send` | `SendParams` | `SendResult` |
+| `sessions.read` | `ReadParams` | `ReadResult` |
+| `sessions.wait` | `WaitParams` | `WaitResult` |
+| `sessions.cancel` | `{ sessionId, keepQueue? }` | `{ session, discarded }` |
+| `sessions.close` | `{ sessionId, force? }` | `{ session, killed, wasTerminal }` |
+| `sessions.permit` | `{ sessionId, optionId?, requestId?, always? }` | `{ session, requestId, optionId, by }` |
+| `sessions.set_mode` | `{ sessionId, modeId }` | `{ session }` |
+| `sessions.set_policy` | `{ sessionId, permissionPolicy }` | `{ session }` |
+| `sessions.set_config_option` | `{ sessionId, configId, value }` | `{ session }` |
+| `sessions.queue` | `{ sessionId }` | `{ session, active, queue }` |
+| `sessions.queue_drop` | `{ sessionId, position? \| messageId? }` | `{ session, dropped, discarded }` |
+| `sessions.rename` | `{ sessionId, name }` | `{ session }` |
+| `sessions.forget` | `{ sessionId }` | `{ sessionId, forgotten }` |
+| `stream.subscribe` | `SubscribeParams` | `SubscribeResult` |
+| `stream.unsubscribe` | `{ subscription }` | `{ subscription, removed }` |
+| `supervisor.reload` | `{}` | `{ configHash, configError }` |
+| `supervisor.shutdown` | `{ force? }` | `{ sessionsClosed, retainedDiscarded }` |
+
+Shape names in this table are navigation labels. The inline TypeScript in each method section
+is the authoritative definition.
+
+### `hello`
+
+Params:
+
+```ts
+{
+  protocolVersion?: { major: number; minor: number }; // the client's version
+  stream?: { persistent?: boolean };                  // request a persistent connection (2.1)
+}
+```
+
+Result:
+
+```ts
+{
+  protocolVersion: { major: number, minor: number },
+  capabilities: string[],
+  pid: number,
+  startedAt: string,
+  version: string,
+  sessions: number,
+  configHash: string,         // sha256 of the user config file, or "missing"
+  configError?: string,       // present only for a reload-degraded supervisor
+  lastCrash?: {               // present when the previous lock owner died (2.4)
+    pid: number,
+    version: string,
+    startedAt: string,
+    detectedAt: string
+  },
+  stream?: { persistent: boolean } // present when persistence was requested
+}
+```
+
+An invalid user config is fatal at startup: the supervisor does not bind or create a lock, and
+the client reports `config_invalid` before autostart. `configError` remains for a supervisor
+that reloaded an invalid file after a valid start; in that state only new spawns are blocked.
+
+`stream: { persistent: true }` is only valid on the first frame. On success the connection
+stays open and every later frame is a request; the connection closes when either side does.
+On a 2.0 supervisor the unknown `stream` field is `bad_request`, so a client that may meet an
+older supervisor calls `hello` without it first and checks `stream.persistent` in the
+capabilities.
+
+If `protocolVersion` is present and its major differs, the response is `version_mismatch`.
+The field was added in 1.1; a client that may meet a 1.0 supervisor should call `hello` with
+`{}` first, then use the returned version and capabilities. The pre-1.1 numeric form
+(`protocolVersion: 1`) is accepted for a supervisor that has not restarted; new clients should
+send the object form.
+
+### `backends.list`
+
+Params: `{ cwd?: string }`.
+
+Result: `{ backends: AgentView[] }`.
+
+The same merged view (builtin, user, project) as the bundled `hlao agents` command, sorted by
+name. `cwd` must be absolute; when omitted it defaults to the caller session's cwd, or the
+supervisor's cwd for an operator. A session caller defaults to its own cwd. This
+exists so a dashboard or MCP client does not reimplement config merging or read config files.
+
+```ts
+type AgentView = {
+  name: string;
+  source: "builtin" | "user" | "project";
+  command: string;
+  args: string[];
+  envKeys: string[];          // names only, never values
+  description?: string;
+  configPath?: string;
+  available: boolean;
+  unavailableReason?: string;
+};
+```
+
+### `sessions.spawn`
+
+Params:
+
+```ts
+{
+  backend: string;
+  cwd?: string;                  // absolute; defaults to the supervisor's cwd
+  name?: string;                 // operator label, not an identity
+  prompt?: string;               // optional first message
+  wait?: boolean;                // wait for the first turn when prompt is present
+  timeoutMs?: number;            // bound on that wait; defaults to sendWaitTimeoutMs
+  mode?: string;                 // provider mode to select before returning (sessions.set_mode)
+  model?: string;                // value for the option whose category is "model"
+  config?: Record<string, string | boolean>; // session config options applied before the prompt
+  parentSessionId?: string;      // lineage; defaults to the caller's live session, else a root
+  permissionPolicy?: "ask" | "allow" | "deny"; // defaults to config
+  env?: Record<string, string>;  // extra environment for the adapter
+  skill?: boolean;               // include the HLAO skill pointer in the first prompt (default true)
+  idempotencyKey?: string;       // reuse the session produced by an earlier spawn (2.3)
+}
+```
+
+Result:
+
+```ts
+{
+  session: SessionView;
+  nextSeq: number;               // pass as --since to read from the beginning
+  firstTurn?: { stopReason: StopReason; text: string; timedOut: boolean };
+  messageId?: string;            // the first prompt's id, when one was sent (2.3)
+  duplicate?: boolean;           // the idempotency key matched an existing session (2.3)
+  createdBy?: string;            // same value as session.createdBy (2.3)
+}
+```
+
+The call resolves once `initialize` and `session/new` both succeed. If `prompt` is present
+and `wait` is true, it also waits for the first turn (bounded by `sendWaitTimeoutMs`). A
+timeout is reported as `firstTurn.timedOut = true`, not as an error.
+
+`skill: true` prepends a short text block pointing at `<HLAO_HOME>/skills/hlao/SKILL.md` to
+the first prompt only. `idempotencyKey` dedupes spawns for one hour (256 keys); a duplicate
+returns the existing session and its first-prompt `messageId` without spawning. If that
+session is no longer in the live table, the key is released.
+
+### `sessions.list`
+
+Params: `{ includeClosed?: boolean; cwd?: string }`.
+
+Result: `{ sessions: SessionView[] }`
+
+Every session in this instance, sorted by creation time. There is no per-caller scope. A client
+may filter or sort the flat list locally.
+
+### `sessions.get`
+
+Params: `{ sessionId: string }`. Result: `{ session: SessionView }`.
+
+### `sessions.rename`
+
+Params: `{ sessionId: string; name: string | null }` (`null` clears the name).
+
+Result: `{ session: SessionView }`. Appends a `session.renamed` event with
+`{ name, by: "operator" }`. Names are mutable labels, not identity: they do not affect
+addressing, the handle, or `HLAO_SESSION_ID`. Duplicate names are instance-wide and resolve as
+`ambiguous_id`; the full handle always resolves.
+
+### `sessions.forget`
+
+Params: `{ sessionId: string }`. Result: `{ sessionId: string; forgotten: true }`.
+
+Removes a **terminal** session from the live table immediately instead of waiting for
+`retainClosedMs`. A live session is `bad_request`; a terminal session with retained descendants
+is also `bad_request`, so lineage never dangles. Any caller in the instance may forget a
+terminal session. Forgetting discards the retained event
+log for that session.
+
+### `sessions.send`
+
+Params:
+
+```ts
+{
+  sessionId: string;
+  text: string;
+  wait?: boolean;
+  timeoutMs?: number;
+  messageId?: string;            // caller-chosen; generated when omitted (2.3)
+  idempotencyKey?: string;       // retry-safe delivery (2.3)
+}
+```
+
+`timeoutMs` defaults to `config.sendWaitTimeoutMs`; `0` means no timeout. The caller's session
+id (or `"operator"`) is recorded as `prompt.sent.from` / `prompt.queued.from`.
+
+Result:
+
+```ts
+{
+  session: SessionView;
+  messageId: string;             // msg-…, stable across retries (2.3)
+  queued: boolean;               // true when the session was busy
+  turn: number | null;           // null when not yet dispatched
+  completed: boolean;
+  timedOut: boolean;
+  stopReason?: StopReason;
+  text?: string;                 // accumulated agent text; partial on timeout (2.3)
+  outcome?: "completed" | "cancelled" | "timed_out"; // (2.3)
+  duplicate?: boolean;           // the idempotency key matched an earlier send (2.3)
+}
+```
+
+`timedOut: true` means the turn is still running; the caller should `read --since` later.
+`completed: false, timedOut: false` is only possible when `wait` is false. A queued message
+cancelled before it runs reports `completed: true`, `outcome: "cancelled"`, and a null `turn`.
+
+An `idempotencyKey` is remembered for one hour (256 keys, oldest evicted). A repeat returns
+the original `messageId` and the item's current queued/active state without enqueuing again.
+
+### `sessions.read`
+
+Params:
+
+```ts
+{
+  sessionId: string;
+  since?: number;                // forward: seq > since
+  before?: number;               // backward: seq < before; exclusive with since
+  limit?: number;                // default 100, maximum 1000
+  raw?: boolean;                 // include original ACP update payloads in the result
+  types?: EventType[];           // keep only these event types
+  turn?: number;                 // keep only this turn
+  grep?: string;                 // case-insensitive literal over type + data JSON
+}
+```
+
+Filters are ANDed and applied while scanning, before the page limit and byte budget. A cursor
+always advances past scanned events, not only returned events, so a filtered follower does not
+rescan the same non-matching range. `grep` searches the event as returned: private payloads
+require `raw: true`.
+
+A page is also bounded by a byte budget (8 MiB). Fewer than `limit` events may be returned,
+with `hasMore: true`; a single event larger than the budget is returned alone. Without
+`raw: true`, the private payload keys `raw`, `rawInput`, `rawOutput`, and `content` are
+removed from each event's `data`; orchestration fields remain.
+
+Result:
+
+```ts
+{
+  session: SessionView;
+  events: EventView[];            // ascending seq in both directions
+  earliestRetainedSeq: number;
+  lastSeq: number;
+  nextSeq: number;                // last scanned seq: pass as since
+  nextBefore: number | null;      // backward cursor: pass as before; null = no older page
+  hasMore: boolean;               // more events in the scan direction
+  truncated: boolean;             // history before the page was evicted
+}
+```
+
+`nextSeq` is the last seq the page scanned, so passing it back as `since` returns the next
+event without skipping or rescanning. For a forward page it is the last returned or scanned
+event; for a tail or backward page it is `lastSeq`; for a reader ahead of the log it is the
+caller's `since`. For a tail read (no cursor), `hasMore` is false; use `nextBefore` to page
+backward. For a `since` read, `truncated` is true when `since + 1 < earliestRetainedSeq`. For
+a `before` read, it is true when the scan reached the oldest retained event and earlier
+history was evicted.
+
+### `sessions.wait`
+
+Params:
+
+```ts
+{
+  sessionId?: string;            // exactly one of sessionId or sessionIds
+  sessionIds?: string[];         // 1..100; no duplicate ids
+  mode?: "any" | "all";          // default "any"; ignored for one id
+  until: "idle" | "settled" | "permission" | "exit" | "change";
+  since?: number;                // only for "change" with a single id
+  types?: EventType[];           // only for "change": match these event types
+  grep?: string;                 // only for "change": case-insensitive literal
+  timeoutMs?: number;            // defaults to config.waitTimeoutMs; 0 = no timeout
+}
+```
+
+Result:
+
+```ts
+{
+  satisfied: boolean;            // aggregate
+  reason: "idle" | "settled" | "permission" | "exit" | "change" | "timeout";
+  waitedMs: number;
+  results: {
+    session: SessionView;
+    satisfied: boolean;
+    reason: "idle" | "settled" | "permission" | "exit" | "change" | "timeout" | "pending";
+  }[];
+  session?: SessionView;         // present only for a single-id request
+}
+```
+
+The wait is one-shot: it resolves at the first matching condition and never re-arms. A
+timeout never changes a session.
+
+**`idle` vs `settled`.** `idle` means no active turn. A session can be idle with queued
+prompts between turns, so `idle` is not a completion signal. `settled` means no active turn
+**and** an empty queue; it is also satisfied by `waiting_permission` and by a terminal session.
+With `until: "settled"`, the per-target `reason` names the condition that matched (`idle`,
+`permission`, or `exit`). For a multi-id `all` wait, the aggregate `reason` is `exit` if any
+target ended, otherwise `settled`; an `any` wait reports the first satisfied target's reason.
+
+With several ids, `any` resolves on the first target that satisfies and `all` when every target
+does. For `idle`, `permission`, and `change`, a target that ends first is unsatisfied with
+reason `exit`; for `all`, that resolves the whole wait immediately. A target that is not
+settled when the aggregate resolves is evaluated at that moment: it is reported as satisfied
+if it already meets the condition, otherwise as `pending`. `change` uses each target's
+`lastSeq` at call time as its baseline; `since` is rejected with more than one id. `types` and
+`grep` filter the event that satisfies `change` and are rejected with any other condition. All ids
+are resolved in this instance before waiting; one unknown or ambiguous id fails the request.
+
+### `sessions.cancel`
+
+Params: `{ sessionId: string; keepQueue?: boolean }`.
+Result: `{ session: SessionView; discarded: number }`.
+
+Requests an ACP `session/cancel`, resolves any pending permission as `cancelled`, and settles
+queued prompts as `cancelled` (`discarded` counts them). With `keepQueue: true`, the queue is
+kept and the next message runs after the active turn settles. It does not kill the process.
+
+### `sessions.close`
+
+Params: `{ sessionId: string; force?: boolean }`.
+
+Result: `{ session: SessionView; killed: boolean; wasTerminal: boolean }`.
+
+Attempts ACP `session/close` when the adapter advertises it, then terminates the process.
+`force: true` skips the protocol close. `wasTerminal` reports whether the session was
+already closed or failed before this call, so a caller can avoid claiming a change it did
+not make. Closed sessions remain readable for `config.retainClosedMs`.
+
+### `sessions.permit`
+
+Params: `{ sessionId: string; optionId?: string; requestId?: string; always?: boolean }`.
+
+Result: `{ session: SessionView; requestId: string; optionId: string; by: "operator" }`.
+
+With no `optionId`, the first `allow_once`/`allow_always` option is chosen; with `always`,
+`allow_always` is preferred. With no `requestId`, the single pending request is used.
+`always: true` also sets the session's `permissionPolicy` to `allow` and appends a
+`policy.changed` event. Errors: `no_pending_permission`, `bad_option`.
+
+### `sessions.set_mode`
+
+Params: `{ sessionId: string; modeId: string }`. Result: `{ session: SessionView }`.
+
+Switches the provider's native session mode when the adapter advertises modes. The session
+view reports `modes: { currentModeId, availableModes }`. Errors: `bad_request` when the
+backend advertises no modes, `bad_option` when the mode is not in the advertised list, and
+`session_closed` for a terminal session.
+
+### `sessions.set_policy`
+
+Params: `{ sessionId: string; permissionPolicy: "ask" | "allow" | "deny" }`.
+Result: `{ session: SessionView }`.
+
+Changes the live HLAO permission policy without requiring a pending request. Emits
+`policy.changed` with the acting caller. It does not alter provider-native modes or config
+options.
+
+### `sessions.set_config_option`
+
+Params: `{ sessionId: string; configId: string; value: string | boolean }`.
+Result: `{ session: SessionView }`.
+
+Sends ACP `session/set_config_option` and replaces the session's `configOptions` from the
+response. Boolean options accept a boolean or the strings `"true"`/`"false"`. A select option
+requires one of the advertised value ids. Errors: `bad_request` when the option is not
+advertised or the type is wrong, `bad_option` when the value is not offered,
+`session_not_ready` before ACP is ready, `session_closed` for a terminal session.
+
+### `sessions.queue`
+
+Params: `{ sessionId: string }`.
+Result: `{ session: SessionView; active: QueueItemView | null; queue: QueueItemView[] }`.
+
+```ts
+type QueueItemView = {
+  position: number | null;       // 1-based queue order; null for the active turn
+  textPreview: string;           // at most 200 characters, whitespace collapsed
+  textLength: number;            // full original length
+  id: string;                    // msg-…; also on prompt.sent/queued/discarded (2.3)
+  from: string;                  // sender session id or "operator"
+  queuedMs: number;
+  turn: number | null;
+};
+```
+
+### `sessions.queue_drop`
+
+Params: `{ sessionId: string; position?: number; messageId?: string }` — exactly one of
+`position` (1..1000) or `messageId` (2.3).
+Result: `{ session: SessionView; dropped: QueueItemView; discarded: number }`.
+
+Removes one queued prompt. The prompt is settled as cancelled before it runs and emits
+`prompt.discarded` with `reason: "dropped"`, `messageId`, `position`, and the actor.
+Out-of-range positions and ids that are not queued are `bad_request` and do not change the
+queue.
+
+### `stream.subscribe`
+
+Persistent streams only. A subscription reports session views and, for explicitly named
+sessions, streams their events. It is event-driven: notifications are emitted at the same
+append point that wakes `sessions.wait`, and the supervisor creates no timer.
+
+Params:
+
+```ts
+{
+  sessionIds?: string[];                    // 1..100; events and views for these ids
+  fleet?: boolean;                          // views for every session, including new ones
+  since?: Record<string, number>;           // per-session resume cursor: seq the client has
+}
+```
+
+At least one of `sessionIds` or `fleet: true` is required. Ids resolve by the usual rules.
+One connection may hold at most 64 subscriptions (`too_many_requests`).
+
+Result:
+
+```ts
+{
+  subscription: number,
+  sessions: SessionView[],                  // current views for the view scope
+  cursors: Record<string, number>,          // last delivered seq per session
+  truncated: string[]                       // ids whose history was evicted before `since`
+}
+```
+
+`fleet` controls the view scope. `sessionIds` controls the event scope; a fleet subscription
+with `sessionIds` does both. A subscription with only `fleet` does not stream events: polling
+`sessions.read` for an open session remains the client's choice, and a dashboard usually
+subscribes once for the fleet and once for the session it is showing.
+
+View notifications (`kind: "session"`) are sent when a session's `SessionView` changes; the
+first notification after a reconnect is a full view, so a client can replace local state.
+New sessions in a fleet scope appear automatically. A session removed from the live table
+(`forget` or retention expiry) produces `kind: "session.removed"` exactly once.
+
+Event notifications are batched per session. `cursor` is the seq of the last delivered event;
+pass it back as `since[id]` on reconnect. If events were evicted, the notification has
+`truncated: true` and starts at the earliest retained event. The server closes a consumer that
+lets more than 8 MiB sit in its outbound transport buffer; the client reconnects and resumes.
+At most 64 requests may be in flight on one connection (`too_many_requests`).
+
+### `stream.unsubscribe`
+
+Persistent streams only.
+
+Params: `{ subscription: number }`.
+Result: `{ subscription: number; removed: true }`.
+Errors: `not_found` when the connection has no such subscription.
+
+### `supervisor.reload`
+
+Params: `{}`. Operator only.
+
+Result: `{ configHash: string; configError: string | null }`.
+
+Re-reads the user config file. Only future spawns are affected; live sessions keep the config
+they were created with. The result's `configHash` is the fingerprint of the file that was read.
+When loading fails, the supervisor falls back to defaults, records `configError`, and rejects
+`sessions.spawn` with `config_invalid` until a valid config is reloaded. `hello.configHash`
+always reports the last successfully read (or attempted) file.
+
+### `supervisor.shutdown`
+
+Params: `{ force?: boolean }`. Operator only.
+
+Result: `{ sessionsClosed: number; retainedDiscarded: number }`. The supervisor replies, then
+exits. `force` skips graceful ACP closes. `retainedDiscarded` counts terminal sessions that
+were still in the live table; their event logs are lost with the supervisor.
+
+## Notifications
+
+A persistent connection carries two kinds of server frame. Responses have `id` and `ok`;
+notifications have `type: "notification"`.
+
+```ts
+type NotificationFrame =
+  | { type: "notification"; subscription: number; kind: "session"; session: SessionView }
+  | { type: "notification"; subscription: number; kind: "session.removed"; sessionId: string }
+  | { type: "notification"; subscription: number; kind: "event";
+      sessionId: string; events: EventView[]; cursor: number; truncated: boolean };
+```
+
+Notifications are never interleaved inside a frame. Per-session event order is the event
+log's sequence; across sessions, notifications follow the order in which the supervisor
+observed the changes. A client must not assume a response and a notification that describe
+the same change arrive in a particular order relative to each other.
+
+## Event view
+
+```ts
+type EventView = {
+  seq: number;                   // 1-based, strictly increasing per session
+  at: string;                    // ISO-8601
+  type: EventType;
+  turn: number | null;
+  data: Record<string, unknown>; // raw:true adds data.raw = original ACP update
+};
+
+type EventType =
+  | "session.created" | "session.initialized" | "session.renamed"
+  | "session.closed" | "session.failed"
+  | "prompt.sent" | "prompt.queued" | "prompt.discarded"
+  | "turn.started" | "turn.ended" | "cancel.requested"
+  | "agent.message" | "agent.thought" | "user.message" | "session.message"
+  | "tool.call" | "tool.update" | "plan" | "plan.update"
+  | "permission.requested" | "permission.resolved" | "policy.changed"
+  | "notice" | "usage" | "mode" | "config" | "commands" | "session.info"
+  | "compaction" | "subagent" | "stderr" | "error" | "raw";
+```
+
+Event ordering per session is total and monotonic. An event is appended before any waiter
+that depends on it is notified.
+
+Actor fields are explicit:
+
+- `prompt.sent` and `prompt.queued` carry `from`: a session id or `"operator"`, plus the
+  message id as `messageId` (2.3). The first prompt that carries the skill pointer also
+  carries `injected: { skill, path, blocks }` (2.4); the pointer is marked delivered only
+  after the provider accepts the prompt, so a failed request is retried with the next prompt.
+- `prompt.discarded` carries the original `from`, the acting `by`, `reason`, a bounded
+  `textPreview`, and `messageId` (2.3).
+- `session.created` carries `createdBy`: `"operator"` or the requesting session id (2.3).
+- `permission.resolved`, `policy.changed`, `mode`, `config`, `cancel.requested`,
+  `session.renamed`, and `session.closed` carry `by`: the caller session id, `"operator"`,
+  `"policy:<name>"` for an automatic answer, or `"agent"` when the adapter itself changed a
+  mode/config option.
+- `permission.resolved` with `optionId: null` also carries `reason` (for example `"cancel"`,
+  `"close"`, `"turn-ended"`).
+
+Provider-native events (2.5) are structured; `raw` is not required to read them:
+
+- `compaction` carries `compactionId`, and either a `status` plus optional `summary`/`error`
+  (`compaction_update`) or `text` with `chunk: true` (`compaction_summary_chunk`). Later
+  updates with the same id patch the entity; chunks append to its summary.
+- `plan.update` keeps the ACP `update` object for compatibility and adds `planId`, `kind`
+  (`items`/`file`/`markdown`), and the matching `entries`, `uri`, or `content`. A removal is
+  `{ removed: true, planId }`.
+- `session.message` carries `messageId`, `senderSessionId`, `recipientSessionId`, `text`, and
+  `chunk`. It is the first-class projection of ACP `session_message`/
+  `session_message_chunk`; the raw ACP content remains under `raw`. ACP gates these updates
+  on the experimental `subagents` capability, which HLAO deliberately does not advertise; a
+  compliant adapter will not send them, and HLAO still projects them if a custom adapter does.
+- `session.info` carries the provider `title`; `session.initialized` carries `agentName` and
+  `agentVersion`.
+- A `notice` may be derived from a `usage` update at 75% and 90% of the context size; the
+  notice severity is `warning` then `error`, and the thresholds reset below 70%. This is
+  derived state, not a timer.
+
+## Session view
+
+```ts
+type SessionView = {
+  id: string;                    // 6-char handle
+  name: string | null;
+  createdBy: string | null;      // "operator" or the requesting session id (2.3)
+  backend: string;
+  cwd: string;
+  status: "starting" | "idle" | "busy" | "waiting_permission" | "closed" | "failed";
+  parentId: string | null;
+  rootId: string;
+  depth: number;
+  createdAt: string;
+  lastActivityAt: string;
+  endedAt: string | null;
+  turn: number;
+  turnStartedAt: string | null;  // set while busy or waiting_permission
+  queued: number;
+  settled: boolean;              // status idle && queued === 0 (2.2)
+  lastSeq: number;
+  lastEvent: {                   // most recent event, for fleet views (2.2)
+    type: EventType;
+    title: string | null;        // bounded; renderers sanitize it
+    at: string;
+  } | null;
+  pendingPermission: PermissionView | null;
+  lastStopReason: StopReason | null;
+  agentSessionId: string | null; // exposed for diagnostics only
+  processId: number | null;
+  exit: { code: number | null; signal: string | null } | null;
+  permissionPolicy: "ask" | "allow" | "deny";
+  modes: {
+    currentModeId: string;
+    availableModes: { id: string; name: string; description?: string }[];
+  } | null;
+  configOptions: {
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    type: "select" | "boolean";
+    currentValue: string | boolean;
+    values: { value: string; name: string; description?: string; group?: string }[];
+  }[] | null;
+  usage: {
+    used: number;
+    size: number;
+    cost: { amount: number; currency: string } | null; // amount in minor units
+    at: string;                                       // usage event timestamp
+  } | null;
+  compaction?: {                 // latest provider compaction (2.5)
+    id: string;
+    status: string;
+    summary: string | null;
+    error: string | null;
+    updatedAt: string;
+  } | null;
+  plan?: {                       // latest provider plan (2.5)
+    planId: string | null;       // null for a full ACP plan without an ID
+    kind: "items" | "file" | "markdown";
+    entries?: { content: string; priority: string; status: string }[];
+    uri?: string;
+    content?: string;
+    updatedAt: string;
+  } | null;
+  title?: string | null;         // provider session title (2.5)
+  agentName?: string | null;     // provider agent identity (2.5)
+  agentVersion?: string | null;
+};
+
+type PermissionView = {
+  requestId: string;
+  toolCallId: string | null;
+  title: string;
+  kind: string | null;
+  options: { optionId: string; name: string; kind: string }[];
+  requestedAt: string;
+};
+```
