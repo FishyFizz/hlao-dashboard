@@ -8,6 +8,7 @@ import {
   nextAttentionSession,
   resolveTarget,
   sessionLocalKey,
+  toolPayloadFromEvents,
   unreadFor,
   type NoticeRecord,
 } from "./model";
@@ -260,6 +261,94 @@ describe("event merge", () => {
     });
     expect(items[1]).toMatchObject({ kind: "tool" });
     expect((items[1] as { input: string | null }).input).toContain("ls -la");
+  });
+
+  it("takes the real tool input from updates instead of the adapter's empty object", () => {
+    const items = buildRenderItems([
+      event(
+        1,
+        "tool.call",
+        {
+          toolCallId: "t1",
+          name: "Bash",
+          title: "Terminal",
+          status: "pending",
+          rawInput: {},
+        },
+        3,
+      ),
+      event(
+        2,
+        "tool.update",
+        {
+          toolCallId: "t1",
+          title: "npm test -- auth",
+          status: "in_progress",
+          rawInput: { command: "npm test -- auth" },
+          content: [],
+        },
+        3,
+      ),
+      event(
+        3,
+        "tool.update",
+        {
+          toolCallId: "t1",
+          status: "completed",
+          content: [
+            { type: "content", content: { type: "text", text: "2 passing" } },
+          ],
+        },
+        3,
+      ),
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "tool", title: "npm test -- auth" });
+    const tool = items[0] as { input: string | null; output: string | null };
+    expect(tool.input).toContain("npm test -- auth");
+    expect(tool.output).toBe("2 passing");
+  });
+
+  it("prefers the final plain output over an earlier content block", () => {
+    const items = buildRenderItems([
+      event(1, "tool.call", { toolCallId: "t1", name: "Bash", status: "pending" }, 1),
+      event(
+        2,
+        "tool.update",
+        {
+          toolCallId: "t1",
+          content: [{ type: "content", content: { type: "text", text: "partial" } }],
+        },
+        1,
+      ),
+      event(3, "tool.update", { toolCallId: "t1", status: "completed", rawOutput: "final" }, 1),
+    ]);
+    expect(items[0]).toMatchObject({ kind: "tool", output: "final" });
+  });
+
+  it("builds one tool payload from a raw event slice", () => {
+    const payload = toolPayloadFromEvents(
+      [
+        event(
+          10,
+          "tool.call",
+          { toolCallId: "t1", title: "Terminal", rawInput: {} },
+          2,
+        ),
+        event(
+          14,
+          "tool.update",
+          { toolCallId: "t1", title: "git status", rawInput: { command: "git status" } },
+          2,
+        ),
+        event(18, "tool.update", { toolCallId: "t2", rawInput: { command: "other" } }, 2),
+        event(20, "tool.update", { toolCallId: "t1", status: "completed", rawOutput: "clean" }, 2),
+      ],
+      "t1",
+    );
+    expect(payload.title).toBe("git status");
+    expect(payload.input).toContain("git status");
+    expect(payload.output).toBe("clean");
   });
 
   it("coalesces message chunks and tool updates by their ids", () => {

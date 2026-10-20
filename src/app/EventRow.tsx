@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   CircleAlert,
@@ -21,8 +21,10 @@ import {
   numberField,
   stringField,
   type RenderItem,
+  type ToolPayload,
 } from "../store/model";
-import type { EventView, SessionView } from "../wire/protocol";
+import { store } from "../store/store";
+import { asWireError, type EventView, type SessionView } from "../wire/protocol";
 import { CopyButton, safeText } from "./ui";
 import { MarkdownText } from "./MarkdownText";
 
@@ -48,7 +50,7 @@ export function EventRow({
     );
   }
   if (item.kind === "tool") {
-    return <ToolRow item={item} focused={focused} />;
+    return <ToolRow item={item} sessionId={session.id} focused={focused} />;
   }
   if (item.kind === "compaction") {
     return <CompactionRow item={item} focused={focused} />;
@@ -251,22 +253,55 @@ function PermissionRow({
 
 function ToolRow({
   item,
+  sessionId,
   focused,
 }: {
   item: Extract<RenderItem, { kind: "tool" }>;
+  sessionId: string;
   focused: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [peek, setPeek] = useState<ToolPayload | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const attemptedThrough = useRef(-1);
   const tone =
     item.status === "completed" || item.status === "ok"
       ? "ok"
       : item.status === "failed" || item.status === "error"
         ? "danger"
         : "warn";
-  const input = item.input ?? item.title ?? null;
-  const output = item.output;
+  const firstSeq = item.events[0]?.seq ?? item.seq;
+  const lastSeq = item.events[item.events.length - 1]?.seq ?? item.seq;
+  // Live events and ordinary pages redact `rawInput`/`rawOutput`/`content`.
+  // Inspect the call with `raw: true` only after the operator opens the row.
+  const input = peek ? peek.input : item.input;
+  const output = peek ? peek.output : item.output;
+  const title = peek?.title || item.title;
   const payload = [input, output].filter(Boolean).join("\n\n");
-  const hasPayload = payload.length > 0;
+
+  useEffect(() => {
+    if (!open || attemptedThrough.current >= lastSeq) return;
+    attemptedThrough.current = lastSeq;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    store
+      .loadToolPayload(sessionId, item.id, firstSeq, lastSeq)
+      .then((result) => {
+        if (!cancelled) setPeek(result);
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(asWireError(cause).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sessionId, item.id, firstSeq, lastSeq]);
+
   return (
     <EventFrame
       seq={item.seq}
@@ -277,43 +312,53 @@ function ToolRow({
         <div className="tool__head-wrap">
           <button
             type="button"
-            className={cn("tool__head", !hasPayload && "tool__head--static")}
-            aria-expanded={hasPayload ? open : undefined}
-            title={hasPayload ? (open ? "Hide payload" : "Show payload") : undefined}
+            className="tool__head"
+            aria-expanded={open}
+            title={open ? "Hide provider payload" : "Show provider payload"}
             onClick={() => {
-              if (hasPayload) setOpen((value) => !value);
+              const next = !open;
+              setOpen(next);
+              // A closed row retries on the next open, e.g. after a failed read.
+              if (!next) attemptedThrough.current = -1;
             }}
           >
             <Terminal className="icon" />
             <span className="tool__name">{item.name}</span>
-            <span className="tool__title">{item.title || item.id}</span>
+            <span className="tool__title">{title || item.id}</span>
             {item.turn !== null ? (
               <span className="tool__turn">turn {item.turn}</span>
             ) : null}
             <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
-            {hasPayload ? (
-              <span className="tool__toggle" aria-hidden="true">
-                {open ? "-" : "+"}
-              </span>
-            ) : null}
+            <span className="tool__toggle" aria-hidden="true">
+              {open ? "-" : "+"}
+            </span>
           </button>
           {payload ? (
             <CopyButton text={payload} label="tool payload" className="event__copy" />
           ) : null}
         </div>
-        {open && hasPayload ? (
+        {open ? (
           <div className="tool__body">
+            {loading && !payload ? (
+              <p className="event__text event__text--muted">Reading provider payload…</p>
+            ) : null}
+            {error ? (
+              <p className="event__text event__text--danger">{error}</p>
+            ) : null}
             {input ? (
               <>
-                <span className="tool__prompt">input</span>
+                <span className="tool__prompt">input · raw provider data</span>
                 <pre className="event__pre">{safeText(input)}</pre>
               </>
             ) : null}
             {output ? (
               <>
-                <span className="tool__prompt">output</span>
+                <span className="tool__prompt">output · raw provider data</span>
                 <pre className="event__pre">{safeText(output)}</pre>
               </>
+            ) : null}
+            {!loading && !error && !input && !output ? (
+              <p className="event__text event__text--muted">No provider payload reported.</p>
             ) : null}
           </div>
         ) : null}

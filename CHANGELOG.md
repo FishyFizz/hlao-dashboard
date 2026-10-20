@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed tool-call details in the transcript. Live events and ordinary pages
+  carry no private ACP payloads, so opening a tool row now reads that call once
+  with `raw: true` and shows the provider's actual input and output labelled as
+  raw provider data. An adapter's empty initial `rawInput`/`content` no longer
+  masks the real value from a later update, the newest output wins, and the
+  header title reflects the command reported by `tool.update`.
 - Replaced the provider effort slider with a cyan-filled segmented bar, matching
   the permission policy selector's shape.
 - Maintenance pass, no surface changes: one status vocabulary (full label,

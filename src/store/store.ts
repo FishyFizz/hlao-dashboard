@@ -10,10 +10,12 @@ import {
   normalizeHome,
   resolveTarget,
   sessionLocalKey,
+  toolPayloadFromEvents,
   type AttentionItem,
   type LocalReadingState,
   type NoticeRecord,
   type TargetResolution,
+  type ToolPayload,
 } from "./model";
 import {
   emptyInstanceState,
@@ -968,6 +970,39 @@ export class DashboardStore {
         text: asWireError(error).message,
       });
     }
+  }
+
+  /**
+   * Live events and ordinary pages carry no private ACP payloads, so the
+   * transcript cannot render a tool's parameters until it asks for them.
+   * Fetch the raw events for one call when the operator opens its row.
+   */
+  async loadToolPayload(
+    sessionId: string,
+    toolCallId: string,
+    fromSeq: number,
+    toSeq: number,
+  ): Promise<ToolPayload> {
+    const transport = this.transport;
+    if (!transport) {
+      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
+    }
+    const events: EventView[] = [];
+    let since = Math.max(0, fromSeq - 1);
+    for (let page = 0; page < 10; page += 1) {
+      const result = await transport.request<ReadResult>("sessions.read", {
+        sessionId,
+        since,
+        limit: 200,
+        raw: true,
+        types: ["tool.call", "tool.update"],
+        grep: toolCallId,
+      });
+      events.push(...result.events);
+      if (!result.hasMore || result.nextSeq <= since || result.nextSeq >= toSeq) break;
+      since = result.nextSeq;
+    }
+    return toolPayloadFromEvents(events, toolCallId);
   }
 
   private async fillGap(sessionId: string, since: number): Promise<void> {

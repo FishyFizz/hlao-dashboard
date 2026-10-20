@@ -477,14 +477,14 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
       if (existing !== undefined) {
         const item = items[existing];
         if (item && item.kind === "tool") {
-          item.status =
-            stringField(event.data, ["status", "state"]) ?? item.status;
-          item.input =
-            item.input ??
-            payloadField(event.data, ["input", "rawInput", "arguments"]);
-          item.output =
-            payloadField(event.data, ["output", "rawOutput", "text", "content"]) ??
-            item.output;
+          // Later events carry the real values. `??` on the old value would
+          // keep the adapter's initial `{}` input and the first partial
+          // output forever, so take the newest non-empty payload instead.
+          item.name = toolNameFrom(event.data) || item.name;
+          item.title = toolTitleFrom(event.data) || item.title;
+          item.status = stringField(event.data, ["status", "state"]) ?? item.status;
+          item.input = toolInputFrom(event.data) ?? item.input;
+          item.output = toolOutputFrom(event.data) ?? item.output;
           item.at = event.at;
           item.events.push(event);
         }
@@ -493,11 +493,11 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
         items.push({
           kind: "tool",
           id: callId,
-          name: stringField(event.data, ["name", "tool", "toolName"]) ?? "tool",
-          title: stringField(event.data, ["title", "command", "description"]) ?? "",
+          name: toolNameFrom(event.data) || "tool",
+          title: toolTitleFrom(event.data),
           status: stringField(event.data, ["status", "state"]) ?? "running",
-          input: payloadField(event.data, ["input", "rawInput", "arguments"]),
-          output: payloadField(event.data, ["output", "rawOutput", "content"]),
+          input: toolInputFrom(event.data),
+          output: toolOutputFrom(event.data),
           at: event.at,
           turn: event.turn,
           seq: event.seq,
@@ -577,23 +577,114 @@ export function eventActor(event: EventView): string | null {
   return stringField(event.data, ["by", "from", "actor", "createdBy"]);
 }
 
+/** An empty object/array/string is what adapters send before the real value. */
+function isEmptyPayload(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim().length === 0;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value).length === 0;
+  return false;
+}
+
 export function payloadField(
   data: Record<string, unknown>,
   keys: readonly string[],
 ): string | null {
   for (const key of keys) {
     const value = data[key];
-    if (typeof value === "string" && value.trim().length > 0) return value;
     if (typeof value === "number" || typeof value === "boolean") return String(value);
-    if (value !== null && typeof value === "object") {
-      try {
-        return JSON.stringify(value, null, 2);
-      } catch {
-        // Fall through to the next candidate.
-      }
+    if (isEmptyPayload(value)) continue;
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      // Fall through to the next candidate.
     }
   }
   return null;
+}
+
+/**
+ * ACP `ToolCallContent` is an array of content blocks, not a string. Render
+ * text blocks as text; keep diffs and anything else as readable JSON rather
+ * than dumping the wrapper object.
+ */
+function contentPayload(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const parts: string[] = [];
+  for (const block of value) {
+    if (block === null || typeof block !== "object") continue;
+    const record = block as Record<string, unknown>;
+    if (record.type === "content" && record.content !== null && typeof record.content === "object") {
+      const inner = record.content as Record<string, unknown>;
+      if (typeof inner.text === "string" && inner.text.length > 0) {
+        parts.push(inner.text);
+        continue;
+      }
+    }
+    if (record.type === "text" && typeof record.text === "string") {
+      parts.push(record.text);
+      continue;
+    }
+    if (record.type === "diff") {
+      const path = typeof record.path === "string" ? record.path : "diff";
+      const before = typeof record.oldText === "string" ? record.oldText : "";
+      const after = typeof record.newText === "string" ? record.newText : "";
+      parts.push(`${path}\n--- before\n${before}\n+++ after\n${after}`);
+      continue;
+    }
+    parts.push(JSON.stringify(record, null, 2));
+  }
+  const text = parts.join("\n").trim();
+  return text.length > 0 ? text : null;
+}
+
+function toolNameFrom(data: Record<string, unknown>): string {
+  return stringField(data, ["name", "tool", "toolName"]) ?? "";
+}
+
+function toolTitleFrom(data: Record<string, unknown>): string {
+  return stringField(data, ["title", "command", "description"]) ?? "";
+}
+
+function toolInputFrom(data: Record<string, unknown>): string | null {
+  return payloadField(data, ["input", "rawInput", "arguments"]);
+}
+
+function toolOutputFrom(data: Record<string, unknown>): string | null {
+  return (
+    payloadField(data, ["output", "rawOutput", "text"]) ??
+    contentPayload(data.content)
+  );
+}
+
+export type ToolPayload = {
+  title: string;
+  input: string | null;
+  output: string | null;
+};
+
+/**
+ * Fold raw `tool.call`/`tool.update` events into the payload a tool row
+ * shows. The transcript receives redacted events live, so the dashboard
+ * fetches this with `raw: true` when the operator opens a row.
+ */
+export function toolPayloadFromEvents(
+  events: readonly EventView[],
+  toolCallId: string,
+): ToolPayload {
+  let title = "";
+  let input: string | null = null;
+  let output: string | null = null;
+  for (const event of events) {
+    if (event.type !== "tool.call" && event.type !== "tool.update") continue;
+    const id = stringField(event.data, ["toolCallId", "callId", "id"]);
+    if (id !== toolCallId) continue;
+    title = toolTitleFrom(event.data) || title;
+    input = toolInputFrom(event.data) ?? input;
+    output = toolOutputFrom(event.data) ?? output;
+  }
+  return { title, input, output };
 }
 
 export function stringField(
