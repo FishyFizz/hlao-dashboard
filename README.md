@@ -108,9 +108,10 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 ### Spawn, search, keyboard
 
-- One truthful spawn form: discovered backends, visible defaults, unavailable
-  reasons, cwd-driven refresh, policy/ask warning, lineage-only parent, skill
-  toggle, idempotency per attempt, preserved form and adapter stderr on failure.
+- One truthful spawn form: prompt first, backend/name on one row, bridge-backed
+  cwd browsing, discovered backends, cwd-driven refresh, the same color-coded
+  policy selector as the inspector, lineage-only parent, skill toggle,
+  idempotency per attempt, preserved form and adapter stderr on failure.
 - Search has two explicit scopes (current session, instance), live/retained and
   raw-payload filters, visible caps and as-of time, cancellable scans, and
   provenance (session, handle, seq, time, type, snippet). Selecting a result

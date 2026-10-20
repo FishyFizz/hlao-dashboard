@@ -16,9 +16,11 @@ HLAO supervisor ── sessions, events, permissions
 
 The supervisor token is read by the bridge from `<HLAO_HOME>/supervisor.json`
 and never crosses into the page. The bridge forwards results and notifications;
-it does not reimplement method semantics. The page can also run a **demo
-transport** implementing the same request and notification shapes against a
-simulated supervisor. Demo mode is always named in the UI.
+it does not reimplement method semantics. The one bridge-only helper,
+`dashboard.fs.list`, enumerates directories for the spawn cwd picker; it never
+reads file contents and is gated by the same UI key and Origin checks. The page
+can also run a **demo transport** implementing the same request and notification
+shapes against a simulated supervisor. Demo mode is always named in the UI.
 
 ## Modules
 

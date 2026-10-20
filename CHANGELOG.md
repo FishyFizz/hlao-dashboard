@@ -56,6 +56,12 @@
   selected fill is status-colored (allow green, ask amber, deny red).
 - Rendered provider effort config options as a discrete, labeled slider and
   committed changes on release rather than during the drag.
+- Rebuilt the spawn panel around the prompt: prompt first, backend/name on one
+  row, and all field hints removed.
+- Added bridge-backed cwd browsing with parent/drive navigation and a
+  `Use this folder` action; demo mode hides it because there is no filesystem.
+- Reused the color-coded policy selector in spawn with three states and allow
+  selected by default; removed the "config default" choice.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

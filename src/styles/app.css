@@ -2640,6 +2640,112 @@
     grid-column: 1 / -1;
   }
 
+  .field__with-action {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .field__with-action .field__input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cwd-browser {
+    display: grid;
+    max-height: 290px;
+    margin-top: 6px;
+    border: var(--bw) solid var(--line-2);
+    background: var(--panel);
+  }
+
+  .cwd-browser__head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 4px 6px;
+    border-bottom: var(--bw) solid var(--line);
+  }
+
+  .cwd-browser__path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cwd-browser__roots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 4px 6px;
+    border-bottom: var(--bw) solid var(--line);
+  }
+
+  .cwd-browser__list {
+    max-height: 170px;
+    overflow: auto;
+  }
+
+  .cwd-browser__entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 0;
+    border-bottom: var(--bw) solid var(--line);
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .cwd-browser__entry:hover,
+  .cwd-browser__entry:focus-visible {
+    background: var(--hover);
+    color: var(--text);
+    outline: none;
+  }
+
+  .cwd-browser__entry .icon {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    color: var(--text-3);
+  }
+
+  .cwd-browser__empty {
+    display: block;
+    padding: 8px;
+    color: var(--text-3);
+    font-size: var(--fs-10);
+  }
+
+  .cwd-browser__error {
+    margin: 0;
+    padding: 6px 8px;
+    color: var(--danger);
+    font-size: var(--fs-10);
+  }
+
+  .cwd-browser__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding: 4px 6px;
+    border-top: var(--bw) solid var(--line);
+  }
+
   .form-advanced {
     border-top: var(--bw) solid var(--line);
     padding-top: var(--sp-2);

@@ -11,8 +11,8 @@
 > **Implemented since this decision:** the browser client, the local bridge
 > (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
 > surface, the external store, persistence, and Vitest model tests. Playwright
-> and axe remain the next test layer. The client bundle is 644.52 kB minified /
-> 188.15 kB gzip; the gallery is lazy-loaded into a 139.19 kB / 34.62 kB chunk.
+> and axe remain the next test layer. The client bundle is 646.59 kB minified /
+> 188.64 kB gzip; the gallery is lazy-loaded into a 139.19 kB / 34.62 kB chunk.
 
 ## Decision
 
@@ -113,7 +113,7 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The client is 644.52 kB minified / 188.15 kB gzip (RAC + Lucide + React +
+- **Bundle size.** The client is 646.59 kB minified / 188.64 kB gzip (RAC + Lucide + React +
   the demo supervisor); the gallery is 139.19 kB / 34.62 kB. Vite warns above 500 kB. This is a local app, not a network product; the
   gallery is lazy-loaded, and the inspector/charts can be split next. The demo remains in the
   main chunk because it is one click from the setup screen.
@@ -231,8 +231,8 @@ friendly kanban.
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
 - **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes eleven Vitest cases.
-  `npm run build` emits 644.52 kB JS / 188.15 kB gzip, a 139.19 kB / 34.62 kB lazy gallery
-  chunk, and 107.89 kB CSS / 17.07 kB gzip in ~440 ms on this machine (2026-10-20).
+  `npm run build` emits 646.59 kB JS / 188.64 kB gzip, a 139.19 kB / 34.62 kB lazy gallery
+  chunk, and 109.34 kB CSS / 17.32 kB gzip in ~440 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

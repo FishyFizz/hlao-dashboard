@@ -148,6 +148,13 @@ export type ExportResult = {
   pages: number;
 };
 
+export type DirectoryListing = {
+  path: string;
+  parent: string | null;
+  entries: Array<{ name: string; path: string }>;
+  roots: string[];
+};
+
 const EMPTY_EVENTS: SessionEventsState = {
   events: [],
   earliestRetainedSeq: 1,
@@ -1780,6 +1787,16 @@ export class DashboardStore {
       "backends.list",
       cwd ? { cwd } : {},
     );
+  }
+
+  async listDirectories(path?: string): Promise<DirectoryListing> {
+    const transport = this.transport;
+    if (!transport) {
+      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
+    }
+    return transport.request<DirectoryListing>("dashboard.fs.list", {
+      path: path ?? null,
+    });
   }
 
   async reloadConfig(): Promise<void> {

@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { ListTree, Shield, TriangleAlert } from "lucide-react";
 import {
   Label,
-  Radio,
-  RadioGroup,
   Slider,
   SliderFill,
   SliderThumb,
@@ -30,6 +28,7 @@ import {
 } from "../store/model";
 import type { SessionConfigOptionView, SessionView } from "../wire/protocol";
 import { CopyButton, SelectField, ToggleRow } from "./ui";
+import { PolicySelector } from "./PolicySelector";
 
 export function Inspector({
   state,
@@ -102,26 +101,14 @@ export function Inspector({
         </div>
         <div className="field">
           <span className="field__label">HLAO permission policy</span>
-          <RadioGroup
-            className="segmented segmented--bar segmented--policy"
-            aria-label="HLAO permission policy"
+          <PolicySelector
             value={session.permissionPolicy}
-            isDisabled={terminal || pendingPolicy}
+            disabled={terminal || pendingPolicy}
             onChange={(value) => {
               if (value === session.permissionPolicy) return;
-              void store.setPolicy(value as "ask" | "allow" | "deny");
+              void store.setPolicy(value);
             }}
-          >
-            <Radio className="segmented__item segmented__item--allow" value="allow">
-              allow
-            </Radio>
-            <Radio className="segmented__item segmented__item--ask" value="ask">
-              ask
-            </Radio>
-            <Radio className="segmented__item segmented__item--deny" value="deny">
-              deny
-            </Radio>
-          </RadioGroup>
+          />
         </div>
         {terminal ? (
           <p className="inspector__none">

@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, TriangleAlert } from "lucide-react";
+import {
+  ChevronUp,
+  FolderOpen,
+  RefreshCw,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { Button } from "../components/Button";
 import { Tag } from "../components/Status";
 import {
   canUse,
   store,
   type DashboardState,
+  type DirectoryListing,
 } from "../store/store";
 import type { AgentView, PermissionPolicy } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
+import { PolicySelector } from "./PolicySelector";
 import { SelectField, ToggleRow } from "./ui";
 
-type PolicyChoice = "config" | PermissionPolicy;
+type PolicyChoice = PermissionPolicy;
 
 export function SpawnDialog({
   open,
@@ -26,7 +34,7 @@ export function SpawnDialog({
   const [cwd, setCwd] = useState("");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [policy, setPolicy] = useState<PolicyChoice>("config");
+  const [policy, setPolicy] = useState<PolicyChoice>("allow");
   const [parent, setParent] = useState("");
   const [skill, setSkill] = useState(true);
   const [backends, setBackends] = useState<AgentView[] | null>(null);
@@ -34,6 +42,10 @@ export function SpawnDialog({
   const [loadingBackends, setLoadingBackends] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<string | null>(null);
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [listing, setListing] = useState<DirectoryListing | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
   const backendList = useRef(0);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
   const pending = Boolean(state.pending.spawn);
@@ -45,6 +57,22 @@ export function SpawnDialog({
   );
   const selectedBackend = backends?.find((candidate) => candidate.name === backend);
   const noBackends = supportsBackends && backends !== null && backends.length === 0;
+  const canBrowse = state.mode === "bridge";
+
+  const loadDirectory = (path?: string) => {
+    setBrowseLoading(true);
+    setBrowseError(null);
+    void store
+      .listDirectories(path)
+      .then((result) => setListing(result))
+      .catch((cause: unknown) => setBrowseError(messageOf(cause)))
+      .finally(() => setBrowseLoading(false));
+  };
+
+  const openDirectoryBrowser = () => {
+    setBrowseOpen(true);
+    loadDirectory(cwd.trim() || undefined);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -52,11 +80,14 @@ export function SpawnDialog({
     setCwd(state.local.lastCwd ?? "");
     setName("");
     setPrompt("");
-    setPolicy("config");
+    setPolicy("allow");
     setParent("");
     setSkill(true);
     setError(null);
     setDetails(null);
+    setBrowseOpen(false);
+    setListing(null);
+    setBrowseError(null);
     attempt.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -131,7 +162,7 @@ export function SpawnDialog({
         ...(cwd.trim() ? { cwd: cwd.trim() } : {}),
         ...(name.trim() ? { name: name.trim() } : {}),
         ...(prompt.trim() ? { prompt, wait: false } : {}),
-        ...(policy !== "config" ? { permissionPolicy: policy } : {}),
+        permissionPolicy: policy,
         ...(parent ? { parentSessionId: parent } : {}),
         skill,
         ...(idempotencyKey ? { idempotencyKey } : {}),
@@ -215,21 +246,27 @@ export function SpawnDialog({
 
       <div className="form-grid">
         <div className="form-grid__wide">
+          <label className="field">
+            <span className="field__label">First prompt</span>
+            <textarea
+              className="field__textarea"
+              rows={4}
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Optional. Sent after the session initializes."
+              autoFocus
+              title="Sent once; a retry reuses the spawn idempotency key when supported."
+            />
+          </label>
+        </div>
+
+        <div>
           {supportsBackends ? (
             <SelectField
               label="Backend *"
               value={backend}
               onChange={setBackend}
               disabled={pending || loadingBackends}
-              hint={
-                loadingBackends
-                  ? "Refreshing backends for this cwd…"
-                  : selectedBackend
-                    ? selectedBackend.available
-                      ? `${selectedBackend.source} · ${selectedBackend.command}`
-                      : selectedBackend.unavailableReason
-                    : "No backend selected."
-              }
             >
               {backends?.length ? null : <option value="">No backends loaded</option>}
               {backends?.map((candidate) => (
@@ -239,7 +276,7 @@ export function SpawnDialog({
                   disabled={!candidate.available}
                 >
                   {candidate.name}
-                  {candidate.available ? "" : ` — ${candidate.unavailableReason ?? "unavailable"}`}
+                  {candidate.available ? "" : ` / ${candidate.unavailableReason ?? "unavailable"}`}
                 </option>
               ))}
             </SelectField>
@@ -251,27 +288,10 @@ export function SpawnDialog({
                 value={backend}
                 onChange={(event) => setBackend(event.target.value)}
                 placeholder="claude"
-                autoFocus
               />
             </label>
           )}
         </div>
-
-        <label className="field form-grid__wide">
-          <span className="field__label">Working directory</span>
-          <input
-            className="field__input"
-            value={cwd}
-            onChange={(event) => setCwd(event.target.value)}
-            placeholder="Supervisor default cwd"
-            spellCheck={false}
-          />
-          <span className="field__hint">
-            {cwd.trim()
-              ? "Must be absolute. Changing it refreshes backends for project config."
-              : "Empty means the supervisor’s cwd, not this browser’s."}
-          </span>
-        </label>
 
         <label className="field">
           <span className="field__label">Name</span>
@@ -280,65 +300,149 @@ export function SpawnDialog({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Optional operator label"
+            title="Labels are mutable; the handle is identity."
           />
-          <span className="field__hint">Labels are mutable; the handle is identity.</span>
         </label>
 
-        <SelectField
-          label="Permission policy"
-          value={policy}
-          onChange={(value) => setPolicy(value as PolicyChoice)}
-          hint={
-            policy === "ask"
-              ? "ask can park an unattended session indefinitely; someone must answer."
-              : policy === "config"
-                ? "Config default; this dashboard does not know the effective value."
-                : policy === "deny"
-                  ? "Requests are denied without asking."
-                  : "Requests are allowed without asking."
-          }
-        >
-          <option value="config">config default</option>
-          <option value="allow">allow</option>
-          <option value="ask">ask</option>
-          <option value="deny">deny</option>
-        </SelectField>
+        <div className="field form-grid__wide">
+          <label className="field__label" htmlFor="spawn-cwd">
+            Working directory
+          </label>
+          <div className="field__with-action">
+            <input
+              id="spawn-cwd"
+              className="field__input"
+              value={cwd}
+              onChange={(event) => setCwd(event.target.value)}
+              placeholder="Supervisor default cwd"
+              spellCheck={false}
+              title="Absolute path. Changing it refreshes backends for project config."
+            />
+            {canBrowse ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={openDirectoryBrowser}
+                title="Browse local directories through the bridge"
+              >
+                <FolderOpen className="btn__icon icon" />
+                Browse
+              </Button>
+            ) : null}
+          </div>
+          {browseOpen ? (
+            <div className="cwd-browser">
+              <div className="cwd-browser__head">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isDisabled={!listing?.parent || browseLoading}
+                  onPress={() => {
+                    if (listing?.parent) loadDirectory(listing.parent);
+                  }}
+                  title="Parent directory"
+                >
+                  <ChevronUp className="btn__icon icon" />
+                  Up
+                </Button>
+                <span className="cwd-browser__path" title={listing?.path}>
+                  {listing?.path ?? "Loading..."}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isDisabled={browseLoading}
+                  onPress={() => setBrowseOpen(false)}
+                  aria-label="Close directory browser"
+                >
+                  <X className="btn__icon icon" />
+                </Button>
+              </div>
+              {listing && listing.roots.length > 1 ? (
+                <div className="cwd-browser__roots">
+                  {listing.roots.map((root) => (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      key={root}
+                      onPress={() => loadDirectory(root)}
+                    >
+                      {root}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              {browseError ? (
+                <p className="cwd-browser__error" role="alert">
+                  {browseError}
+                </p>
+              ) : null}
+              <div className="cwd-browser__list">
+                {browseLoading ? (
+                  <span className="cwd-browser__empty">Loading directories...</span>
+                ) : listing?.entries.length ? (
+                  listing.entries.map((entry) => (
+                    <button
+                      type="button"
+                      className="cwd-browser__entry"
+                      key={entry.path}
+                      onClick={() => loadDirectory(entry.path)}
+                      title={entry.path}
+                    >
+                      <FolderOpen className="icon" />
+                      <span>{entry.name}</span>
+                    </button>
+                  ))
+                ) : (
+                  <span className="cwd-browser__empty">No subdirectories.</span>
+                )}
+              </div>
+              <div className="cwd-browser__foot">
+                <span className="caption">
+                  {listing ? `${listing.entries.length} folders` : ""}
+                </span>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  isDisabled={!listing || browseLoading}
+                  onPress={() => {
+                    if (!listing) return;
+                    setCwd(listing.path);
+                    setBrowseOpen(false);
+                  }}
+                >
+                  Use this folder
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="field">
+          <span className="field__label">Permission policy</span>
+          <PolicySelector
+            value={policy}
+            onChange={setPolicy}
+            ariaLabel="Spawn permission policy"
+          />
+        </div>
 
         <SelectField
           label="Parent"
           value={parent}
           onChange={setParent}
-          hint="Lineage only. It grants no visibility or control."
         >
           <option value="">root session</option>
           {parentChoices.map((candidate) => (
             <option value={candidate.id} key={candidate.id}>
-              #{candidate.id} · {candidate.name ?? candidate.title ?? candidate.backend}
+              #{candidate.id} / {candidate.name ?? candidate.title ?? candidate.backend}
             </option>
           ))}
         </SelectField>
 
         <div className="form-grid__wide">
-          <label className="field">
-            <span className="field__label">First prompt</span>
-            <textarea
-              className="field__textarea"
-              rows={4}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Optional. Sent after the session initializes."
-            />
-            <span className="field__hint">
-              Not sent twice. A retry reuses the spawn idempotency key when the
-              capability is present.
-            </span>
-          </label>
-        </div>
-
-        <div className="form-grid__wide">
           <ToggleRow
             label="Include the HLAO skill pointer"
-            description="Prepended to the first prompt only; default on."
             checked={skill}
             onChange={setSkill}
           />
@@ -359,7 +463,7 @@ export function SpawnDialog({
           </span>
           <span>
             <span className="caption">effective policy</span>{" "}
-            <span className="mono">{policy === "config" ? "config default" : policy}</span>
+            <span className="mono">{policy}</span>
           </span>
           <span>
             <span className="caption">parent</span>{" "}
@@ -422,6 +526,12 @@ export function SpawnDialog({
       </div>
     </DialogShell>
   );
+}
+
+function messageOf(cause: unknown): string {
+  return cause && typeof cause === "object" && "message" in cause
+    ? String((cause as { message: unknown }).message)
+    : String(cause);
 }
 
 function cryptoId(): string {

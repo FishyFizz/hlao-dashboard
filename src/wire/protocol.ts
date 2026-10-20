@@ -434,7 +434,8 @@ export type RpcMethod =
   | "stream.subscribe"
   | "stream.unsubscribe"
   | "supervisor.reload"
-  | "supervisor.shutdown";
+  | "supervisor.shutdown"
+  | "dashboard.fs.list";
 
 export const WIRE_MAJOR = 2;
 export const WIRE_MINOR = 5;

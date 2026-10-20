@@ -12,12 +12,13 @@ import { createServer } from "node:http";
 import {
   createReadStream,
   existsSync,
+  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { connect } from "node:net";
 import { createHash, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -458,6 +459,46 @@ function allowedOrigin(origin) {
   return allowed.has(origin);
 }
 
+function directoryRoots() {
+  if (process.platform !== "win32") return ["/"];
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    .split("")
+    .map((letter) => `${letter}:\\`)
+    .filter((path) => existsSync(path));
+}
+
+function listDirectories(rawPath) {
+  const requested =
+    typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : homedir();
+  const path = resolve(requested);
+  try {
+    if (!statSync(path).isDirectory()) {
+      throw new Error("not a directory");
+    }
+    const entries = readdirSync(path, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => ({
+        name: entry.name,
+        path: join(path, entry.name),
+      }))
+      .sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+      );
+    const parent = dirname(path);
+    return {
+      path,
+      parent: parent === path ? null : parent,
+      entries,
+      roots: directoryRoots(),
+    };
+  } catch (error) {
+    throw {
+      code: "bad_request",
+      message: `Cannot browse ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
 function sendJson(res, status, value) {
   const body = JSON.stringify(value);
   res.writeHead(status, {
@@ -627,6 +668,17 @@ const server = createServer(async (req, res) => {
         ok: false,
         error: { code: "bad_request", message: "method is required" },
       });
+      return;
+    }
+    if (payload.method === "dashboard.fs.list") {
+      try {
+        sendJson(res, 200, {
+          ok: true,
+          result: listDirectories(payload.params?.path),
+        });
+      } catch (error) {
+        sendJson(res, 200, { ok: false, error: normalizeError(error) });
+      }
       return;
     }
     try {
