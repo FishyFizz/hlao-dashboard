@@ -101,8 +101,10 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - **Actions**: rename, stop with keep/discard queue, close (with advanced force),
   close subtree as a labelled assembly, forget with history-loss warning and
   export, export as paged JSON, copy handle, and copy the read command as CLI.
-- **Provider panels**: policy, mode, and config are separate layers. Plan and
-  compaction are read-only. Usage is labelled as the latest reported snapshot.
+- **Provider panels**: policy, mode, and config are separate layers. Policy is a
+  color-coded segmented bar (allow green, ask amber, deny red); effort options
+  use a discrete slider. Plan and compaction are read-only. Usage is labelled
+  as the latest reported snapshot.
 
 ### Spawn, search, keyboard
 

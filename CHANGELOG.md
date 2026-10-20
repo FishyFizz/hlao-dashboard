@@ -50,6 +50,12 @@
 - Turned the closed/failed terminal status into a full-width band with a single
   bottom rule, aligned with the state strip and transcript instead of retaining
   the old inset card frame.
+- Switched the whole UI to Geist Mono and removed the unused Geist sans font.
+- Collapsed the provider panel to a single `"<backend> details"` disclosure.
+- Replaced the permission-policy select with a full-width segmented bar; the
+  selected fill is status-colored (allow green, ask amber, deny red).
+- Rendered provider effort config options as a discrete, labeled slider and
+  committed changes on release rather than during the drag.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

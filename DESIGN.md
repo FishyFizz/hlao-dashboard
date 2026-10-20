@@ -56,20 +56,20 @@ The accent is the user-provided `rgb(108, 210, 255)`. Light mode darkens accent 
 
 ## Type
 
-Two families, one voice:
+One family, one voice:
 
-- **Geist Variable** — names, prose, messages, dialog titles.
-- **Geist Mono Variable** — IDs, state, timestamps, counts, costs, labels, keycaps, commands.
+- **Geist Mono Variable** ? all UI text: names, prose, messages, labels, data, IDs, state,
+  timestamps, costs, keycaps, and commands.
 
 | Role | Size | Notes |
 |---|---|---|
-| Display | 44–56px | Geist 500, `-0.04em`, `0.98` line height |
-| Section title | 24px | Geist 500, `-0.025em` |
-| Dialog / heading | 16px | Geist 500, `-0.01em` |
-| Body | 13–14px | Geist 400, `1.55–1.65` |
+| Display | 44?56px | Geist Mono 500, `-0.04em`, `0.98` line height |
+| Section title | 24px | Geist Mono 500, `-0.025em` |
+| Dialog / heading | 16px | Geist Mono 500, `-0.01em` |
+| Body | 13?14px | Geist Mono 400, `1.55?1.65` |
 | Dense UI | 12px | table cells, buttons, menus |
-| Mono data | 9–11px | tabular numerals, slashed zero |
-| Labels | 9–10px | mono 500, uppercase, `0.09em` tracking |
+| Data | 9?11px | tabular numerals, slashed zero |
+| Labels | 9?10px | mono 500, uppercase, `0.09em` tracking |
 
 Rules:
 

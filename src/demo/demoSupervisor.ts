@@ -473,6 +473,18 @@ export class DemoSupervisor {
               ],
             },
             {
+              id: "effort",
+              name: "Effort",
+              category: "model_config",
+              type: "select",
+              currentValue: "medium",
+              values: [
+                { value: "low", name: "Low" },
+                { value: "medium", name: "Medium" },
+                { value: "high", name: "High" },
+              ],
+            },
+            {
               id: "reasoning",
               name: "Extended reasoning",
               type: "boolean",

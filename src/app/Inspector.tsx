@@ -1,4 +1,14 @@
+import { useEffect, useState } from "react";
 import { ListTree, Shield, TriangleAlert } from "lucide-react";
+import {
+  Label,
+  Radio,
+  RadioGroup,
+  Slider,
+  SliderFill,
+  SliderThumb,
+  SliderTrack,
+} from "react-aria-components";
 import { Button } from "../components/Button";
 import { Handle } from "../components/Status";
 import {
@@ -54,61 +64,65 @@ export function Inspector({
 
   return (
     <div className="inspector">
-      <section className="inspector__section">
-        <div className="inspector__head">
-          <span>Provider</span>
+      <details className="inspector__section inspector__details">
+        <summary>
+          <span>{session.backend ? `${session.backend} details` : "provider details"}</span>
+        </summary>
+        <div className="inspector__rows inspector__rows--tight">
+          <Row label="cwd" value={session.cwd} mono copy />
+          <Row
+            label="agent"
+            value={
+              canAgent && session.agentName
+                ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
+                : canAgent
+                  ? "not reported"
+                  : "not supported"
+            }
+            mono
+          />
+          <Row
+            label="title"
+            value={canTitle ? session.title || "not reported" : "not supported"}
+          />
+          <Row label="created by" value={session.createdBy ?? "not reported"} />
+          <Row label="instance" value={state.home} mono />
         </div>
-        <div className="inspector__rows">
-          <Row label="backend" value={session.backend} mono />
-        </div>
-        <details className="inspector__details">
-          <summary>Provider details</summary>
-          <div className="inspector__rows inspector__rows--tight">
-            <Row label="cwd" value={session.cwd} mono copy />
-            <Row
-              label="agent"
-              value={
-                canAgent && session.agentName
-                  ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
-                  : canAgent
-                    ? "not reported"
-                    : "not supported"
-              }
-              mono
-            />
-            <Row
-              label="title"
-              value={canTitle ? session.title || "not reported" : "not supported"}
-            />
-            <Row label="created by" value={session.createdBy ?? "not reported"} />
-            <Row label="instance" value={state.home} mono />
-          </div>
-          {canMessages ? (
-            <p className="inspector__note">
-              Inter-session messages appear in the transcript; they are not
-              operator prompts.
-            </p>
-          ) : null}
-        </details>
-      </section>
+        {canMessages ? (
+          <p className="inspector__note">
+            Inter-session messages appear in the transcript; they are not
+            operator prompts.
+          </p>
+        ) : null}
+      </details>
 
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Layers</span>
         </div>
-        <SelectField
-          label="HLAO permission policy"
-          value={session.permissionPolicy}
-          disabled={terminal || pendingPolicy}
-          onChange={(value) => {
-            if (value === session.permissionPolicy) return;
-            void store.setPolicy(value as "ask" | "allow" | "deny");
-          }}
-        >
-          <option value="allow">allow</option>
-          <option value="ask">ask</option>
-          <option value="deny">deny</option>
-        </SelectField>
+        <div className="field">
+          <span className="field__label">HLAO permission policy</span>
+          <RadioGroup
+            className="segmented segmented--bar segmented--policy"
+            aria-label="HLAO permission policy"
+            value={session.permissionPolicy}
+            isDisabled={terminal || pendingPolicy}
+            onChange={(value) => {
+              if (value === session.permissionPolicy) return;
+              void store.setPolicy(value as "ask" | "allow" | "deny");
+            }}
+          >
+            <Radio className="segmented__item segmented__item--allow" value="allow">
+              allow
+            </Radio>
+            <Radio className="segmented__item segmented__item--ask" value="ask">
+              ask
+            </Radio>
+            <Radio className="segmented__item segmented__item--deny" value="deny">
+              deny
+            </Radio>
+          </RadioGroup>
+        </div>
         {terminal ? (
           <p className="inspector__none">
             {state.removed
@@ -429,6 +443,23 @@ function ConfigOption({
   pending: boolean;
   disabled: boolean;
 }) {
+  const effortIndex = option.values.findIndex(
+    (candidate) => candidate.value === String(option.currentValue),
+  );
+  if (
+    option.type === "select" &&
+    option.values.length > 1 &&
+    effortIndex >= 0 &&
+    /effort/i.test(`${option.id} ${option.name}`)
+  ) {
+    return (
+      <EffortSlider
+        option={option}
+        currentIndex={effortIndex}
+        disabled={disabled || pending}
+      />
+    );
+  }
   if (option.type === "boolean") {
     return (
       <ToggleRow
@@ -452,6 +483,62 @@ function ConfigOption({
         </option>
       ))}
     </SelectField>
+  );
+}
+
+function EffortSlider({
+  option,
+  currentIndex,
+  disabled,
+}: {
+  option: SessionConfigOptionView;
+  currentIndex: number;
+  disabled: boolean;
+}) {
+  const [local, setLocal] = useState(currentIndex);
+
+  useEffect(() => {
+    if (!disabled) setLocal(currentIndex);
+  }, [currentIndex, disabled]);
+
+  const commit = (value: number) => {
+    const next = option.values[Math.round(value)];
+    if (!next || next.value === String(option.currentValue)) return;
+    void store.setConfigOption(option.id, next.value);
+  };
+
+  return (
+    <Slider
+      className="slider effort-slider"
+      value={local}
+      minValue={0}
+      maxValue={Math.max(0, option.values.length - 1)}
+      step={1}
+      isDisabled={disabled}
+      onChange={(value) => setLocal(Number(value))}
+      onChangeEnd={(value) => commit(Number(value))}
+    >
+      <div className="slider__head">
+        <Label className="slider__label">{option.name}</Label>
+        <span className="effort-slider__value">
+          {option.values[local]?.name ?? "not reported"}
+        </span>
+      </div>
+      <SliderTrack className="slider__track">
+        <SliderFill className="slider__fill" />
+        <SliderThumb className="slider__thumb" />
+      </SliderTrack>
+      <div className="effort-slider__ticks">
+        {option.values.map((candidate, index) => (
+          <span
+            key={candidate.value}
+            data-active={index === local ? "true" : undefined}
+          >
+            {candidate.name}
+          </span>
+        ))}
+      </div>
+    </Slider>
   );
 }
 
