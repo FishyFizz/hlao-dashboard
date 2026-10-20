@@ -16,6 +16,11 @@
 - Removed the "Load older events" button. Earlier pages now load automatically
   near the top, preserve the reading anchor, and stop at an honest 10,000-event
   local cap.
+- Made secondary metadata quiet by default. The state strip now shows policy,
+  turn, context, last event, and unread; provider mode, cwd, agent package,
+  cost, timestamps, creator, and instance are behind "More". Provider details,
+  usage details, permission consequences, lineage, and diagnostics are
+  collapsed until requested.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

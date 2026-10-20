@@ -24,6 +24,9 @@ like an instrument panel, not a product landing page:
 - **Attention-first.** The fleet ranks structural blockers: waiting permission first, unacknowledged
   failure second, error notice third. Everything else stays quiet. The attention count stays
   visible in the session lens.
+- **Quiet by default.** Primary surfaces carry the facts needed to act. Secondary metadata
+  (cwd, provider mode, agent package, cost, timestamps, creator, instance, raw lineage) lives
+  behind a disclosure, never in the first read.
 
 ## Palette
 

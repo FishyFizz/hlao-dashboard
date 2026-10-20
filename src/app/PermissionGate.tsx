@@ -37,10 +37,6 @@ export function PermissionGate({
             {permission.toolCallId ? ` · ${permission.toolCallId}` : ""} · <Handle id={session.id} />
           </div>
         </div>
-        <p className="permission-gate__explain">
-          The session cannot proceed until this request is answered. The dashboard
-          never answers it on your behalf.
-        </p>
         {permission.options.length > 0 ? (
           <div className="permission-gate__options" role="group" aria-label="Permission options">
             {permission.options.map((option) => (
@@ -62,7 +58,7 @@ export function PermissionGate({
               onPress={onAlways}
               title="Answer now and switch this session's HLAO policy to allow"
             >
-              Allow always &amp; set policy…
+              Allow always &amp; set policy...
             </Button>
           </div>
         ) : (
@@ -76,11 +72,19 @@ export function PermissionGate({
             sending answer · waiting for the supervisor
           </span>
         ) : null}
-        <span className="permission-gate__consequence">
-          The options above answer this request only. “Allow always &amp; set policy…”
-          also switches the HLAO policy to <span className="mono">allow</span>; future
-          requests will not ask. The provider mode is a separate layer.
-        </span>
+        <details className="permission-gate__more">
+          <summary>What these options do</summary>
+          <p className="permission-gate__explain">
+            The session cannot proceed until this request is answered. The
+            dashboard never answers it on your behalf.
+          </p>
+          <p className="permission-gate__explain">
+            The options above answer this request only. "Allow always &amp; set
+            policy..." also switches the HLAO policy to{" "}
+            <span className="mono">allow</span>; future requests will not ask. The
+            provider mode is a separate layer.
+          </p>
+        </details>
       </div>
     </section>
   );

@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
-import { Handle } from "../components/Status";
-import {
-  canUse,
-  type DashboardState,
-} from "../store/store";
+import { canUse, type DashboardState } from "../store/store";
 import {
   contextPercent,
   formatAge,
@@ -32,7 +28,6 @@ export function StateStrip({
     session.modes?.availableModes.find(
       (candidate) => candidate.id === session.modes?.currentModeId,
     ) ?? null;
-  const settled = canUse(state, "session.settled");
   const lastSeen = state.local.lastSeen[sessionLocalKey(session)] ?? 0;
   const unread = Math.max(0, session.lastSeq - lastSeen);
   const runningElapsed =
@@ -47,10 +42,8 @@ export function StateStrip({
   return (
     <div className="state-strip" aria-label="Session state">
       <div className="state-facts">
-        <Fact label="Backend" value={session.backend} mono />
-        <Fact label="Cwd" value={session.cwd} mono copy />
         <Fact
-          label="HLAO policy"
+          label="Policy"
           value={
             <span className="state-policy" data-policy={session.permissionPolicy}>
               {session.permissionPolicy}
@@ -67,103 +60,79 @@ export function StateStrip({
                 : "Requests are allowed without asking."
           }
         />
+        {session.turn > 0 ? (
+          <Fact
+            label="Turn"
+            value={`${session.turn}${runningElapsed ? ` · ${runningElapsed}` : ""}`}
+            title={
+              session.turnStartedAt
+                ? formatDateTime(session.turnStartedAt)
+                : undefined
+            }
+          />
+        ) : null}
+        {session.queued > 0 ? (
+          <Fact label="Queue" value={`${session.queued} waiting`} />
+        ) : null}
+        {session.usage && percent !== null ? (
+          <Fact
+            label="Context"
+            value={`${formatTokens(session.usage.used)} / ${formatTokens(session.usage.size)} · ${percent}%`}
+            title="Latest reported snapshot. Not a cumulative total."
+          />
+        ) : null}
+        {session.exit ? (
+          <Fact
+            label="Exit"
+            value={`${session.exit.code ?? "?"}${session.exit.signal ? ` · ${session.exit.signal}` : ""}`}
+          />
+        ) : null}
         <Fact
-          label="Provider mode"
-          value={
-            session.modes
-              ? mode?.name ?? session.modes.currentModeId
-              : "not advertised"
-          }
-          title={mode?.description}
+          label="Last event"
+          value={`${lastEventLabel(session, canUse(state, "session.lastEvent"))} · ${formatAge(session.lastEvent?.at ?? session.lastActivityAt, now)}`}
+          title={formatDateTime(session.lastEvent?.at)}
         />
-        <Fact
-          label="Turn"
-          value={
-            session.turn > 0
-              ? `${session.turn}${runningElapsed ? ` · ${runningElapsed}` : ""}`
-              : "none"
-          }
-          title={session.turnStartedAt ? formatDateTime(session.turnStartedAt) : undefined}
-        />
-        <Fact
-          label="Queue"
-          value={session.queued > 0 ? `${session.queued} waiting` : "empty"}
-        />
-        <Fact
-          label="Context"
-          value={
-            session.usage && percent !== null
-              ? `${formatTokens(session.usage.used)} / ${formatTokens(session.usage.size)} · ${percent}%`
-              : "not reported"
-          }
-          title={
-            session.usage
-              ? `Latest reported snapshot at ${formatDateTime(session.usage.at)}. Not a cumulative total.`
-              : undefined
-          }
-        />
-        <Fact
-          label="Reported cost"
-          value={formatCost(session.usage ?? null)}
-          title="Latest reported snapshot; not a bill or a session total."
-        />
-        <Fact
-          label="Agent"
-          value={
-            session.agentName
-              ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
-              : "not reported"
-          }
-        />
-        <Fact
-          label={session.endedAt ? "Ended" : "Created"}
-          value={
-            session.endedAt
-              ? `${formatDateTime(session.endedAt)} · ${endedElapsed}`
-              : formatDateTime(session.createdAt)
-          }
-        />
-      </div>
+        {unread > 0 ? <Fact label="New" value={String(unread)} /> : null}
 
-      <div className="state-strip__line">
-        <span className="state-strip__identity">
-          <Handle id={session.id} />
-          {session.name && session.title ? (
-            <span className="state-strip__title">{session.title}</span>
-          ) : null}
-          {session.createdBy ? (
-            <span className="state-strip__actor">created by {session.createdBy}</span>
-          ) : null}
-        </span>
-        <span className="state-strip__signals">
-          {unread > 0 ? (
-            <span className="state-signal" title="Local unread marker">
-              {unread} new
-            </span>
-          ) : null}
-          {settled && session.settled ? (
-            <span className="state-signal state-signal--quiet">
-              no active turn · queue empty
-            </span>
-          ) : null}
-          {!runningElapsed && session.lastStopReason ? (
-            <span className="state-signal">
-              last turn ended: {session.lastStopReason}
-            </span>
-          ) : null}
-          {session.exit ? (
-            <span className="state-signal state-signal--danger">
-              exit {session.exit.code ?? "—"}
-              {session.exit.signal ? ` · ${session.exit.signal}` : ""}
-            </span>
-          ) : null}
-          {runningElapsed ? (
-            <span className="state-signal">running {runningElapsed}</span>
-          ) : null}
-          <span className="state-signal state-signal--last" title={formatDateTime(session.lastEvent?.at)}>
-            {lastEventLabel(session, canUse(state, "session.lastEvent"))} · {formatAge(session.lastEvent?.at ?? session.lastActivityAt, now)}
-          </span>
-        </span>
+        <details className="state-more">
+          <summary title="Mode, cwd, agent, cost, time, instance">More</summary>
+          <div className="state-more__grid">
+            <Fact
+              label="Mode"
+              value={
+                session.modes
+                  ? (mode?.name ?? session.modes.currentModeId)
+                  : "not advertised"
+              }
+              title={mode?.description}
+            />
+            <Fact label="Cwd" value={session.cwd} mono copy />
+            <Fact
+              label="Agent"
+              value={
+                session.agentName
+                  ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
+                  : "not reported"
+              }
+              mono
+            />
+            <Fact label="Reported cost" value={formatCost(session.usage ?? null)} />
+            <Fact label="Created" value={formatDateTime(session.createdAt)} />
+            {session.endedAt ? (
+              <Fact
+                label="Ended"
+                value={`${formatDateTime(session.endedAt)} · ${endedElapsed}`}
+              />
+            ) : null}
+            {session.createdBy ? (
+              <Fact label="Created by" value={session.createdBy} />
+            ) : null}
+            <Fact label="Instance" value={state.home} mono />
+            {session.lastStopReason ? (
+              <Fact label="Last stop" value={session.lastStopReason} mono />
+            ) : null}
+          </div>
+        </details>
       </div>
     </div>
   );

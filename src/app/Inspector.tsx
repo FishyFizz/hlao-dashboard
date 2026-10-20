@@ -57,41 +57,44 @@ export function Inspector({
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Provider</span>
-          {canAgent ? <span className="caption">reported</span> : null}
         </div>
         <div className="inspector__rows">
           <Row label="backend" value={session.backend} mono />
-          <Row label="cwd" value={session.cwd} mono copy />
-          <Row
-            label="agent"
-            value={
-              canAgent && session.agentName
-                ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
-                : canAgent
-                  ? "not reported"
-                  : "not supported"
-            }
-            mono
-          />
-          <Row
-            label="title"
-            value={canTitle ? session.title || "not reported" : "not supported"}
-          />
-          <Row label="created by" value={session.createdBy ?? "not reported"} />
-          <Row label="instance" value={state.home} mono />
         </div>
-        {canMessages ? (
-          <p className="inspector__note">
-            Inter-session messages appear in the transcript; they are not operator
-            prompts.
-          </p>
-        ) : null}
+        <details className="inspector__details">
+          <summary>Provider details</summary>
+          <div className="inspector__rows inspector__rows--tight">
+            <Row label="cwd" value={session.cwd} mono copy />
+            <Row
+              label="agent"
+              value={
+                canAgent && session.agentName
+                  ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
+                  : canAgent
+                    ? "not reported"
+                    : "not supported"
+              }
+              mono
+            />
+            <Row
+              label="title"
+              value={canTitle ? session.title || "not reported" : "not supported"}
+            />
+            <Row label="created by" value={session.createdBy ?? "not reported"} />
+            <Row label="instance" value={state.home} mono />
+          </div>
+          {canMessages ? (
+            <p className="inspector__note">
+              Inter-session messages appear in the transcript; they are not
+              operator prompts.
+            </p>
+          ) : null}
+        </details>
       </section>
 
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Layers</span>
-          <span className="caption">policy ≠ provider mode</span>
         </div>
         <SelectField
           label="HLAO permission policy"
@@ -101,13 +104,6 @@ export function Inspector({
             if (value === session.permissionPolicy) return;
             void store.setPolicy(value as "ask" | "allow" | "deny");
           }}
-          hint={
-            session.permissionPolicy === "ask"
-              ? "An unattended session can wait indefinitely. A client must answer."
-              : session.permissionPolicy === "deny"
-                ? "Requests are denied without asking."
-                : "Requests are allowed without asking."
-          }
         >
           <option value="allow">allow</option>
           <option value="ask">ask</option>
@@ -116,8 +112,8 @@ export function Inspector({
         {terminal ? (
           <p className="inspector__none">
             {state.removed
-              ? "No longer in this instance. Policy, mode, and config controls are disabled; the loaded transcript is a local snapshot."
-              : "Session ended. Policy, mode, and config controls are disabled; the retained transcript remains readable."}
+              ? "Removed · controls disabled · transcript is a local snapshot"
+              : "Ended · controls disabled"}
           </p>
         ) : null}
         {session.permissionPolicy === "ask" ? (
@@ -139,12 +135,6 @@ export function Inspector({
               if (value === session.modes?.currentModeId) return;
               void store.setMode(value);
             }}
-            hint={
-              session.modes.availableModes.find(
-                (mode) => mode.id === session.modes?.currentModeId,
-              )?.description ??
-              "Provider-native values; they are not HLAO policy."
-            }
           >
             {session.modes.availableModes.map((mode) => (
               <option value={mode.id} key={mode.id}>
@@ -176,7 +166,6 @@ export function Inspector({
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Usage</span>
-          <span className="caption">latest snapshot</span>
         </div>
         {!canUsage ? (
           <p className="inspector__none">Not supported by this supervisor.</p>
@@ -197,14 +186,17 @@ export function Inspector({
                 />
               </div>
             </div>
-            <div className="inspector__rows inspector__rows--tight">
-              <Row label="reported cost" value={formatCost(usage)} mono />
-              <Row label="snapshot at" value={formatDateTime(usage.at)} mono />
-            </div>
-            <p className="inspector__note">
-              The latest reported snapshot. Not a cumulative bill, a session total,
-              or a total token count.
-            </p>
+            <details className="inspector__details">
+              <summary>Usage details</summary>
+              <div className="inspector__rows inspector__rows--tight">
+                <Row label="reported cost" value={formatCost(usage)} mono />
+                <Row label="snapshot at" value={formatDateTime(usage.at)} mono />
+              </div>
+              <p className="inspector__note">
+                The latest reported snapshot. Not a cumulative bill, a session
+                total, or a total token count.
+              </p>
+            </details>
           </>
         ) : (
           <p className="inspector__none">Usage not reported.</p>
@@ -214,7 +206,6 @@ export function Inspector({
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Plan</span>
-          <span className="caption">provider · read-only</span>
         </div>
         {!canPlan ? (
           <p className="inspector__none">Not supported by this supervisor.</p>
@@ -247,17 +238,19 @@ export function Inspector({
           </div>
         )}
         {session.plan ? (
-          <p className="inspector__note">
-            Provider-reported plan. It is not editable, not a task board, and not
-            aggregated across sessions.
-          </p>
+          <details className="inspector__details">
+            <summary>About provider plans</summary>
+            <p className="inspector__note">
+              Provider-reported and read-only. It is not a task board and is not
+              aggregated across sessions.
+            </p>
+          </details>
         ) : null}
       </section>
 
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Compaction</span>
-          <span className="caption">provider</span>
         </div>
         {!canCompaction ? (
           <p className="inspector__none">Not supported by this supervisor.</p>
@@ -274,18 +267,18 @@ export function Inspector({
               />
             </div>
             {session.compaction.summary ? (
-              <details className="inspector__details" open>
+              <details className="inspector__details">
                 <summary>Provider summary</summary>
                 <pre className="inspector__pre">{session.compaction.summary}</pre>
+                <p className="inspector__note">
+                  Compaction is provider state. The dashboard cannot trigger or
+                  prevent it.
+                </p>
               </details>
             ) : null}
             {session.compaction.error ? (
               <p className="inspector__error">{session.compaction.error}</p>
             ) : null}
-            <p className="inspector__note">
-              Compaction is provider state. The dashboard cannot trigger or prevent
-              it.
-            </p>
           </>
         )}
       </section>
@@ -293,7 +286,6 @@ export function Inspector({
       <section className="inspector__section">
         <div className="inspector__head">
           <span>Notice</span>
-          <span className="caption">latest</span>
         </div>
         {!canNotices ? (
           <p className="inspector__none">Not supported by this supervisor.</p>
@@ -321,11 +313,11 @@ export function Inspector({
         ) : null}
       </section>
 
-      <section className="inspector__section">
-        <div className="inspector__head">
+      <details className="inspector__section inspector__details">
+        <summary>
           <span>Lineage</span>
-          <span className="caption">context, not authority</span>
-        </div>
+          <span className="caption">{subtree.length} in subtree</span>
+        </summary>
         <div className="tree">
           {root ? (
             <div className="tree__row">
@@ -393,7 +385,7 @@ export function Inspector({
           Lineage is read from parentId/rootId. Every session remains addressable;
           this tree is not a permission boundary or a rollup status.
         </p>
-      </section>
+      </details>
 
       <details className="inspector__section inspector__details">
         <summary>
@@ -441,7 +433,6 @@ function ConfigOption({
     return (
       <ToggleRow
         label={option.name}
-        description={option.description}
         checked={option.currentValue === true}
         disabled={disabled || pending}
         onChange={(value) => void store.setConfigOption(option.id, value)}
@@ -453,7 +444,6 @@ function ConfigOption({
       label={option.name}
       value={String(option.currentValue)}
       disabled={disabled || pending}
-      hint={option.description}
       onChange={(value) => void store.setConfigOption(option.id, value)}
     >
       {option.values.map((candidate) => (

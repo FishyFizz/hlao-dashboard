@@ -80,11 +80,12 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 ### Session lens
 
-- Identity, handles, backend, cwd, turn, queue, policy, provider mode, config,
-  usage snapshot, plan, compaction, notice, lineage, and terminal facts.
+- Identity plus summary facts: policy, turn, queue, context, last event, and
+  unread. Backend, cwd, provider mode, agent package, cost, creator, timestamps,
+  and instance live behind a local **More** disclosure.
 - **Permission gate**: provider options exactly as named, no preselected allow,
-  no auto-answer, explicit "Always allow & set policy…" confirmation, and a
-  separate explanation for the provider's own always option.
+  no auto-answer, explicit "Allow always & set policy..." confirmation, and a
+  collapsed explanation of the option consequences.
 - **Transcript**: turn skeleton, coalesced message chunks, one tool row updated
   in place, inline permission history, provider plan/compaction/usage/notice
   rows, unknown-type fallback with inspectable data. Tail-follow only at the

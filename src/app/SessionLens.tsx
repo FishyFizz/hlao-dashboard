@@ -28,7 +28,6 @@ import {
   descendantsOf,
   displayLabel,
   failureReason,
-  formatAge,
   formatDateTime,
 } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
@@ -38,7 +37,6 @@ import { Composer } from "./Composer";
 import { PermissionGate } from "./PermissionGate";
 import { StateStrip } from "./StateStrip";
 import { Transcript } from "./Transcript";
-import { useNow } from "./hooks";
 import { copyWithToast } from "./ui";
 
 export function SessionLens({
@@ -74,7 +72,6 @@ export function SessionLens({
   onDetails: () => void;
   onSpawnReplacement: () => void;
 }) {
-  const now = useNow();
   const lensRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     lensRef.current?.scrollTo({ top: 0 });
@@ -83,9 +80,6 @@ export function SessionLens({
   const terminal = session.status === "closed" || session.status === "failed";
   const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const active = session.status === "busy" || session.status === "waiting_permission";
-  const mode = session.modes?.availableModes.find(
-    (candidate) => candidate.id === session.modes?.currentModeId,
-  );
 
   return (
     <div className="session-lens" ref={lensRef}>
@@ -116,18 +110,6 @@ export function SessionLens({
                 <span className="session-head__title">{session.title}</span>
               ) : null}
               <Tag className="ident">{session.backend}</Tag>
-              {mode ? <Tag className="ident">{mode.name}</Tag> : null}
-              <span className={`session-policy session-policy--${session.permissionPolicy}`}>
-                policy {session.permissionPolicy}
-              </span>
-              {session.turn > 0 ? (
-                <span className="session-head__turn">
-                  turn {session.turn}
-                  {session.turnStartedAt && active && !state.removed
-                    ? ` · ${formatAge(session.turnStartedAt, now)}`
-                    : ""}
-                </span>
-              ) : null}
               {session.queued > 0 ? <Tag tone="warn">{session.queued} queued</Tag> : null}
               {attention ? (
                 <Tag tone="warn">
