@@ -1,0 +1,129 @@
+/* HLAO dashboard — design tokens
+ *
+ * One aesthetic: flat surfaces, 1px rules, square corners, one cyan signal.
+ * Dark is the default. Every token has a light-theme counterpart; the accent
+ * itself is the same rgb(108, 210, 255) in both.
+ */
+
+@layer reset, base, primitives, gallery;
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0a0c0e;
+  --panel: #0e1114;
+  --raise: #14181c;
+  --hover: #1a2026;
+  --line: #232a30;
+  --line-2: #343d45;
+
+  /* Ink */
+  --text: #e7ecef;
+  --text-2: #9aa5ad;
+  --text-3: #78848c;
+
+  /* Signal */
+  --accent: #6cd2ff;
+  --accent-2: #8fdfff;
+  --accent-ink: #05151d;
+  --accent-text: #6cd2ff;
+  --accent-soft: rgba(108, 210, 255, 0.11);
+  --accent-line: rgba(108, 210, 255, 0.42);
+  --selection: rgba(108, 210, 255, 0.18);
+
+  /* State */
+  --ok: #63e6a8;
+  --warn: #ffc24b;
+  --danger: #ff6b6b;
+  --ok-soft: rgba(99, 230, 168, 0.11);
+  --warn-soft: rgba(255, 194, 75, 0.12);
+  --danger-soft: rgba(255, 107, 107, 0.12);
+
+  /* Chrome */
+  --focus: var(--accent);
+  --backdrop: rgba(3, 5, 7, 0.74);
+  --shadow: none;
+
+  /* Type */
+  --font-sans: "Geist Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", "Cascadia Mono", "SFMono-Regular", ui-monospace, monospace;
+  --fs-10: 10px;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-32: 32px;
+  --fs-44: 44px;
+  --lh-tight: 1.12;
+  --lh-body: 1.55;
+  --track-label: 0.09em;
+
+  /* Space — 4px base */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-20: 80px;
+
+  /* Form */
+  --bw: 1px;
+  --radius: 0px;
+  --control-h: 30px;
+  --control-h-sm: 26px;
+  --control-h-lg: 36px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 260ms;
+
+  /* Layers */
+  --z-sticky: 20;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f1f4f5;
+  --panel: #ffffff;
+  --raise: #f8fafb;
+  --hover: #edf1f3;
+  --line: #dde3e6;
+  --line-2: #c3ccd1;
+
+  --text: #0b1013;
+  --text-2: #4e5a62;
+  --text-3: #6a767e;
+
+  --accent: #6cd2ff;
+  --accent-2: #46c4f5;
+  --accent-ink: #04141c;
+  --accent-text: #056b89;
+  --accent-soft: rgba(108, 210, 255, 0.20);
+  --accent-line: rgba(5, 107, 137, 0.38);
+  --selection: rgba(108, 210, 255, 0.32);
+
+  --ok: #067a4b;
+  --warn: #8a5300;
+  --danger: #b42318;
+  --ok-soft: rgba(6, 122, 75, 0.09);
+  --warn-soft: rgba(138, 83, 0, 0.09);
+  --danger-soft: rgba(180, 35, 24, 0.08);
+
+  --focus: #056b89;
+  --backdrop: rgba(11, 16, 19, 0.46);
+  --shadow: none;
+}
