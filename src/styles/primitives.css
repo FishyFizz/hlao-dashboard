@@ -876,16 +876,13 @@
     --status: var(--accent-text);
   }
 
-  .status--busy .status__lamp {
-    animation: lamp-pulse 1.8s var(--ease) infinite;
-  }
-
   .status--waiting_permission {
     --status: var(--warn);
   }
 
   .status--waiting_permission .status__lamp {
-    animation: lamp-blink 1.1s steps(2, jump-none) infinite;
+    border: var(--bw) solid var(--warn);
+    background: transparent;
   }
 
   .status--failed {
@@ -926,7 +923,8 @@
   }
 
   .lamp--blink {
-    animation: lamp-blink 1.1s steps(2, jump-none) infinite;
+    border: var(--bw) solid var(--warn);
+    background: transparent;
   }
 
   .tag {
@@ -2567,26 +2565,6 @@
   /* ------------------------------------------------------------------ */
   /* Keyframes                                                           */
   /* ------------------------------------------------------------------ */
-
-  @keyframes lamp-pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.45;
-    }
-  }
-
-  @keyframes lamp-blink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.2;
-    }
-  }
 
   @keyframes fade-in {
     from {

@@ -214,6 +214,10 @@ export class DashboardStore {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollBusy = false;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private notificationQueue: NotificationFrame[] = [];
+  private notificationTimer: ReturnType<typeof setTimeout> | null = null;
+  private batchDepth = 0;
+  private batchDirty = false;
   private toastTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private queueTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private noticeProbes = new Map<string, number>();
@@ -270,6 +274,14 @@ export class DashboardStore {
 
   private setState(patch: Partial<DashboardState>): void {
     this.state = { ...this.state, ...patch };
+    if (this.batchDepth > 0) {
+      this.batchDirty = true;
+      return;
+    }
+    this.notifyListeners();
+  }
+
+  private notifyListeners(): void {
     for (const listener of this.listeners) listener();
   }
 
@@ -319,6 +331,7 @@ export class DashboardStore {
   async connect(mode: Mode): Promise<void> {
     const token = ++this.connectToken;
     this.stopPolling();
+    this.clearNotificationQueue();
     this.disposeTransport();
     this.setState({
       phase: "connecting",
@@ -462,6 +475,7 @@ export class DashboardStore {
       (previous.pid !== hello.pid || previous.startedAt !== hello.startedAt);
     const restarted = previous !== null && !homeChanged && identityChanged;
     const fresh = !previous || homeChanged || restarted;
+    if (fresh) this.clearNotificationQueue();
     const local = fresh ? this.loadLocal(home) : this.state.local;
     const localSelected = local.selected;
 
@@ -1110,6 +1124,38 @@ export class DashboardStore {
   /* ---------------------------------------------------------------- */
 
   private handleNotification(frame: NotificationFrame): void {
+    this.notificationQueue.push(frame);
+    if (this.notificationTimer || this.batchDepth > 0) return;
+    this.notificationTimer = setTimeout(() => this.flushNotifications(), 50);
+  }
+
+  private clearNotificationQueue(): void {
+    if (this.notificationTimer) clearTimeout(this.notificationTimer);
+    this.notificationTimer = null;
+    this.notificationQueue = [];
+  }
+
+  private flushNotifications(): void {
+    this.notificationTimer = null;
+    const frames = this.notificationQueue;
+    this.notificationQueue = [];
+    if (frames.length === 0) return;
+    this.batchDepth += 1;
+    try {
+      for (const frame of frames) this.applyNotification(frame);
+    } finally {
+      this.batchDepth -= 1;
+      if (this.batchDirty) {
+        this.batchDirty = false;
+        this.notifyListeners();
+      }
+    }
+    if (this.notificationQueue.length > 0 && !this.notificationTimer) {
+      this.notificationTimer = setTimeout(() => this.flushNotifications(), 50);
+    }
+  }
+
+  private applyNotification(frame: NotificationFrame): void {
     if (frame.kind === "session") {
       this.applySessions([frame.session]);
       return;

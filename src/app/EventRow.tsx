@@ -28,13 +28,11 @@ export function EventRow({
   session,
   focused,
   onOpenSession,
-  onFocusGate,
 }: {
   item: RenderItem;
   session: SessionView;
   focused: boolean;
   onOpenSession?: (sessionId: string) => void;
-  onFocusGate?: () => void;
 }) {
   if (item.kind === "message") {
     return (
@@ -58,7 +56,6 @@ export function EventRow({
       session={session}
       focused={focused}
       onOpenSession={onOpenSession}
-      onFocusGate={onFocusGate}
     />
   );
 }
@@ -190,25 +187,16 @@ function ToolRow({
     >
       <Gutter seq={item.seq} at={item.at} />
       <div className="event__body">
-        <div className="event__meta">
-          <span className="event__type">tool.call</span>
-          <span className="event__sep">/</span>
-          <span className="event__role">work</span>
-          {item.turn !== null ? (
-            <>
-              <span className="event__sep">/</span>
-              <span>turn {item.turn}</span>
-            </>
-          ) : null}
-          <span className="event__meta-spacer" />
-          {payload ? <CopyButton text={payload} label="tool payload" /> : null}
-        </div>
         <div className="tool">
           <div className="tool__head">
             <Terminal className="icon" />
             <span className="tool__name">{item.name}</span>
             <span className="tool__title">{item.title || item.id}</span>
+            {item.turn !== null ? (
+              <span className="tool__turn">turn {item.turn}</span>
+            ) : null}
             <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
+            {payload ? <CopyButton text={payload} label="tool payload" /> : null}
           </div>
           <details className="tool__details">
             <summary>Inspect payload</summary>
@@ -283,13 +271,11 @@ function SingleEventRow({
   session,
   focused,
   onOpenSession,
-  onFocusGate,
 }: {
   event: EventView;
   session: SessionView;
   focused: boolean;
   onOpenSession?: (sessionId: string) => void;
-  onFocusGate?: () => void;
 }) {
   const text = safeText(eventText(event));
   const actor = eventActor(event);
@@ -406,38 +392,20 @@ function SingleEventRow({
   if (event.type === "permission.requested") {
     const requestId = stringField(event.data, ["requestId"]);
     const isCurrent = session.pendingPermission?.requestId === requestId;
+    const detail = text || "Permission";
     return (
-      <div className={`${base} event--permission`} id={id} data-seq={event.seq}>
-        <Gutter seq={event.seq} at={event.at} />
-        <div className="event__body">
-          <div className="event__meta">
-            <span className="event__type">permission.requested</span>
-            <span className="event__sep">/</span>
-            <span>{isCurrent ? "waiting now" : "history"}</span>
-          </div>
-          <div className="permission-card">
-            <div className="permission-card__head">
-              <Shield className="icon" />
-              Permission requested
-            </div>
-            <div className="permission-card__body">
-              <div className="permission-card__title">{text || "Permission"}</div>
-              <div className="permission-card__meta">
-                {stringField(event.data, ["kind"]) ?? "permission"}
-                {stringField(event.data, ["toolCallId"])
-                  ? ` · ${stringField(event.data, ["toolCallId"])}`
-                  : ""}{" "}
-                · {formatClock(event.at)}
-              </div>
-              {isCurrent && onFocusGate ? (
-                <Button size="sm" variant="ghost" onPress={onFocusGate}>
-                  Answer in the gate above
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+      <StructuralRow
+        id={id}
+        seq={event.seq}
+        at={event.at}
+        type="permission.requested"
+        text={
+          isCurrent
+            ? `Waiting in the gate above · ${detail}`
+            : `History · ${detail}`
+        }
+        icon={<Shield className="icon" />}
+      />
     );
   }
 
@@ -445,20 +413,16 @@ function SingleEventRow({
     const optionId = stringField(event.data, ["optionId"]);
     const reason = stringField(event.data, ["reason"]);
     return (
-      <div className={base} id={id} data-seq={event.seq}>
-        <Gutter seq={event.seq} at={event.at} />
-        <div className="event__body">
-          <div className="event__meta">
-            <span className="event__type">permission.resolved</span>
-            <span className="event__sep">/</span>
-            <span className="ident">{actor ?? "unknown actor"}</span>
-          </div>
-          <p className="event__text event__text--muted">
-            {optionId ? `Option ${optionId}` : "Cancelled"}
-            {reason ? ` · ${reason}` : ""}
-          </p>
-        </div>
-      </div>
+      <StructuralRow
+        id={id}
+        seq={event.seq}
+        at={event.at}
+        type="permission.resolved"
+        text={`${optionId ? `Option ${optionId}` : "Cancelled"}${
+          reason ? ` · ${reason}` : ""
+        } · by ${actor ?? "unknown actor"}`}
+        icon={<Check className="icon" />}
+      />
     );
   }
 
@@ -492,24 +456,20 @@ function SingleEventRow({
     const entries = Array.isArray(event.data.entries) ? event.data.entries.length : null;
     const removed = event.data.removed === true;
     return (
-      <div className={base} id={id} data-seq={event.seq}>
-        <Gutter seq={event.seq} at={event.at} />
-        <div className="event__body">
-          <div className="event__meta">
-            <span className="event__type">{event.type}</span>
-            <span className="event__sep">/</span>
-            <span>provider plan · read-only</span>
-          </div>
-          <p className="event__text event__text--muted">
-            <ListTree className="icon event__inline-icon" />
-            {removed
-              ? "Plan removed."
-              : entries !== null
-                ? `Plan updated · ${entries} entr${entries === 1 ? "y" : "ies"}.`
-                : text || "Plan updated."}
-          </p>
-        </div>
-      </div>
+      <StructuralRow
+        id={id}
+        seq={event.seq}
+        at={event.at}
+        type={event.type}
+        text={
+          removed
+            ? "Plan removed."
+            : entries !== null
+              ? `Plan updated · ${entries} entr${entries === 1 ? "y" : "ies"}.`
+              : text || "Plan updated."
+        }
+        icon={<ListTree className="icon" />}
+      />
     );
   }
 
@@ -518,25 +478,22 @@ function SingleEventRow({
     const size = numberField(event.data, ["size"]);
     const cost = event.data.cost as { amount?: number; currency?: string } | null | undefined;
     return (
-      <div className={base} id={id} data-seq={event.seq}>
-        <Gutter seq={event.seq} at={event.at} />
-        <div className="event__body">
-          <div className="event__meta">
-            <span className="event__type">usage</span>
-            <span className="event__sep">/</span>
-            <span>latest snapshot</span>
-          </div>
-          <p className="event__text event__text--muted">
-            {used !== null && size !== null
-              ? `Context ${formatTokens(used)} / ${formatTokens(size)}`
-              : "Usage reported"}{" "}
-            ·{" "}
-            {cost?.amount !== undefined
-              ? `${(cost.amount / 100).toFixed(2)} ${cost.currency ?? "USD"} reported`
-              : "cost not reported"}
-          </p>
-        </div>
-      </div>
+      <StructuralRow
+        id={id}
+        seq={event.seq}
+        at={event.at}
+        type="usage"
+        text={`${
+          used !== null && size !== null
+            ? `Context ${formatTokens(used)} / ${formatTokens(size)}`
+            : "Usage reported"
+        } · ${
+          cost?.amount !== undefined
+            ? `${(cost.amount / 100).toFixed(2)} ${cost.currency ?? "USD"} reported`
+            : "cost not reported"
+        }`}
+        icon={<Info className="icon" />}
+      />
     );
   }
 

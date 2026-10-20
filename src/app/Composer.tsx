@@ -42,8 +42,8 @@ export function Composer({
 
   return (
     <section className="composer" aria-label="Composer">
-      {queuedCount > 0 || queue?.active ? (
-        <details className="queue-strip" open={queuedCount > 0}>
+      {queuedCount > 0 ? (
+        <details className="queue-strip" open>
           <summary>
             <span className="queue-strip__title">Queue</span>
             <span className="queue-strip__count">
@@ -102,7 +102,7 @@ export function Composer({
           ref={textarea}
           className="composer__input"
           value={draft}
-          rows={3}
+          rows={2}
           placeholder={
             terminal
               ? "This session has ended. The draft stays local and copyable."
@@ -129,15 +129,15 @@ export function Composer({
             ) : waiting ? (
               <>
                 <Tag tone="warn">will not run until answered</Tag>
-                Sending now queues the prompt; it does not answer the request.
+                This queues only; it does not answer the request.
               </>
             ) : busy ? (
               <>
-                <Tag tone="warn">queued</Tag>
-                It runs after the current turn. The queue snapshot confirms position.
+                <Tag tone="warn">will queue</Tag>
+                Runs after the current turn.
               </>
             ) : (
-              "Draft is local and survives navigation, reload, and reconnect."
+              "Draft stays local."
             )}
           </span>
           <span className="composer__count">{draft.length.toLocaleString()} chars</span>
@@ -192,8 +192,8 @@ export function Composer({
         </span>
         <span>
           {canRetrySafely
-            ? "No attachments. HLAO carries orchestration text only."
-            : "No attachments. This supervisor does not advertise send.idempotency; a retry after a disconnect may duplicate."}
+            ? "Text only · no attachments"
+            : "Text only · retry may duplicate"}
         </span>
       </div>
     </section>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { ArrowDown, ChevronUp, Search, WifiOff } from "lucide-react";
 import { Button } from "../components/Button";
 import { Handle } from "../components/Status";
@@ -115,15 +115,31 @@ export function Transcript({
     }
   }, [count]);
 
+  const pauseFollow = () => {
+    if (!atBottomRef.current) return;
+    atBottomRef.current = false;
+    setAtBottom(false);
+    store.setFollowTail(session.id, false);
+  };
+
   const onScroll = () => {
     const element = scrollRef.current;
     if (!element) return;
     const bottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < 36;
+    if (bottom === atBottomRef.current) return;
     atBottomRef.current = bottom;
     setAtBottom(bottom);
     store.setFollowTail(session.id, bottom);
     if (bottom) store.markSeen(session.id, eventsState.lastSeq);
+  };
+
+  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) pauseFollow();
+  };
+
+  const onTouchMove = () => {
+    pauseFollow();
   };
 
   const jumpToLatest = () => {
@@ -218,6 +234,8 @@ export function Transcript({
           className="transcript__scroll"
           ref={scrollRef}
           onScroll={onScroll}
+          onWheel={onWheel}
+          onTouchMove={onTouchMove}
           role="log"
           aria-label={`Transcript for ${session.name ?? session.id}`}
           aria-live="off"
@@ -296,11 +314,6 @@ export function Transcript({
                         state.focus.seq === seq
                       }
                       onOpenSession={onOpenSession}
-                      onFocusGate={() =>
-                        document
-                          .querySelector(".permission-gate")
-                          ?.scrollIntoView({ block: "center" })
-                      }
                     />
                   </div>
                 );

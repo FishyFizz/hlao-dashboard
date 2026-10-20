@@ -53,6 +53,10 @@ simulated supervisor. Demo mode is always named in the UI.
    resume that reports `truncated` produces a history gap.
 7. **The client never answers a permission.** The operator chooses an option.
    Server policy may answer; that appears as an attributed event.
+8. **Live bursts are coalesced.** Supervisor notifications are queued for up to
+   50 ms and applied in one store pass, so a streaming agent cannot cause one
+   full React render per event. Age labels share one clock. State lamps are
+   static; no live surface animates indefinitely.
 
 ## Liveness
 
@@ -82,6 +86,7 @@ No client-side task, job, workflow, or rollup status exists.
 
 `src/store/model.test.ts` covers attention ranking, local acknowledgements,
 target resolution ambiguity, event sequencing, transcript coalescing, and the
-demo supervisor's read/permit path. The bridge and the real supervisor are
+demo supervisor's read/permit path. `src/store/store.test.ts` covers the
+notification coalescing window. The bridge and the real supervisor are
 exercised manually against a temporary `HLAO_HOME`; Playwright/axe are the next
 layer named in `STACK.md`.

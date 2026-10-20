@@ -14,12 +14,30 @@
 
   .dash-top {
     display: flex;
+    grid-row: 1;
     align-items: center;
     gap: var(--sp-3);
     min-width: 0;
     padding: 0 var(--sp-3);
     border-bottom: var(--bw) solid var(--line);
     background: var(--panel);
+  }
+
+  .dash-banners {
+    grid-row: 2;
+  }
+
+  .dash-body {
+    grid-row: 3;
+  }
+
+  .dash-status {
+    grid-row: 4;
+  }
+
+  .dash > .sr-only {
+    grid-row: 1;
+    grid-column: 1;
   }
 
   .dash-brand {
@@ -112,13 +130,12 @@
 
   .dash-conn__lamp--live {
     background: var(--accent);
-    animation: lamp-pulse 1.8s var(--ease) infinite;
   }
 
   .dash-conn__lamp--connecting,
   .dash-conn__lamp--reconnecting {
-    background: var(--warn);
-    animation: lamp-blink 1.4s steps(2, jump-none) infinite;
+    background: transparent;
+    border: var(--bw) solid var(--warn);
   }
 
   .dash-conn__lamp--offline {
@@ -1151,7 +1168,7 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
   }
 
   .session-head,
@@ -1562,8 +1579,8 @@
 
   .transcript-wrap {
     display: flex;
-    flex: 1 0 180px;
-    min-height: 180px;
+    flex: 1 1 0;
+    min-height: 0;
     padding: var(--sp-2) var(--sp-3) 0;
   }
 
@@ -1801,6 +1818,13 @@
     white-space: nowrap;
   }
 
+  .tool__turn {
+    flex: none;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
   .tool__details {
     border-top: var(--bw) solid var(--line);
     padding: 5px var(--sp-2);
@@ -1967,8 +1991,8 @@
   .composer__input {
     display: block;
     width: 100%;
-    min-height: 54px;
-    max-height: 180px;
+    min-height: 42px;
+    max-height: 120px;
     padding: var(--sp-2) var(--sp-3);
     border: 0;
     background: transparent;
@@ -2274,7 +2298,9 @@
   }
 
   .app-toggle__track {
+    display: flex;
     flex: none;
+    align-items: center;
     width: 28px;
     height: 16px;
     border: var(--bw) solid var(--line-2);
@@ -2296,7 +2322,7 @@
 
   .app-toggle[aria-checked="true"] .app-toggle__thumb {
     background: var(--accent);
-    transform: translateX(10px);
+    transform: translateX(14px);
   }
 
   /* ------------------------------------------------------------------ */
@@ -3011,7 +3037,6 @@
     width: 6px;
     height: 6px;
     background: var(--accent);
-    animation: lamp-pulse 1.8s var(--ease) infinite;
   }
 
   .boot__title {

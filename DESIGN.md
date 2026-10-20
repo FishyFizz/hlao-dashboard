@@ -121,8 +121,9 @@ Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`,
   radio cards.
 - **Disabled:** text drops to `--text-3`, borders to `--line`, cursor `not-allowed`; checked
   disabled marks fade the check.
-- **Motion:** 120ms hover, 180ms overlay, 260ms maximum. Lamp pulse for busy (1.8s), hard blink
-  for waiting permission (1.1s). `prefers-reduced-motion` collapses all durations.
+- **Motion:** 120ms hover, 180ms overlay, 260ms maximum. Finite transitions only; live state
+  lamps are static fills or outlines so a long-lived fleet view never asks the compositor to
+  re-raster continuously. `prefers-reduced-motion` collapses all durations.
 - **Overlays:** dialogs are one decision per panel; menus carry shortcuts; tooltips explain but
   never take focus. Backdrop is a flat wash.
 - **Toasts:** confirm an operator action; banners describe a condition. Neither is used for
@@ -131,8 +132,8 @@ Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`,
 ## Domain mapping
 
 - **Status** is rendered as a lamp + mono label, never color alone. Six states:
-  `starting` ("Starting", hollow), `idle` ("Idle", green), `busy` ("Running", cyan, pulse),
-  `waiting_permission` ("Waiting for permission", amber, blink), `failed` ("Failed", red),
+  `starting` ("Starting", hollow cyan), `idle` ("Idle", green), `busy` ("Running", solid cyan),
+  `waiting_permission` ("Waiting for permission", hollow amber), `failed` ("Failed", red),
   `closed` ("Closed", gray). An idle session with queued prompts says so; `settled` means "no
   active turn · queue empty", never done.
 - **Attention order** is structural, not content-based: waiting permission (oldest first),

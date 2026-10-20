@@ -11,8 +11,8 @@
 > **Implemented since this decision:** the browser client, the local bridge
 > (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
 > surface, the external store, persistence, and Vitest model tests. Playwright
-> and axe remain the next test layer. The client bundle is 616.54 kB minified /
-> 179.03 kB gzip; the gallery is lazy-loaded into a 165.99 kB / 42.02 kB chunk.
+> and axe remain the next test layer. The client bundle is 615.19 kB minified /
+> 179.09 kB gzip; the gallery is lazy-loaded into a 165.99 kB / 42.02 kB chunk.
 
 ## Decision
 
@@ -47,7 +47,7 @@ supervisor token in the page. The stack is chosen to satisfy that contract, not 
 | Charts (later) | ECharts | `6.1.0` | Apache-2.0, active (2026-05-19), tree-shakeable. No chart dependency in v1; the sparkline is inline SVG. |
 | State | own store + `useSyncExternalStore` | — | The event cache is small and specialized: apply full views by id, append event batches, advance cursors, ignore duplicate/out-of-order seq. No Redux/Zustand needed. |
 | Routing | hash selection + `/design` path | — | Fleet/session selection is a hash route (`#/fleet`, `#/s/<id>?created=...`); the specimen is `/design`. No router dependency. Use `@tanstack/react-router` `1.170.45` if typed search params or more routes land. |
-| Tests | `vitest` + `@testing-library/react` + `@playwright/test` + `@axe-core/playwright` | `5.0.5` / `16.3.3` / `1.64.1` / `4.14.0` | Vitest is installed and covers attention, sequencing, coalescing, target resolution, and the demo supervisor. Testing Library, Playwright, and axe are the next layer; the bridge-backed UI is exercised manually first. |
+| Tests | `vitest` + `@testing-library/react` + `@playwright/test` + `@axe-core/playwright` | `5.0.5` / `16.3.3` / `1.64.1` / `4.14.0` | Vitest is installed and covers attention, sequencing, transcript coalescing, notification batching, target resolution, and the demo supervisor. Testing Library, Playwright, and axe are the next layer; the bridge-backed UI is exercised manually first. |
 
 ### Why React over the runner-up
 
@@ -113,7 +113,7 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The client is 616.54 kB minified / 179.03 kB gzip (RAC + Lucide + React +
+- **Bundle size.** The client is 615.19 kB minified / 179.09 kB gzip (RAC + Lucide + React +
   the demo supervisor); the gallery is 165.99 kB / 42.02 kB. Vite warns above 500 kB. This is a local app, not a network product; the
   gallery is lazy-loaded, and the inspector/charts can be split next. The demo remains in the
   main chunk because it is one click from the setup screen.
@@ -231,9 +231,9 @@ friendly kanban.
   adopted it as the default primitive layer in July 2026. (registry + 2026 comparison write-ups)
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
-- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes nine Vitest cases.
-  `npm run build` emits 616.54 kB JS / 179.03 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
-  chunk, and 106.63 kB CSS / 16.85 kB gzip in ~500 ms on this machine (2026-10-20).
+- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes ten Vitest cases.
+  `npm run build` emits 615.19 kB JS / 179.09 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
+  chunk, and 106.54 kB CSS / 16.77 kB gzip in ~440 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)
