@@ -46,7 +46,7 @@
   --shadow: none;
 
   /* Type */
-  --font-sans: "Geist Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: "Geist Mono Variable", "Cascadia Mono", "SFMono-Regular", ui-monospace, monospace;
   --font-mono: "Geist Mono Variable", "Cascadia Mono", "SFMono-Regular", ui-monospace, monospace;
   --fs-10: 10px;
   --fs-11: 11px;
