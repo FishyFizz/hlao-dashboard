@@ -43,6 +43,10 @@
   toggle, with a compact `+`/`-` marker.
 - Serialized object-shaped tool input/output and fell back to the reported tool
   title, eliminating false "No payload reported" rows for Bash calls.
+- Extended the **System** transcript filter to cover stderr, command lists,
+  session initialization, and session info, so adapter startup chatter no longer
+  floods the beginning of a session. Errored/in-progress compaction remains
+  visible.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

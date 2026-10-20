@@ -17,7 +17,15 @@ import {
 import type { SessionView } from "../wire/protocol";
 import { EventRow } from "./EventRow";
 
-const SYSTEM_EVENT_TYPES = new Set(["usage", "plan", "plan.update"]);
+const SYSTEM_EVENT_TYPES = new Set([
+  "usage",
+  "plan",
+  "plan.update",
+  "commands",
+  "stderr",
+  "session.initialized",
+  "session.info",
+]);
 
 function isSystemItem(item: RenderItem): boolean {
   if (item.kind === "compaction") {
@@ -268,7 +276,8 @@ export function Transcript({
                 size="sm"
                 variant={showSystem ? "secondary" : "ghost"}
                 aria-pressed={showSystem}
-                title={`${hiddenSystemCount} usage, plan, or compaction events`}
+                aria-label="Show or hide system events"
+                title={`${hiddenSystemCount} hidden system events: usage, plan, compaction, commands, stderr, and session metadata`}
                 onPress={() => setShowSystem((value) => !value)}
               >
                 System
@@ -332,11 +341,12 @@ export function Transcript({
               {hiddenSystemCount > 0 ? (
                 <>
                   <span className="transcript-empty__title">
-                    Provider events are hidden.
+                    System events are hidden.
                   </span>
                   <span className="transcript-empty__text">
-                    Usage, plan, and compaction snapshots are shown in the
-                    inspector. This session has no other loaded events.
+                    Usage, plan, compaction, commands, stderr, and session
+                    metadata are available via System. This session has no other
+                    loaded events.
                   </span>
                   <Button size="sm" onPress={() => setShowSystem(true)}>
                     Show system events

@@ -89,8 +89,9 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - **Transcript**: turn skeleton, coalesced message chunks, one tool row updated
   in place (click the header to inspect its payload), permission request/reply
   pairs collapsed into one row, provider notice rows, unknown-type fallback
-  with inspectable data. Usage, plan, and compaction stream rows are hidden by
-  default and revealed by the **System** toggle. Tail-follow only at the bottom;
+  with inspectable data. Usage, plan, compaction, commands, stderr, and session
+  metadata are hidden by default and revealed by the **System** toggle.
+  Tail-follow only at the bottom;
   last-read divider, new-events affordance, automatic backward paging as the
   view approaches the top, and visible truncation/gap markers.
 - **Composer and queue**: drafts per session, multi-line text, explicit send,
