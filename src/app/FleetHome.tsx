@@ -302,7 +302,7 @@ export function FleetHome({
           error notice.
         </span>
         <span>
-          <Tag>wire 2.5</Tag>
+          <Tag>wire 2.7</Tag>
           <Tag>{state.mode === "demo" ? "demo" : "local IPC"}</Tag>
         </span>
       </footer>

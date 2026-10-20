@@ -175,8 +175,27 @@ export function HelpDialog({
           </dd>
           <dt>truncated</dt>
           <dd>
-            The supervisor evicted history before the page. The transcript marks the
-            exact boundary and never claims completeness.
+            The supervisor's bounded live buffer evicted history before the page.
+            The transcript marks the exact boundary and never claims completeness.
+            The provider's transcript is a separate, durable record: fork the
+            provider session to open its history, or resume it after a restart.
+          </dd>
+          <dt>provider session</dt>
+          <dd>
+            The durable id the provider assigns and its own resume command accepts.
+            The HLAO handle is an alias for this supervisor's lifetime; the
+            provider id survives a restart.
+          </dd>
+          <dt>replay / history</dt>
+          <dd>
+            Events rebuilt by ACP session/load when a session is resumed or forked.
+            They are marked in the transcript gutter and are not new activity.
+          </dd>
+          <dt>resume vs fork</dt>
+          <dd>
+            Resume reattaches to the same provider session and replays its history.
+            Fork copies it into a new provider session and leaves the source
+            untouched. Neither replays the interrupted turn.
           </dd>
         </dl>
       </section>

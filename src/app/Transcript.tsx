@@ -15,7 +15,7 @@ import {
   type DashboardState,
 } from "../store/store";
 import type { SessionView } from "../wire/protocol";
-import { CAPABILITIES } from "../wire/protocol";
+import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { EventRow } from "./EventRow";
 
 const SYSTEM_EVENT_TYPES = new Set([
@@ -83,6 +83,25 @@ export function Transcript({
   const lastReadEvicted = lastSeen > 0 && lastSeen < eventsState.earliestRetainedSeq;
   const gap = eventsState.gap;
   const showFoot = lastReadVisible || !atBottom || unseen > 0;
+  const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
+
+  const forkProvider = () => {
+    const providerId = session.agentSessionId;
+    if (providerId === null) return;
+    void store
+      .spawnSession({
+        backend: session.backend,
+        cwd: session.cwd,
+        forkSessionId: providerId,
+      })
+      .catch((cause: unknown) => {
+        store.addToast({
+          tone: "danger",
+          title: "Fork failed",
+          text: asWireError(cause).message,
+        });
+      });
+  };
 
   const scrollToBottom = (markSeen = true) => {
     const element = scrollRef.current;
@@ -297,8 +316,22 @@ export function Transcript({
         <div className="banner banner--warn transcript-banner">
           <span className="banner__text">
             History begins at seq {eventsState.earliestRetainedSeq}. Earlier events
-            were evicted by the supervisor; this view does not claim completeness.
+            were evicted by the supervisor's live buffer; this view does not claim
+            completeness.
+            {session.agentSessionId
+              ? " The provider still holds the transcript: fork it to open the full history, or resume it after a supervisor restart."
+              : ""}
           </span>
+          {session.agentSessionId && canForkProvider ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={forkProvider}
+              title="Create a new session from a copy of the provider transcript"
+            >
+              Fork to open history
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {lastReadEvicted ? (

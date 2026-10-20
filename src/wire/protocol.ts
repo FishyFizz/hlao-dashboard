@@ -1,5 +1,5 @@
 /**
- * Wire protocol 2.5 — the subset this client speaks.
+ * Wire protocol 2.7 — the subset this client speaks.
  *
  * This is a pinned projection of `contracts/protocol.md`, not a second
  * protocol. Method semantics live on the supervisor; these types only shape
@@ -54,6 +54,8 @@ export type StopReason =
 export const EVENT_TYPES = [
   "session.created",
   "session.initialized",
+  "session.resumed",
+  "session.forked",
   "session.closed",
   "session.failed",
   "session.renamed",
@@ -183,6 +185,7 @@ export type SessionView = {
   pendingPermission: PermissionView | null;
   lastStopReason: StopReason | null;
   agentSessionId: string | null;
+  forkedFrom?: string | null;
   processId: number | null;
   exit: { code: number | null; signal: string | null } | null;
   permissionPolicy: PermissionPolicy;
@@ -202,6 +205,8 @@ export type EventView = {
   type: EventType;
   turn: number | null;
   data: Record<string, unknown>;
+  /** Restored by ACP session/load, not observed live. */
+  replay?: true;
 };
 
 export type AgentView = {
@@ -370,6 +375,8 @@ export type SpawnParams = {
   env?: Record<string, string>;
   skill?: boolean;
   idempotencyKey?: string;
+  resumeSessionId?: string;
+  forkSessionId?: string;
 };
 
 export type SpawnResult = {
@@ -378,6 +385,8 @@ export type SpawnResult = {
   firstTurn?: { stopReason?: StopReason; text: string; timedOut: boolean };
   messageId?: string;
   duplicate?: boolean;
+  resumed?: boolean;
+  forked?: boolean;
   createdBy?: string;
 };
 
@@ -433,9 +442,9 @@ export type RpcMethod =
   | "dashboard.fs.list";
 
 export const WIRE_MAJOR = 2;
-export const WIRE_MINOR = 5;
+export const WIRE_MINOR = 7;
 
-/** `2.5` for a live hello, or the version this client speaks when offline. */
+/** `2.7` for a live hello, or the version this client speaks when offline. */
 export function wireVersionLabel(version?: ProtocolVersion | null): string {
   return version ? `${version.major}.${version.minor}` : `${WIRE_MAJOR}.${WIRE_MINOR}`;
 }
@@ -460,6 +469,8 @@ export const CAPABILITIES = {
   title: "session.title",
   agent: "session.agent",
   messages: "session.messages",
+  spawnResume: "spawn.resume",
+  spawnFork: "spawn.fork",
 } as const;
 
 export function hasCapability(

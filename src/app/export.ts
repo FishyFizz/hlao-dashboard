@@ -16,11 +16,15 @@ export async function exportTranscript(session: SessionView): Promise<void> {
       truncated: result.truncated,
       capped: result.capped,
       pages: result.pages,
+      replayedEvents: result.events.filter((event) => event.replay === true)
+        .length,
       note: result.truncated
         ? "The supervisor reported evicted history; this export is not complete."
         : result.capped
           ? "The export was bounded by the dashboard page cap; this is not complete."
-          : "Exported from the supervisor's retained event log.",
+          : result.events.some((event) => event.replay === true)
+            ? "Exported from the supervisor's retained event log, including history restored by the provider."
+            : "Exported from the supervisor's retained event log.",
     };
     downloadText(
       `${session.id}-transcript.json`,

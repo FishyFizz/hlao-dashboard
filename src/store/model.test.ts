@@ -437,3 +437,34 @@ describe("demo supervisor", () => {
     supervisor.close();
   });
 });
+
+describe("replay provenance", () => {
+  it("survives render grouping and append merges", () => {
+    const events: EventView[] = [
+      {
+        seq: 1,
+        at: "2026-10-21T00:00:00.000Z",
+        type: "agent.message",
+        turn: null,
+        data: { text: "restored", messageId: "m1" },
+        replay: true,
+      },
+      {
+        seq: 2,
+        at: "2026-10-21T00:00:01.000Z",
+        type: "session.resumed",
+        turn: null,
+        data: { agentSessionId: "provider-1", historyEvents: 1 },
+      },
+    ];
+    const items = buildRenderItems(events);
+    const first = items[0];
+    expect(first?.kind).toBe("message");
+    if (first?.kind === "message") {
+      expect(first.events[0]?.replay).toBe(true);
+    }
+    const merged = appendEvents([], events, 0);
+    expect(merged.events[0]?.replay).toBe(true);
+    expect(merged.events[1]?.replay).toBeUndefined();
+  });
+});

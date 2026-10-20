@@ -1,7 +1,7 @@
 # HLAO dashboard
 
 A local operations console for one HLAO instance. It is a **client**, not core:
-it speaks wire protocol 2.5 through the supervisor's local socket and adds no
+it speaks wire protocol 2.7 through the supervisor's local socket and adds no
 server semantics. It can be replaced or omitted without changing the supervisor.
 
 **Status: working client.** The fleet, session lens, permission gate,
@@ -97,6 +97,13 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   Tail-follow only at the bottom;
   last-read divider, new-events affordance, automatic backward paging as the
   view approaches the top, and visible truncation/gap markers.
+- **Provider identity and recovered history**: the durable provider session id
+  is shown in Diagnostics and printed by spawn. The spawn form can resume it or
+  fork a copy (`spawn.resume` / `spawn.fork`), and the Inspector offers both.
+  Events restored by ACP `session/load` are marked `history` in the gutter and
+  are not counted as new activity. When the live log evicts, the transcript
+  banner explains that the provider still holds the record and can fork it into
+  a new session with the full history.
 - **Composer and queue**: drafts per session, multi-line text, explicit send,
   queue when busy or permission-parked, idempotent retry, message-id
   reconciliation, queue previews, and permanent drop confirmation. Ended
@@ -164,7 +171,7 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 ## Layout
 
 ```
-contracts/protocol.md        pinned wire contract (protocol 2.5)
+contracts/protocol.md        pinned wire contract (protocol 2.7)
 docs/ux-interaction-model.md interaction contract
 docs/architecture.md         module map, invariants, liveness, action boundaries
 docs/adr/                    bridge and demo decisions
@@ -183,7 +190,7 @@ src/data/fleet.ts            static specimen data (gallery only)
 
 ## Rules this client is built against
 
-From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.11, wire 2.5):
+From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.12, wire 2.7):
 
 - Require wire **major 2** and feature-detect `hello.capabilities`. Do not key
   behavior off the HLAO package version or a minor number.

@@ -50,7 +50,7 @@ export function SetupScreen({
         </a>
         <span className="setup__top-meta">
           <Tag>local client</Tag>
-          <Tag>wire 2.5</Tag>
+          <Tag>wire 2.7</Tag>
           <button type="button" className="setup__theme" onClick={onTheme}>
             {state.theme === "dark" ? "Light theme" : "Dark theme"}
           </button>

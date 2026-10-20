@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Check,
   CircleAlert,
@@ -28,6 +35,9 @@ import { asWireError, type EventView, type SessionView } from "../wire/protocol"
 import { CopyButton, safeText } from "./ui";
 import { MarkdownText } from "./MarkdownText";
 
+/** True while rendering events restored by ACP session/load. */
+const ReplayContext = createContext(false);
+
 export function EventRow({
   item,
   session,
@@ -39,8 +49,9 @@ export function EventRow({
   focused: boolean;
   onOpenSession?: (sessionId: string) => void;
 }) {
+  let row: ReactNode;
   if (item.kind === "message") {
-    return (
+    row = (
       <MessageRow
         item={item}
         session={session}
@@ -48,28 +59,40 @@ export function EventRow({
         onOpenSession={onOpenSession}
       />
     );
+  } else if (item.kind === "tool") {
+    row = <ToolRow item={item} sessionId={session.id} focused={focused} />;
+  } else if (item.kind === "compaction") {
+    row = <CompactionRow item={item} focused={focused} />;
+  } else if (item.kind === "permission") {
+    row = <PermissionRow item={item} session={session} />;
+  } else {
+    row = <SingleEventRow event={item.event} focused={focused} />;
   }
-  if (item.kind === "tool") {
-    return <ToolRow item={item} sessionId={session.id} focused={focused} />;
-  }
-  if (item.kind === "compaction") {
-    return <CompactionRow item={item} focused={focused} />;
-  }
-  if (item.kind === "permission") {
-    return <PermissionRow item={item} session={session} />;
-  }
-  return (
-    <SingleEventRow event={item.event} focused={focused} />
-  );
+  const replay =
+    item.kind === "event"
+      ? item.event.replay === true
+      : item.kind === "permission"
+        ? item.request?.replay === true || item.resolution?.replay === true
+        : item.events.some((event) => event.replay === true);
+  return <ReplayContext.Provider value={replay}>{row}</ReplayContext.Provider>;
 }
 
 function Gutter({ seq, at }: { seq: number; at: string }) {
+  const replay = useContext(ReplayContext);
   return (
     <div className="event__gutter">
       <span className="event__seq">{String(seq).padStart(4, "0")}</span>
       <span className="event__time" title={formatDateTime(at)}>
         {formatClock(at)}
       </span>
+      {replay ? (
+        <span
+          className="event__replay"
+          title="Restored from the provider transcript by session/load"
+        >
+          history
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -88,8 +111,13 @@ function EventFrame({
   bodyClassName?: string;
   children: ReactNode;
 }) {
+  const replay = useContext(ReplayContext);
   return (
-    <div className={cn("event", className)} id={`event-${seq}`} data-seq={seq}>
+    <div
+      className={cn("event", replay && "event--replay", className)}
+      id={`event-${seq}`}
+      data-seq={seq}
+    >
       <Gutter seq={seq} at={at} />
       <div className={cn("event__body", bodyClassName)}>{children}</div>
     </div>
@@ -410,6 +438,8 @@ const STRUCTURAL_EVENT_TYPES = new Set([
   "session.renamed",
   "session.info",
   "session.initialized",
+  "session.resumed",
+  "session.forked",
 ]);
 
 function structuralDetail(
@@ -426,6 +456,19 @@ function structuralDetail(
       return `Renamed to ${String(event.data.name ?? "—")} by ${actor ?? "unknown"}`;
     case "session.info":
       return `Provider title · ${text || "not reported"}`;
+    case "session.resumed": {
+      const id = stringField(event.data, ["agentSessionId"]) ?? "provider session";
+      const count = numberField(event.data, ["historyEvents"]);
+      return `Resumed ${id}${count !== null ? ` · ${count} events replayed` : ""}`;
+    }
+    case "session.forked": {
+      const from = stringField(event.data, ["forkedFrom"]) ?? "provider session";
+      if (event.data.historyLoaded === false) {
+        return `Forked from ${from} · history not replayed`;
+      }
+      const count = numberField(event.data, ["historyEvents"]);
+      return `Forked from ${from}${count !== null ? ` · ${count} events replayed` : ""}`;
+    }
     default:
       return text || `${event.type} by ${actor ?? "unknown"}`;
   }

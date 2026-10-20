@@ -6,7 +6,7 @@ the behaviour it owes the operator. **Not in scope:** stack, component library, 
 pixel layout, or internal implementation. Those are decided elsewhere; this document only pins
 the contract the interface must satisfy.
 
-**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 2.5). The client
+**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 2.7). The client
 posture is `README.md` and the parent `docs/protocol-stability.md`. Product intent is the
 parent `docs/PRODUCT.md`. If this document and the wire disagree, the wire wins; if this
 document and product intent disagree, product intent wins.
@@ -493,6 +493,13 @@ The numbering is stable so implementation and review can refer to it.
 - **TR6 — History is paged and bounded.** Opening a session loads the latest bounded page.
   Older pages load on demand through the backward cursor. When `truncated` is set, show "history
   begins at seq N" at the exact boundary. Never render an evicted gap as if nothing happened.
+  The bounded log is not the whole record: the provider keeps its own transcript. When the
+  session reports a provider id and the supervisor supports `spawn.fork`, the banner offers a
+  fork that opens that transcript; `spawn.resume` is the reattach path after a restart.
+- **TR9 — Restored history is marked.** Events with `replay: true` come from ACP
+  `session/load`, not from live observation. Mark them (`history` in the gutter), never count
+  them as new activity, and keep the `session.resumed` / `session.forked` row visible as the
+  boundary. Do not present replayed text as something that just happened.
 - **TR7 — Return to the last read position.** If local `lastSeenSeq` is known and still
   retained, show a divider there and offer "jump to last read" and "jump to latest". If the
   cursor was evicted, clamp to the earliest retained event and say so.
@@ -891,8 +898,9 @@ Every row is a required interaction, not an implementation suggestion.
 | Forget terminal session | History-loss warning; export offered. | Export then forget, or cancel. |
 | Shutdown | Live sessions listed; retained histories loss stated; explicit confirmation. | Export / confirm / cancel. |
 | Stream closed / backpressure | Quiet reconnecting state; no loss claimed. | None; automatic resume. |
-| Resume `truncated` | Gap marker at the earliest retained seq. | Load retained history or continue live. |
-| History evicted while scrolled | Clamped position; "history begins at seq N". | Continue; export if needed. |
+| Resume `truncated` | Gap marker at the earliest retained seq. | Load retained history, fork the provider session, or continue live. |
+| History evicted while scrolled | Clamped position; "history begins at seq N"; provider fork offered when available. | Fork to open the provider transcript, or continue; export what is loaded. |
+| Provider session resumed/forked | Replayed events marked `history`; structural boundary row. | Continue from the replayed state. |
 | Supervisor restarted / `lastCrash` | Fleet cleared; once-only crash notice; stale local snapshots labelled. | Start a new session; old work is gone. |
 | Session removed while selected | "No longer in this instance" state; local events labelled not live. | Return to fleet / export what is loaded. |
 | Unknown event type | Generic `type · title/preview` row; fields inspectable. | None; it is still visible. |
@@ -1133,5 +1141,6 @@ with an explicit "inspect data" affordance. Never dropped.
 | `closed` | "Closed" + ended time | Failed, forgotten. |
 | `failed` | "Failed" + exit/signal/last event | That the work is resumable. |
 | `lastStopReason: end_turn` | "Turn ended: end_turn" | Success, completion. |
-| `truncated` | "History begins at seq N" | Complete history. |
+| `truncated` | "History begins at seq N"; provider fork offered when available | Complete history, or that the provider lost it. |
+| `replay: true` | `history` gutter marker + `session.resumed`/`session.forked` row | New live activity. |
 | Session removed | "No longer in this instance" | Forgot vs expired (the wire does not say). |

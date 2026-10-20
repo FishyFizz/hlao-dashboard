@@ -118,7 +118,7 @@ export function DataDisplay() {
             </table>
             <div className="table__footer">
               <span>6 of 6 · 2 need attention</span>
-              <span>fleet subscription · wire 2.5</span>
+              <span>fleet subscription · wire 2.7</span>
             </div>
           </div>
         </Specimen>

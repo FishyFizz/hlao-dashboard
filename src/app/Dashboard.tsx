@@ -510,7 +510,7 @@ function BootScreen({ state }: { state: DashboardState }) {
       <div className="boot__text">
         {state.mode === "demo" ? "Opening the demo instance…" : "Connecting to the local bridge…"}
       </div>
-      <Tag>wire 2.5</Tag>
+      <Tag>wire 2.7</Tag>
     </div>
   );
 }

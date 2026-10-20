@@ -39,6 +39,8 @@ export function SpawnDialog({
   const [policy, setPolicy] = useState<PolicyChoice>("allow");
   const [parent, setParent] = useState("");
   const [skill, setSkill] = useState(true);
+  const [providerMode, setProviderMode] = useState<"new" | "resume" | "fork">("new");
+  const [providerId, setProviderId] = useState("");
   const [backends, setBackends] = useState<AgentView[] | null>(null);
   const [backendsError, setBackendsError] = useState<string | null>(null);
   const [loadingBackends, setLoadingBackends] = useState(false);
@@ -53,6 +55,11 @@ export function SpawnDialog({
   const pending = Boolean(state.pending.spawn);
   const supportsBackends = canUse(state, CAPABILITIES.backendsList);
   const supportsIdempotency = canUse(state, CAPABILITIES.spawnIdempotency);
+  const supportsResume = canUse(state, CAPABILITIES.spawnResume);
+  const supportsFork = canUse(state, CAPABILITIES.spawnFork);
+  const providerSessions = Object.values(state.sessions).filter(
+    (session) => Boolean(session.agentSessionId),
+  );
   const configError = state.instance?.configError ?? null;
   const parentChoices = Object.values(state.sessions).filter(
     (session) => !isTerminalStatus(session.status),
@@ -85,6 +92,8 @@ export function SpawnDialog({
     setPolicy("allow");
     setParent("");
     setSkill(true);
+    setProviderMode("new");
+    setProviderId("");
     setError(null);
     setDetails(null);
     setBrowseOpen(false);
@@ -134,6 +143,8 @@ export function SpawnDialog({
     policy,
     parent,
     skill,
+    providerMode,
+    providerId,
   });
 
   const submit = () => {
@@ -150,6 +161,20 @@ export function SpawnDialog({
       );
       return;
     }
+    if (providerMode !== "new") {
+      if (!providerId.trim()) {
+        setError("A provider session id is required to resume or fork.");
+        return;
+      }
+      if (providerMode === "resume" && !supportsResume) {
+        setError("This supervisor does not advertise spawn.resume.");
+        return;
+      }
+      if (providerMode === "fork" && !supportsFork) {
+        setError("This supervisor does not advertise spawn.fork.");
+        return;
+      }
+    }
     if (attempt.current?.signature !== signature) {
       attempt.current = { signature, key: newId("spawn") };
     }
@@ -164,6 +189,12 @@ export function SpawnDialog({
         ...(parent ? { parentSessionId: parent } : {}),
         skill,
         ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(providerMode === "resume" && providerId.trim()
+          ? { resumeSessionId: providerId.trim() }
+          : {}),
+        ...(providerMode === "fork" && providerId.trim()
+          ? { forkSessionId: providerId.trim() }
+          : {}),
       })
       .then(() => onClose())
       .catch((cause: unknown) => {
@@ -203,7 +234,15 @@ export function SpawnDialog({
               (selectedBackend ? !selectedBackend.available : false)
             }
           >
-            {pending ? "Spawning…" : "Spawn session"}
+            {pending
+              ? providerMode === "new"
+                ? "Spawning…"
+                : "Attaching…"
+              : providerMode === "resume"
+                ? "Resume session"
+                : providerMode === "fork"
+                  ? "Fork session"
+                  : "Spawn session"}
           </Button>
         </>
       }
@@ -350,6 +389,55 @@ export function SpawnDialog({
           ))}
         </SelectField>
 
+        <SelectField
+          label="Provider session"
+          value={providerMode}
+          onChange={(value) =>
+            setProviderMode(value as "new" | "resume" | "fork")
+          }
+          disabled={pending}
+        >
+          <option value="new">new session</option>
+          <option value="resume" disabled={!supportsResume}>
+            resume an existing one{supportsResume ? "" : " (unsupported)"}
+          </option>
+          <option value="fork" disabled={!supportsFork}>
+            fork a copy{supportsFork ? "" : " (unsupported)"}
+          </option>
+        </SelectField>
+
+        {providerMode !== "new" ? (
+          <div className="field form-grid__wide">
+            <label className="field__label" htmlFor="spawn-provider">
+              Provider session id
+            </label>
+            <input
+              id="spawn-provider"
+              className="field__input"
+              value={providerId}
+              onChange={(event) => setProviderId(event.target.value)}
+              placeholder="The id an earlier spawn reported as provider"
+              spellCheck={false}
+              list="spawn-provider-sessions"
+            />
+            <datalist id="spawn-provider-sessions">
+              {providerSessions.map((candidate) => (
+                <option
+                  key={candidate.id}
+                  value={candidate.agentSessionId ?? ""}
+                >
+                  #{candidate.id} / {candidate.name ?? candidate.title ?? candidate.backend}
+                </option>
+              ))}
+            </datalist>
+            <span className="caption">
+              {providerMode === "resume"
+                ? "Reopens the provider session and replays its history. The interrupted turn is not replayed; send the prompt again. Pass the original cwd."
+                : "Copies the provider session into a new one. The source keeps running untouched. Pass the original cwd."}
+            </span>
+          </div>
+        ) : null}
+
         <div className="form-grid__wide">
           <ToggleRow
             label="Include the HLAO skill pointer"
@@ -378,6 +466,14 @@ export function SpawnDialog({
           <span>
             <span className="caption">parent</span>{" "}
             <span className="mono">{parent || "root"}</span>
+          </span>
+          <span>
+            <span className="caption">provider</span>{" "}
+            <span className="mono">
+              {providerMode === "new"
+                ? "new session"
+                : `${providerMode} ${providerId.trim() || "—"}`}
+            </span>
           </span>
           <span>
             <span className="caption">idempotency</span>{" "}

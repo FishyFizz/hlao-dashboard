@@ -2,7 +2,7 @@
   "name": "hlao-dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "A local dashboard client for HLAO. Fleet, session lens, and permission gate over wire 2.5.",
+  "description": "A local dashboard client for HLAO. Fleet, session lens, and permission gate over wire 2.7.",
   "type": "module",
   "license": "MIT",
   "engines": {

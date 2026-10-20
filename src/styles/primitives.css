@@ -1230,6 +1230,23 @@
     font-size: 9px;
   }
 
+  /* Provider history replayed by session/load. It is real content, but it was
+     not observed live, so it is marked rather than passed off as activity. */
+  .event--replay {
+    background: linear-gradient(90deg, var(--accent-soft), transparent 34%);
+  }
+
+  .event--replay .event__gutter {
+    border-right-color: var(--accent-line);
+  }
+
+  .event__replay {
+    color: var(--accent-text);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   .event__body {
     min-width: 0;
     padding: 10px var(--sp-3) 12px;

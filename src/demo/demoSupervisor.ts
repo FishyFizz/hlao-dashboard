@@ -58,6 +58,7 @@ type EventSpec = {
   type: string;
   turn?: number | null;
   data?: Record<string, unknown>;
+  replay?: true;
 };
 
 const MINUTE = 60_000;
@@ -114,6 +115,7 @@ function makeEvents(now: number, specs: EventSpec[]): EventView[] {
       type: spec.type,
       turn: spec.turn ?? null,
       data: spec.data ?? {},
+      ...(spec.replay === true ? { replay: true as const } : {}),
     }));
 }
 
@@ -143,6 +145,7 @@ function baseSession(
     pendingPermission: input.pendingPermission ?? null,
     lastStopReason: input.lastStopReason ?? null,
     agentSessionId: input.agentSessionId ?? null,
+    forkedFrom: input.forkedFrom ?? null,
     processId: input.processId ?? null,
     exit: input.exit ?? null,
     permissionPolicy: input.permissionPolicy ?? "allow",
@@ -1130,7 +1133,7 @@ export class DemoSupervisor {
 
   private hello(): HelloResult {
     return {
-      protocolVersion: { major: 2, minor: 5 },
+      protocolVersion: { major: 2, minor: 7 },
       capabilities: [
         "backends.list",
         "session.usage",
@@ -1156,10 +1159,12 @@ export class DemoSupervisor {
         "session.title",
         "session.agent",
         "session.messages",
+        "spawn.resume",
+        "spawn.fork",
       ],
       pid: 4242,
       startedAt: this.startedAt,
-      version: "0.11.0-demo",
+      version: "0.12.0-demo",
       sessions: this.sessions.size,
       configHash: "demo-config",
       stream: { persistent: true },
@@ -1428,11 +1433,40 @@ export class DemoSupervisor {
       }
     }
 
+    const resumeId = params.resumeSessionId?.trim() || undefined;
+    const forkId = params.forkSessionId?.trim() || undefined;
+    if (resumeId !== undefined && forkId !== undefined) {
+      throw wireError(
+        "bad_request",
+        "resumeSessionId and forkSessionId are mutually exclusive",
+      );
+    }
+    if (resumeId !== undefined) {
+      const attached = [...this.sessions.values()].find(
+        (candidate) =>
+          !this.isTerminal(candidate) &&
+          candidate.agentSessionId === resumeId,
+      );
+      if (attached) {
+        return {
+          session: attached,
+          nextSeq: attached.lastSeq,
+          duplicate: true,
+          resumed: true,
+        };
+      }
+    }
+
     const id = this.makeHandle();
     const now = Date.now();
     const parent = params.parentSessionId
       ? this.sessions.get(params.parentSessionId)
       : null;
+    const agentSessionId =
+      resumeId ??
+      (forkId !== undefined
+        ? `${forkId}-fork-${this.sessions.size + 1}`
+        : `acp-${9000 + this.sessions.size}`);
     const session = baseSession({
       id,
       name: params.name?.trim() || null,
@@ -1447,16 +1481,86 @@ export class DemoSupervisor {
       permissionPolicy: params.permissionPolicy ?? "allow",
       agentName: backend === "claude" ? "claude-agent-acp" : backend === "codex" ? "codex-acp" : "gemini-cli",
       agentVersion: "demo",
+      agentSessionId,
+      forkedFrom: forkId ?? null,
       processId: 8200 + this.sessions.size,
     });
-    const created = makeEvents(now, [
-      { ago: 0, type: "session.created", data: { createdBy: "operator" } },
+    const history: EventSpec[] =
+      resumeId !== undefined || forkId !== undefined
+        ? [
+            {
+              ago: 3,
+              type: "user.message",
+              data: {
+                text: "Earlier prompt restored from the provider.",
+                messageId: "hist-1",
+              },
+              replay: true,
+            },
+            {
+              ago: 2,
+              type: "agent.message",
+              data: {
+                text: "Earlier reply restored from the provider.",
+                messageId: "hist-2",
+              },
+              replay: true,
+            },
+          ]
+        : [];
+    const historyEvents = history.length;
+    const specs: EventSpec[] = [
+      {
+        ago: 4,
+        type: "session.created",
+        data: {
+          createdBy: "operator",
+          ...(forkId !== undefined ? { forkedFrom: forkId } : {}),
+        },
+      },
+      ...history,
       {
         ago: 0,
         type: "session.initialized",
-        data: { agentName: session.agentName, agentVersion: "demo" },
+        data: {
+          agentName: session.agentName,
+          agentVersion: "demo",
+          resumed: resumeId !== undefined,
+          forked: forkId !== undefined,
+          ...(forkId !== undefined ? { forkedFrom: forkId } : {}),
+        },
       },
-    ]);
+      ...(resumeId !== undefined
+        ? [
+            {
+              ago: 0,
+              type: "session.resumed",
+              data: {
+                agentSessionId,
+                historyStartSeq: 2,
+                historyEndSeq: 1 + historyEvents,
+                historyEvents,
+              },
+            } satisfies EventSpec,
+          ]
+        : forkId !== undefined
+          ? [
+              {
+                ago: 0,
+                type: "session.forked",
+                data: {
+                  agentSessionId,
+                  forkedFrom: forkId,
+                  historyLoaded: true,
+                  historyStartSeq: 2,
+                  historyEndSeq: 1 + historyEvents,
+                  historyEvents,
+                },
+              } satisfies EventSpec,
+            ]
+          : []),
+    ];
+    const created = makeEvents(now, specs);
     this.addSession(withEvents(session, created), created);
     if (params.idempotencyKey) this.idempotency.set(`spawn:${params.idempotencyKey}`, id);
     this.notifySession(this.requireSession(id));
@@ -1483,6 +1587,8 @@ export class DemoSupervisor {
       session: this.requireSession(id),
       nextSeq: created.length,
       createdBy: "operator",
+      ...(resumeId !== undefined ? { resumed: true } : {}),
+      ...(forkId !== undefined ? { forked: true } : {}),
     };
   }
 

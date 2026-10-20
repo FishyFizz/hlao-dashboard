@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Provider session identity and recovered history. Diagnostics shows the
+  durable provider id and the fork source; the spawn form can resume it
+  (`spawn.resume`) or fork a copy (`spawn.fork`), and the Inspector offers both
+  actions. Events restored by ACP `session/load` carry `replay: true` and are
+  marked `history` in the gutter; the replay boundary is not counted as unread
+  activity, and `session.resumed` / `session.forked` rows mark it explicitly.
+- When the bounded live log evicts, the transcript banner now says the provider
+  still holds the transcript and offers "Fork to open history" when the
+  supervisor advertises `spawn.fork`. The message no longer implies the record
+  is gone.
+- Pinned wire projection updated to 2.7: `spawn.resumeSessionId` /
+  `forkSessionId`, `SpawnResult.resumed` / `forked`, `SessionView.forkedFrom`,
+  `EventView.replay`, and the `session.resumed` / `session.forked` event types.
+  The demo supervisor advertises both capabilities and synthesizes replayed
+  history. `contracts/protocol.md` is re-synced from the parent repo.
+- Export includes `replayedEvents` and labels a transcript whose history was
+  restored by the provider.
 - Fixed tool-call details in the transcript. Live events and ordinary pages
   carry no private ACP payloads, so opening a tool row now reads that call once
   with `raw: true` and shows the provider's actual input and output labelled as

@@ -150,8 +150,8 @@ lifecycle and cannot see sessions started by hand in a terminal.
 
 **Our delta:** the dashboard is a **client of the supervisor's live table**, not a launcher. It
 sees hand-started and agent-started sessions alike, has no per-session scope, invents no workflow
-object, and keeps the protocol's honesty rules visible: cursor, `truncated`, provider capability
-gating. The visual target is an instrument panel — flat, square, one cyan signal — not a
+object, and keeps the protocol's honesty rules visible: cursor, `truncated`, `replay`
+provenance, and provider capability gating. The visual target is an instrument panel — flat, square, one cyan signal — not a
 friendly kanban.
 
 ## Open questions this settles

@@ -26,7 +26,7 @@ import {
   sessionLocalKey,
 } from "../store/model";
 import type { SessionConfigOptionView, SessionView } from "../wire/protocol";
-import { CAPABILITIES } from "../wire/protocol";
+import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { CopyButton, SelectField, ToggleRow } from "./ui";
 import { PolicySelector } from "./PolicySelector";
 
@@ -60,6 +60,29 @@ export function Inspector({
   const pendingPolicy = Boolean(state.pending.policy);
   const pendingMode = Boolean(state.pending.mode);
   const terminal = state.removed || isTerminalStatus(session.status);
+
+  const spawnProvider = (
+    target: SessionView,
+    mode: "resume" | "fork",
+  ): void => {
+    const providerId = target.agentSessionId;
+    if (providerId === null) return;
+    void store
+      .spawnSession({
+        backend: target.backend,
+        cwd: target.cwd,
+        ...(mode === "resume"
+          ? { resumeSessionId: providerId }
+          : { forkSessionId: providerId }),
+      })
+      .catch((cause: unknown) => {
+        store.addToast({
+          tone: "danger",
+          title: mode === "resume" ? "Resume failed" : "Fork failed",
+          text: asWireError(cause).message,
+        });
+      });
+  };
 
   return (
     <div className="inspector">
@@ -396,7 +419,14 @@ export function Inspector({
           <span className="caption">local view</span>
         </summary>
         <div className="inspector__rows inspector__rows--tight">
-          <Row label="agent session" value={session.agentSessionId ?? "not reported"} mono />
+          <Row
+            label="provider"
+            value={session.agentSessionId ?? "not reported"}
+            mono
+          />
+          {session.forkedFrom ? (
+            <Row label="forked from" value={session.forkedFrom} mono />
+          ) : null}
           <Row
             label="process"
             value={session.processId !== null ? String(session.processId) : "not reported"}
@@ -414,9 +444,32 @@ export function Inspector({
             mono
           />
         </div>
+        {session.agentSessionId ? (
+          <div className="inspector__actions">
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => spawnProvider(session, "fork")}
+              isDisabled={!canUse(state, CAPABILITIES.spawnFork)}
+              title="Copy this provider session into a new HLAO session"
+            >
+              Fork provider session
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => spawnProvider(session, "resume")}
+              isDisabled={!canUse(state, CAPABILITIES.spawnResume)}
+              title="Reattach to this provider session; a live attach returns the same session"
+            >
+              Resume
+            </Button>
+          </div>
+        ) : null}
         <p className="inspector__note">
-          These values are diagnostics from the session view, not orchestration
-          status. Provider logs are not part of this surface.
+          The provider id is the durable handle. Resume reopens it after a
+          supervisor restart; fork copies it and leaves the source untouched.
+          The HLAO id is an alias for this supervisor's lifetime.
         </p>
       </details>
     </div>

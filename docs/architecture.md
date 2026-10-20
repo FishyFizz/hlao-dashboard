@@ -26,7 +26,7 @@ shapes against a simulated supervisor. Demo mode is always named in the UI.
 
 | Path | Responsibility | Public surface |
 |---|---|---|
-| `src/wire/protocol.ts` | Wire 2.5 types, capabilities, status language | types + `hasCapability`, `statusLabel` |
+| `src/wire/protocol.ts` | Wire 2.7 types, capabilities, status language | types + `hasCapability`, `statusLabel` |
 | `src/wire/transport.ts` | Browser bridge transport | `SupervisorTransport`, `BridgeTransport` |
 | `src/demo/demoSupervisor.ts` | Simulated supervisor and demo transport | `DemoTransport` (request/notification contract) |
 | `src/store/model.ts` | Pure rules: attention, grouping, event merge, formatting, target resolution, transcript coalescing | exported functions only |

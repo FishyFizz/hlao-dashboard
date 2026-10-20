@@ -238,6 +238,7 @@ The token is the instance boundary.
 | `session_closed` | session is closed or failed |
 | `session_not_ready` | session exists but has no ACP session yet |
 | `no_pending_permission` | `sessions.permit` with nothing pending |
+| `no_pending_elicitation` | `sessions.respond_elicitation` with nothing pending |
 | `bad_option` | permission option id not offered by the request |
 | `config_invalid` | user or project config is invalid; the message names the file |
 | `session_failed` | a prompt turn failed for a reason the adapter reported |
@@ -262,7 +263,7 @@ The token is the instance boundary.
   `wait.filters`, `session.settled`, `session.lastEvent`, `send.messageId`, `send.idempotency`,
   `spawn.idempotency`, `spawn.createdBy`, `supervisor.lastCrash`, `prompt.injected`,
   `session.compaction`, `session.notices`, `session.plan`, `session.title`, `session.agent`,
-  `session.messages`.
+  `session.messages`, `session.elicitation`, `spawn.resume`, `spawn.fork`.
 - Adding an optional request field, a result field, a method, or an event type is a minor
   change. Changing or removing existing semantics is a major change.
 - **2.0** removes the `scope` field and makes every session in an instance addressable by every
@@ -286,6 +287,13 @@ The token is the instance boundary.
   data, and structured `compaction` data. Capabilities: `session.compaction`,
   `session.notices`, `session.plan`, `session.title`, `session.agent`, `session.messages`.
   A client that ignores the fields and event type is unaffected.
+- **2.6** adds provider elicitation: `sessions.respond_elicitation`, optional
+  `SessionView.pendingElicitation`, and the `elicitation.requested`/`elicitation.resolved`
+  event types. Capability: `session.elicitation`.
+- **2.7** adds provider session resume and fork: `spawn.resumeSessionId`/`forkSessionId`,
+  `SpawnResult.resumed`/`forked`, `SessionView.forkedFrom`, the `session.resumed` and
+  `session.forked` event types, and optional `EventView.replay`. Capabilities:
+  `spawn.resume`, `spawn.fork`. A client that ignores them is unaffected.
 
 ## Client model
 
@@ -328,6 +336,7 @@ Method index:
 | `sessions.cancel` | `{ sessionId, keepQueue? }` | `{ session, discarded }` |
 | `sessions.close` | `{ sessionId, force? }` | `{ session, killed, wasTerminal }` |
 | `sessions.permit` | `{ sessionId, optionId?, requestId?, always? }` | `{ session, requestId, optionId, by }` |
+| `sessions.respond_elicitation` | `{ sessionId, requestId?, action, content? }` | `{ session, requestId, action, by }` |
 | `sessions.set_mode` | `{ sessionId, modeId }` | `{ session }` |
 | `sessions.set_policy` | `{ sessionId, permissionPolicy }` | `{ session }` |
 | `sessions.set_config_option` | `{ sessionId, configId, value }` | `{ session }` |
@@ -437,6 +446,8 @@ Params:
   env?: Record<string, string>;  // extra environment for the adapter
   skill?: boolean;               // include the HLAO skill pointer in the first prompt (default true)
   idempotencyKey?: string;       // reuse the session produced by an earlier spawn (2.3)
+  resumeSessionId?: string;      // provider session id to reopen with ACP session/load (2.7)
+  forkSessionId?: string;        // provider session id to copy with ACP session/fork (2.7)
 }
 ```
 
@@ -445,13 +456,20 @@ Result:
 ```ts
 {
   session: SessionView;
-  nextSeq: number;               // pass as --since to read from the beginning
+  nextSeq: number;               // always 0: pass as `since` to read from the beginning
+                                 // (not a page cursor; see sessions.read nextSeq)
   firstTurn?: { stopReason: StopReason; text: string; timedOut: boolean };
   messageId?: string;            // the first prompt's id, when one was sent (2.3)
   duplicate?: boolean;           // the idempotency key matched an existing session (2.3)
+  resumed?: boolean;             // this spawn reopened a provider session (2.7)
+  forked?: boolean;              // this spawn copied a provider session (2.7)
   createdBy?: string;            // same value as session.createdBy (2.3)
 }
 ```
+
+`spawn.nextSeq` is a start-of-history cursor, not the page cursor that `sessions.read`
+returns. It is always `0` so `read --since 0` returns the session's whole transcript,
+including `session.created` and the first turn. The name is kept for wire compatibility.
 
 The call resolves once `initialize` and `session/new` both succeed. If `prompt` is present
 and `wait` is true, it also waits for the first turn (bounded by `sendWaitTimeoutMs`). A
@@ -461,6 +479,29 @@ timeout is reported as `firstTurn.timedOut = true`, not as an error.
 the first prompt only. `idempotencyKey` dedupes spawns for one hour (256 keys); a duplicate
 returns the existing session and its first-prompt `messageId` without spawning. If that
 session is no longer in the live table, the key is released.
+
+`resumeSessionId` reopens a provider session with ACP `session/load` instead of
+`session/new`. The provider replays its durable history as `session/update` notifications;
+HLAO projects them as events with `replay: true`, then emits `session.resumed` with the
+provider id and the replayed seq range. The interrupted turn is not replayed, so the caller
+re-issues the prompt. A backend that does not advertise ACP `loadSession` is refused with
+`spawn_failed` rather than started with an empty conversation under the same id. If a live
+session in this supervisor already holds that provider id, the call returns that session
+with `duplicate: true` and `resumed: true` instead of opening a second adapter against the
+same transcript. The adapter creates the resumed query in the `cwd` it is given, so pass the
+original cwd to keep one transcript.
+
+`SessionView.agentSessionId` is the durable provider handle (for example the id
+`claude --resume` accepts). The HLAO session id is an alias for this supervisor's lifetime.
+An agent that spawned a session keeps the provider id in its own context and passes it back
+as `resumeSessionId` after a restart.
+
+`forkSessionId` copies a provider session with ACP `session/fork` instead of reopening it.
+The source is never modified and keeps its own id; the new session gets a provider-assigned
+id and `SessionView.forkedFrom` records the source. When the backend also advertises
+`loadSession`, HLAO immediately loads the new session so the copied history is replayed with
+`replay: true`; otherwise the fork starts with the copied context but sends no history.
+`resumeSessionId` and `forkSessionId` are mutually exclusive.
 
 ### `sessions.list`
 
@@ -518,7 +559,7 @@ Result:
 {
   session: SessionView;
   messageId: string;             // msg-…, stable across retries (2.3)
-  queued: boolean;               // true when the session was busy
+  queued: boolean;               // true when this call put the message behind a running turn
   turn: number | null;           // null when not yet dispatched
   completed: boolean;
   timedOut: boolean;
@@ -526,6 +567,7 @@ Result:
   text?: string;                 // accumulated agent text; partial on timeout (2.3)
   outcome?: "completed" | "cancelled" | "timed_out"; // (2.3)
   duplicate?: boolean;           // the idempotency key matched an earlier send (2.3)
+  pending?: boolean;             // on a duplicate: the original is still active or queued
 }
 ```
 
@@ -533,8 +575,15 @@ Result:
 `completed: false, timedOut: false` is only possible when `wait` is false. A queued message
 cancelled before it runs reports `completed: true`, `outcome: "cancelled"`, and a null `turn`.
 
+A `wait: true` sent by a session that is itself inside a turn is rejected with `bad_request`
+when it would close a wait cycle: the target is already blocked, directly or transitively, on
+the caller's turn, so the message would queue behind a turn that cannot end. The error names
+the chain (`wait cycle: A -> B -> A`). Send without `wait` so the message runs after the
+current turn. The self-send case is the same rule with one session.
+
 An `idempotencyKey` is remembered for one hour (256 keys, oldest evicted). A repeat returns
-the original `messageId` and the item's current queued/active state without enqueuing again.
+the original `messageId` with `queued: false` and `duplicate: true` — this call accepted no new
+work — plus `pending`, which says whether the original message is still active or queued.
 
 ### `sessions.read`
 
@@ -622,6 +671,15 @@ Result:
 The wait is one-shot: it resolves at the first matching condition and never re-arms. A
 timeout never changes a session.
 
+A wait issued by a session that is itself inside a turn participates in wait-cycle detection.
+A state wait (`idle`, `settled`, `permission`, `exit`) on your own turn is rejected with
+`bad_request` (`wait cycle: A -> A`): the condition cannot be reached while the turn is
+blocked in the wait. A `change` wait on yourself is valid because a queued prompt emits its
+event during the current turn, unless its `types` filter selects only events that follow the
+turn (`prompt.sent`, `turn.started`, `turn.ended`). Cross-session state waits and `change` waits are rejected when
+they would close a cycle with another session's in-flight wait; for a multi-id wait the
+`any`/`all` mode decides whether a blocked target is fatal.
+
 **`idle` vs `settled`.** `idle` means no active turn. A session can be idle with queued
 prompts between turns, so `idle` is not a completion signal. `settled` means no active turn
 **and** an empty queue; it is also satisfied by `waiting_permission` and by a terminal session.
@@ -668,6 +726,20 @@ With no `optionId`, the first `allow_once`/`allow_always` option is chosen; with
 `allow_always` is preferred. With no `requestId`, the single pending request is used.
 `always: true` also sets the session's `permissionPolicy` to `allow` and appends a
 `policy.changed` event. Errors: `no_pending_permission`, `bad_option`.
+
+### `sessions.respond_elicitation`
+
+Params: `{ sessionId: string; requestId?: string; action: "accept" | "decline" | "cancel";
+content?: Record<string, string | number | boolean | string[]> }`.
+
+Result: `{ session: SessionView; requestId: string; action: "accept" | "decline" | "cancel";
+by: "operator" }`.
+
+Answers a provider question (ACP `elicitation/create`) exposed as
+`SessionView.pendingElicitation`. `accept` carries schema-shaped content; `decline` answers
+with no content; `cancel` withdraws the question and the provider aborts the tool call. An
+elicitation is user input, not a permission: the session's `permissionPolicy` never answers
+it. Errors: `no_pending_elicitation` when nothing is pending or `requestId` does not match.
 
 ### `sessions.set_mode`
 
@@ -827,22 +899,34 @@ type EventView = {
   type: EventType;
   turn: number | null;
   data: Record<string, unknown>; // raw:true adds data.raw = original ACP update
+  replay?: true;                 // rebuilt by session/load, not observed live (2.7)
 };
 
 type EventType =
-  | "session.created" | "session.initialized" | "session.renamed"
+  | "session.created" | "session.initialized" | "session.resumed" | "session.forked"
+  | "session.renamed"
   | "session.closed" | "session.failed"
   | "prompt.sent" | "prompt.queued" | "prompt.discarded"
   | "turn.started" | "turn.ended" | "cancel.requested"
   | "agent.message" | "agent.thought" | "user.message" | "session.message"
   | "tool.call" | "tool.update" | "plan" | "plan.update"
-  | "permission.requested" | "permission.resolved" | "policy.changed"
+  | "permission.requested" | "permission.resolved"
+  | "elicitation.requested" | "elicitation.resolved" | "policy.changed"
   | "notice" | "usage" | "mode" | "config" | "commands" | "session.info"
   | "compaction" | "subagent" | "stderr" | "error" | "raw";
 ```
 
 Event ordering per session is total and monotonic. An event is appended before any waiter
 that depends on it is notified.
+
+Message text is streamed as deltas, not one record per message. `agent.message`,
+`agent.thought`, and `user.message` each project one ACP chunk; `session.message` marks its
+chunks with `chunk: true`. Concatenate chunks in `seq` order per `messageId` (which may be
+`null`) when the full text matters; there is no separate assembled-message event. Human
+`read` output joins adjacent chunks for display, but `read --grep`, `find`, and
+`wait --until change --grep` match one event at a time, so a phrase split across chunks is
+not found by a text filter. Wait on a state (`settled`, `turn.ended`) or assemble chunks
+client-side instead.
 
 Actor fields are explicit:
 
@@ -874,7 +958,13 @@ Provider-native events (2.5) are structured; `raw` is not required to read them:
   on the experimental `subagents` capability, which HLAO deliberately does not advertise; a
   compliant adapter will not send them, and HLAO still projects them if a custom adapter does.
 - `session.info` carries the provider `title`; `session.initialized` carries `agentName` and
-  `agentVersion`.
+  `agentVersion`, plus `resumed: true` when the session was reopened, or `forked: true` and
+  `forkedFrom` when it was copied (2.7).
+- `session.resumed` (2.7) carries `agentSessionId`, `historyStartSeq`, `historyEndSeq`, and
+  `historyEvents`. Every event between the start and end seq is marked `replay: true`.
+- `session.forked` (2.7) carries `agentSessionId`, `forkedFrom`, `historyLoaded`,
+  `historyStartSeq`, `historyEndSeq`, and `historyEvents`. `historyLoaded: false` means the
+  backend could not replay the copy; the forked agent still has the copied context.
 - A `notice` may be derived from a `usage` update at 75% and 90% of the context size; the
   notice severity is `warning` then `error`, and the thresholds reset below 70%. This is
   derived state, not a timer.
@@ -906,8 +996,10 @@ type SessionView = {
     at: string;
   } | null;
   pendingPermission: PermissionView | null;
+  pendingElicitation?: ElicitationView | null; // 2.6
   lastStopReason: StopReason | null;
-  agentSessionId: string | null; // exposed for diagnostics only
+  agentSessionId: string | null; // durable provider handle; pass as spawn.resumeSessionId (2.7)
+  forkedFrom?: string | null;    // provider id this session was forked from (2.7)
   processId: number | null;
   exit: { code: number | null; signal: string | null } | null;
   permissionPolicy: "ask" | "allow" | "deny";
@@ -956,6 +1048,17 @@ type PermissionView = {
   title: string;
   kind: string | null;
   options: { optionId: string; name: string; kind: string }[];
+  requestedAt: string;
+};
+
+type ElicitationView = {          // 2.6
+  requestId: string;
+  toolCallId: string | null;
+  message: string;
+  mode: string;                   // "form" (requestedSchema) or "url" (url)
+  requestedSchema?: Record<string, unknown>; // JSON Schema object
+  url?: string;
+  elicitationId?: string;
   requestedAt: string;
 };
 ```

@@ -923,6 +923,7 @@ export class DashboardStore {
         gap: null,
       };
       this.patchSessionEvents(sessionId, next);
+      this.markReplayBoundary(sessionId, result.events);
       if (notice) this.setNotice(result.session, notice);
       if (this.state.selection?.id === sessionId) await this.refreshQueue(sessionId);
     } catch (error) {
@@ -1064,6 +1065,7 @@ export class DashboardStore {
         }
       }
     }
+    this.markReplayBoundary(sessionId, result.events);
     const notice = latestNotice(result.events);
     if (notice) this.setNotice(result.session, notice);
   }
@@ -1123,6 +1125,27 @@ export class DashboardStore {
 
   clearFocus(): void {
     this.setState({ focus: null });
+  }
+
+  /**
+   * Restored history is not new activity. A `session.resumed`/`session.forked`
+   * event closes the replay block, so moving the read marker to it keeps the
+   * fleet badge honest without hiding later live events.
+   */
+  private markReplayBoundary(
+    sessionId: string,
+    events: readonly EventView[],
+  ): void {
+    let boundary = 0;
+    for (const event of events) {
+      if (
+        event.type === "session.resumed" ||
+        event.type === "session.forked"
+      ) {
+        boundary = Math.max(boundary, event.seq);
+      }
+    }
+    if (boundary > 0) this.markSeen(sessionId, boundary);
   }
 
   markSeen(sessionId: string, seq: number): void {
@@ -1240,6 +1263,7 @@ export class DashboardStore {
         this.markSeen(frame.sessionId, lastSeq);
       }
     }
+    this.markReplayBoundary(frame.sessionId, frame.events);
     const notice = latestNotice(frame.events);
     const session = this.state.sessions[frame.sessionId];
     if (notice && session) this.setNotice(session, notice);
@@ -1775,9 +1799,18 @@ export class DashboardStore {
         this.setLocal({ ...this.state.local, lastCwd: params.cwd });
       }
       const session = result.session;
+      const title = result.duplicate
+        ? result.resumed
+          ? "Provider session already attached"
+          : "Existing session reused"
+        : result.resumed
+          ? "Provider session resumed"
+          : result.forked
+            ? "Provider session forked"
+            : "Session spawned";
       this.addToast({
         tone: result.duplicate ? "info" : "ok",
-        title: result.duplicate ? "Existing session reused" : "Session spawned",
+        title,
         text: `${session.id} · ${session.backend}${session.name ? ` · ${session.name}` : ""}`,
       });
       this.setState({
