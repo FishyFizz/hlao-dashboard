@@ -233,7 +233,7 @@ friendly kanban.
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
 - **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes ten Vitest cases.
   `npm run build` emits 615.22 kB JS / 179.27 kB gzip, a 165.99 kB / 42.02 kB lazy gallery
-  chunk, and 107.04 kB CSS / 16.82 kB gzip in ~440 ms on this machine (2026-10-20).
+  chunk, and 107.59 kB CSS / 16.89 kB gzip in ~440 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

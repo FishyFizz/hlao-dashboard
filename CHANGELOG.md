@@ -27,6 +27,9 @@
   permission, plan rows).
 - Hid usage, plan, and compaction stream rows by default behind a "System"
   transcript toggle; current usage remains in the state strip and inspector.
+- Aligned the state-strip facts on one 16px line and turned "More" into a fixed
+  anchor with an overlaying details panel, so opening it no longer reflows the
+  strip or moves the toggle.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20
