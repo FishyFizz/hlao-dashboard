@@ -11,8 +11,8 @@
 > **Implemented since this decision:** the browser client, the local bridge
 > (`server/bridge.mjs`, loopback HTTP + SSE + supervisor IPC), a typed frame
 > surface, the external store, persistence, and Vitest model tests. Playwright
-> and axe remain the next test layer. The client bundle is 804.25 kB minified /
-> 236.20 kB gzip; the gallery is lazy-loaded into a 139.19 kB / 34.62 kB chunk.
+> and axe remain the next test layer. The client bundle is 782.20 kB minified /
+> 231.19 kB gzip; the gallery is lazy-loaded into a 153.79 kB / 38.90 kB chunk.
 
 ## Decision
 
@@ -114,8 +114,8 @@ one the parent docs recommend. Revisit Tauri when packaging, not before.
 - **TypeScript 7 is the native compiler.** It works for app type-checking (`tsc --noEmit`);
   declaration-emit tooling is where breakage has been reported. This app emits no declarations.
   Vite 8 uses Oxc for transpilation, so TS 7 is a checker, not the build.
-- **Bundle size.** The client is 804.25 kB minified / 236.20 kB gzip (RAC + Lucide + React +
-  unified markdown + the demo supervisor); the gallery is 139.19 kB / 34.62 kB. Vite warns above
+- **Bundle size.** The client is 782.20 kB minified / 231.19 kB gzip (RAC + Lucide + React +
+  unified markdown + the demo supervisor); the gallery is 153.79 kB / 38.90 kB. Vite warns above
   500 kB. This is a local app, not a network product; the gallery is lazy-loaded, and the
   markdown renderer, inspector, and charts can be split next. The demo remains in the main chunk
   because it is one click from the setup screen.
@@ -232,9 +232,9 @@ friendly kanban.
   adopted it as the default primitive layer in July 2026. (registry + 2026 comparison write-ups)
 - **React Aria Components** exports `Virtualizer`, `Table`, `Tree`, `GridList`, `Meter`, and
   `ProgressBar` in 1.22.1; Toast is `UNSTABLE_Toast`. (package exports inspected locally)
-- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes sixteen Vitest cases.
-  `npm run build` emits 804.25 kB JS / 236.20 kB gzip, a 139.19 kB / 34.62 kB lazy gallery
-  chunk, and 113.31 kB CSS / 18.06 kB gzip in ~520 ms on this machine (2026-10-20).
+- **Build:** `npm run typecheck` passes with TS 7.0.2 and `npm test` passes twenty Vitest cases.
+  `npm run build` emits 782.20 kB JS / 231.19 kB gzip, a 153.79 kB / 38.90 kB lazy gallery
+  chunk, and 109.89 kB CSS / 17.58 kB gzip in ~715 ms on this machine (2026-10-20).
 - **Prior art:** Conductor active; Crystal deprecated Feb 2026; Vibe Kanban orphaned Apr 2026;
   Claude Code Agent View active; the launcher-vs-observer critique is recurring across the 2026
   comparison matrices. (See the survey sources gathered 2026-10-20.)

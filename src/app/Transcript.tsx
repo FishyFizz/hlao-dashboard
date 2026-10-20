@@ -15,6 +15,7 @@ import {
   type DashboardState,
 } from "../store/store";
 import type { SessionView } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { EventRow } from "./EventRow";
 
 const SYSTEM_EVENT_TYPES = new Set([
@@ -72,8 +73,7 @@ export function Transcript({
   );
   const count = eventsState.events.length;
   const live = state.connection === "open" && !state.removed;
-  const canPageBack = canUse(state, "read.before");
-  const follow = atBottom;
+  const canPageBack = canUse(state, CAPABILITIES.readBefore);
   const unseen = Math.max(
     state.newEvents[session.id] ?? 0,
     Math.max(0, session.lastSeq - lastSeen),
@@ -253,204 +253,200 @@ export function Transcript({
   return (
     <div className="transcript">
       <div className="transcript__bar">
-          <span className="transcript__title">
-            <span>
-              {eventsState.loaded
-                ? `${eventsState.earliestRetainedSeq} - ${eventsState.lastSeq} / ${count} loaded`
-                : "not loaded"}
-            </span>
-            {state.removed ? (
-              <span className="transcript__stale">
-                <WifiOff className="icon" /> not live
-              </span>
-            ) : null}
+        <span className="transcript__title">
+          <span>
+            {eventsState.loaded
+              ? `${eventsState.earliestRetainedSeq} - ${eventsState.lastSeq} / ${count} loaded`
+              : "not loaded"}
           </span>
-          <span className="transcript__actions">
-            {!live ? (
-              <span className="caption" title="Live events stop when the connection or session stops">
-                events paused
-              </span>
-            ) : null}
+          {state.removed ? (
+            <span className="transcript__stale">
+              <WifiOff className="icon" /> not live
+            </span>
+          ) : null}
+        </span>
+        <span className="transcript__actions">
+          {!live ? (
+            <span className="caption" title="Live events stop when the connection or session stops">
+              events paused
+            </span>
+          ) : null}
+          {hiddenSystemCount > 0 ? (
+            <Button
+              size="sm"
+              variant={showSystem ? "secondary" : "ghost"}
+              aria-pressed={showSystem}
+              aria-label="Show or hide system events"
+              title={`${hiddenSystemCount} hidden system events: usage, plan, compaction, commands, stderr, and session metadata`}
+              onPress={() => setShowSystem((value) => !value)}
+            >
+              System
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onPress={onSearch}>
+            <Search className="btn__icon icon" />
+            Find
+          </Button>
+          <span className="caption" title="Follow the live edge">
+            {atBottom ? "following" : "paused"}
+          </span>
+        </span>
+      </div>
+
+      {eventsState.truncated ? (
+        <div className="banner banner--warn transcript-banner">
+          <span className="banner__text">
+            History begins at seq {eventsState.earliestRetainedSeq}. Earlier events
+            were evicted by the supervisor; this view does not claim completeness.
+          </span>
+        </div>
+      ) : null}
+      {lastReadEvicted ? (
+        <div className="banner transcript-banner">
+          <span className="banner__text">
+            The last read marker (seq {lastSeen}) was evicted. The view clamps to
+            seq {eventsState.earliestRetainedSeq}.
+          </span>
+        </div>
+      ) : null}
+
+      <div
+        className="transcript__scroll"
+        ref={scrollRef}
+        onScroll={onScroll}
+        onWheel={onWheel}
+        onTouchMove={onTouchMove}
+        role="log"
+        aria-label={`Transcript for ${session.name ?? session.id}`}
+        aria-live="off"
+      >
+        {eventsState.viewCapped ? (
+          <div className="transcript__older">
+            <span className="caption">
+              Local transcript limit reached; earlier events remain on the
+              supervisor.
+            </span>
+          </div>
+        ) : eventsState.hasMoreOlder && canPageBack ? (
+          <div className="transcript__older" ref={olderRef} role="status">
+            <span className="caption">
+              {eventsState.loadingOlder
+                ? "Loading earlier events..."
+                : "Earlier events load automatically"}
+            </span>
+          </div>
+        ) : null}
+        {items.length === 0 ? (
+          <div className="transcript-empty">
             {hiddenSystemCount > 0 ? (
-              <Button
-                size="sm"
-                variant={showSystem ? "secondary" : "ghost"}
-                aria-pressed={showSystem}
-                aria-label="Show or hide system events"
-                title={`${hiddenSystemCount} hidden system events: usage, plan, compaction, commands, stderr, and session metadata`}
-                onPress={() => setShowSystem((value) => !value)}
-              >
-                System
+              <>
+                <span className="transcript-empty__title">
+                  System events are hidden.
+                </span>
+                <span className="transcript-empty__text">
+                  Usage, plan, compaction, commands, stderr, and session
+                  metadata are available via System. This session has no other
+                  loaded events.
+                </span>
+                <Button size="sm" onPress={() => setShowSystem(true)}>
+                  Show system events
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="transcript-empty__title">No events yet.</span>
+                <span className="transcript-empty__text">
+                  {canUse(state, CAPABILITIES.lastEvent)
+                    ? "The supervisor reports no events for this session."
+                    : "This supervisor does not report the last event."}
+                </span>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="transcript__list">
+            {items.map((item, index) => {
+              const turn = itemTurn(item);
+              const previous = index > 0 ? itemTurn(items[index - 1]!) : null;
+              const showTurn = turn !== null && turn !== previous;
+              const seq = itemSeq(item);
+              const showRead =
+                lastReadVisible &&
+                lastSeen < seq &&
+                (index === 0 || lastSeen >= previousSeq(items, index));
+              const showGap =
+                gap !== null &&
+                seq > gap.to &&
+                (index === 0 || previousSeq(items, index) <= gap.to);
+              return (
+                <div key={item.id}>
+                  {showTurn ? (
+                    <div className="event event--divider transcript-turn">
+                      <span>Turn {turn}</span>
+                      <span>{formatDateTime(itemStart(item))}</span>
+                    </div>
+                  ) : null}
+                  {showGap && gap ? (
+                    <div className="event event--divider event--gap">
+                      <span>
+                        History gap · seq {gap.from}–{gap.to} not retained
+                      </span>
+                      <span>{formatDateTime(itemStart(item))}</span>
+                    </div>
+                  ) : null}
+                  {showRead ? (
+                    <div className="event event--divider" id="last-read">
+                      <span>
+                        Last read · seq {lastSeen}
+                        {atBottom ? null : (
+                          <button type="button" className="transcript__link" onClick={jumpToLatest}>
+                            jump to latest
+                          </button>
+                        )}
+                      </span>
+                      <span>{formatAge(itemStart(item), Date.now())} after</span>
+                    </div>
+                  ) : null}
+                  <EventRow
+                    item={item}
+                    session={session}
+                    focused={
+                      state.focus?.sessionId === session.id &&
+                      state.focus.seq === seq
+                    }
+                    onOpenSession={onOpenSession}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showFoot ? (
+        <div className="transcript__foot">
+          <span className="transcript__foot-actions">
+            {lastReadVisible ? (
+              <Button size="sm" variant="ghost" onPress={jumpToLastRead}>
+                Last read
               </Button>
             ) : null}
-            <Button size="sm" variant="ghost" onPress={onSearch}>
-              <Search className="btn__icon icon" />
-              Find
-            </Button>
-            <span className="caption" title="Follow the live edge">
-              {follow ? "following" : "paused"}
-            </span>
+            {!atBottom ? (
+              <Button size="sm" onPress={jumpToLatest}>
+                <ArrowDown className="btn__icon icon" />
+                Jump to latest
+              </Button>
+            ) : null}
+            {unseen > 0 ? (
+              <Button size="sm" variant="primary" onPress={jumpToLatest}>
+                {unseen} new event{unseen === 1 ? "" : "s"}
+              </Button>
+            ) : null}
           </span>
         </div>
-
-        {eventsState.truncated ? (
-          <div className="banner banner--warn transcript-banner">
-            <span className="banner__text">
-              History begins at seq {eventsState.earliestRetainedSeq}. Earlier events
-              were evicted by the supervisor; this view does not claim completeness.
-            </span>
-          </div>
-        ) : null}
-        {lastReadEvicted ? (
-          <div className="banner transcript-banner">
-            <span className="banner__text">
-              The last read marker (seq {lastSeen}) was evicted. The view clamps to
-              seq {eventsState.earliestRetainedSeq}.
-            </span>
-          </div>
-        ) : null}
-
-        <div
-          className="transcript__scroll"
-          ref={scrollRef}
-          onScroll={onScroll}
-          onWheel={onWheel}
-          onTouchMove={onTouchMove}
-          role="log"
-          aria-label={`Transcript for ${session.name ?? session.id}`}
-          aria-live="off"
-        >
-          {eventsState.viewCapped ? (
-            <div className="transcript__older">
-              <span className="caption">
-                Local transcript limit reached; earlier events remain on the
-                supervisor.
-              </span>
-            </div>
-          ) : eventsState.hasMoreOlder && canPageBack ? (
-            <div className="transcript__older" ref={olderRef} role="status">
-              <span className="caption">
-                {eventsState.loadingOlder
-                  ? "Loading earlier events..."
-                  : "Earlier events load automatically"}
-              </span>
-            </div>
-          ) : null}
-          {items.length === 0 ? (
-            <div className="transcript-empty">
-              {hiddenSystemCount > 0 ? (
-                <>
-                  <span className="transcript-empty__title">
-                    System events are hidden.
-                  </span>
-                  <span className="transcript-empty__text">
-                    Usage, plan, compaction, commands, stderr, and session
-                    metadata are available via System. This session has no other
-                    loaded events.
-                  </span>
-                  <Button size="sm" onPress={() => setShowSystem(true)}>
-                    Show system events
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <span className="transcript-empty__title">No events yet.</span>
-                  <span className="transcript-empty__text">
-                    {canUseLocal(state, "session.lastEvent")
-                      ? "The supervisor reports no events for this session."
-                      : "This supervisor does not report the last event."}
-                  </span>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="transcript__list">
-              {items.map((item, index) => {
-                const turn = itemTurn(item);
-                const previous = index > 0 ? itemTurn(items[index - 1]!) : null;
-                const showTurn = turn !== null && turn !== previous;
-                const seq = itemSeq(item);
-                const showRead =
-                  lastReadVisible &&
-                  lastSeen < seq &&
-                  (index === 0 || lastSeen >= previousSeq(items, index));
-                const showGap =
-                  gap !== null &&
-                  seq > gap.to &&
-                  (index === 0 || previousSeq(items, index) <= gap.to);
-                return (
-                  <div key={item.id}>
-                    {showTurn ? (
-                      <div className="event event--divider transcript-turn">
-                        <span>Turn {turn}</span>
-                        <span>{formatDateTime(itemStart(item))}</span>
-                      </div>
-                    ) : null}
-                    {showGap && gap ? (
-                      <div className="event event--divider event--gap">
-                        <span>
-                          History gap · seq {gap.from}–{gap.to} not retained
-                        </span>
-                        <span>{formatDateTime(itemStart(item))}</span>
-                      </div>
-                    ) : null}
-                    {showRead ? (
-                      <div className="event event--divider" id="last-read">
-                        <span>
-                          Last read · seq {lastSeen}
-                          {atBottom ? null : (
-                            <button type="button" className="transcript__link" onClick={jumpToLatest}>
-                              jump to latest
-                            </button>
-                          )}
-                        </span>
-                        <span>{formatAge(itemStart(item), Date.now())} after</span>
-                      </div>
-                    ) : null}
-                    <EventRow
-                      item={item}
-                      session={session}
-                      focused={
-                        state.focus?.sessionId === session.id &&
-                        state.focus.seq === seq
-                      }
-                      onOpenSession={onOpenSession}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {showFoot ? (
-          <div className="transcript__foot">
-            <span className="transcript__foot-actions">
-              {lastReadVisible ? (
-                <Button size="sm" variant="ghost" onPress={jumpToLastRead}>
-                  Last read
-                </Button>
-              ) : null}
-              {!atBottom ? (
-                <Button size="sm" onPress={jumpToLatest}>
-                  <ArrowDown className="btn__icon icon" />
-                  Jump to latest
-                </Button>
-              ) : null}
-              {unseen > 0 ? (
-                <Button size="sm" variant="primary" onPress={jumpToLatest}>
-                  {unseen} new event{unseen === 1 ? "" : "s"}
-                </Button>
-              ) : null}
-            </span>
-          </div>
-        ) : null}
+      ) : null}
     </div>
   );
-}
-
-function canUseLocal(state: DashboardState, capability: string): boolean {
-  return canUse(state, capability);
 }
 
 function itemTurn(item: RenderItem): number | null {
@@ -462,10 +458,8 @@ function itemSeq(item: RenderItem): number {
 }
 
 function previousSeq(items: RenderItem[], index: number): number {
-  for (let i = index - 1; i >= 0; i -= 1) {
-    return itemSeq(items[i]!);
-  }
-  return 0;
+  const previous = items[index - 1];
+  return previous ? itemSeq(previous) : 0;
 }
 
 function itemStart(item: RenderItem): string {

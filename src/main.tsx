@@ -7,15 +7,9 @@ import "./styles/primitives.css";
 import "./styles/gallery.css";
 import "./styles/app.css";
 import { App } from "./App";
+import { loadTheme } from "./store/persistence";
 
-try {
-  const stored = window.localStorage.getItem("hlao-dashboard-theme");
-  if (stored === "light" || stored === "dark") {
-    document.documentElement.dataset.theme = stored;
-  }
-} catch {
-  // The default dark theme still applies.
-}
+document.documentElement.dataset.theme = loadTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

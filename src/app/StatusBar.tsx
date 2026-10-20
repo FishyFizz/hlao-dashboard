@@ -1,14 +1,13 @@
 import { attentionItems, store, type DashboardState } from "../store/store";
-import { formatAge, formatDateTime } from "../store/model";
+import { formatAge, formatDateTime, isTerminalStatus } from "../store/model";
+import { wireVersionLabel } from "../wire/protocol";
 import { useNow } from "./hooks";
 
 export function StatusBar({ state }: { state: DashboardState }) {
   const now = useNow();
   const sessions = Object.values(state.sessions);
   const attention = attentionItems(state);
-  const live = sessions.filter(
-    (session) => session.status !== "closed" && session.status !== "failed",
-  ).length;
+  const live = sessions.filter((session) => !isTerminalStatus(session.status)).length;
   const ended = sessions.length - live;
   const selected = state.selection?.id;
   return (
@@ -36,7 +35,7 @@ export function StatusBar({ state }: { state: DashboardState }) {
               ? `fleet subscription · events #${selected}`
               : "fleet subscription · no event scope"}
         </span>
-        <span>wire {state.instance ? `${state.instance.protocolVersion.major}.${state.instance.protocolVersion.minor}` : "2.5"}</span>
+        <span>wire {wireVersionLabel(state.instance?.protocolVersion)}</span>
         {state.lastUpdatedAt ? (
           <span title={formatDateTime(state.lastUpdatedAt)}>
             updated {formatAge(state.lastUpdatedAt, now)} ago

@@ -19,6 +19,7 @@ import {
 } from "react-aria-components";
 import { Button, IconButton } from "../components/Button";
 import { Handle, Status, Tag } from "../components/Status";
+import { cn } from "../lib/cn";
 import {
   attentionItems,
   store,
@@ -29,6 +30,7 @@ import {
   displayLabel,
   failureReason,
   formatDateTime,
+  isTerminalStatus,
 } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
 import { cli } from "./cli";
@@ -77,7 +79,7 @@ export function SessionLens({
     lensRef.current?.scrollTo({ top: 0 });
   }, [session.id]);
   const attention = attentionItems(state).find((item) => item.session.id === session.id);
-  const terminal = session.status === "closed" || session.status === "failed";
+  const terminal = isTerminalStatus(session.status);
   const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const active = session.status === "busy" || session.status === "waiting_permission";
 
@@ -262,49 +264,11 @@ export function SessionLens({
 
       <StateStrip state={state} session={session} />
 
-      {session.status === "failed" ? (
-        <div className="session-terminal session-terminal--danger">
-          <div>
-            <strong>Failed</strong>
-            <span>
-              {failureReason(session)}
-              {session.endedAt ? ` · ${formatDateTime(session.endedAt)}` : ""}. This
-              session cannot run another turn.
-            </span>
-          </div>
-          <div className="session-terminal__actions">
-            <Button size="sm" onPress={() => store.acknowledgeFailure(session.id)}>
-              Acknowledge locally
-            </Button>
-            <Button size="sm" onPress={() => void exportTranscript(session)}>
-              <Download className="btn__icon icon" />
-              Export
-            </Button>
-            <Button size="sm" variant="primary" onPress={onSpawnReplacement}>
-              Spawn replacement
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {session.status === "closed" ? (
-        <div className="session-terminal">
-          <div>
-            <strong>Closed</strong>
-            <span>
-              {session.endedAt ? formatDateTime(session.endedAt) : "end time not reported"}.
-              Readable for the retention period; not resumable.
-            </span>
-          </div>
-          <div className="session-terminal__actions">
-            <Button size="sm" onPress={() => void exportTranscript(session)}>
-              <Download className="btn__icon icon" />
-              Export
-            </Button>
-            <Button size="sm" variant="primary" onPress={onSpawnReplacement}>
-              Spawn replacement
-            </Button>
-          </div>
-        </div>
+      {terminal ? (
+        <SessionTerminal
+          session={session}
+          onSpawnReplacement={onSpawnReplacement}
+        />
       ) : null}
 
       {!state.removed && session.pendingPermission ? (
@@ -331,6 +295,46 @@ export function SessionLens({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The ended-session banner: one shape for failed and closed sessions. */
+function SessionTerminal({
+  session,
+  onSpawnReplacement,
+}: {
+  session: SessionView;
+  onSpawnReplacement: () => void;
+}) {
+  const failed = session.status === "failed";
+  const endedAt = session.endedAt
+    ? formatDateTime(session.endedAt)
+    : "end time not reported";
+  return (
+    <div className={cn("session-terminal", failed && "session-terminal--danger")}>
+      <div>
+        <strong>{failed ? "Failed" : "Closed"}</strong>
+        <span>
+          {failed
+            ? `${failureReason(session)}${session.endedAt ? ` · ${formatDateTime(session.endedAt)}` : ""}. This session cannot run another turn.`
+            : `${endedAt}. Readable for the retention period; not resumable.`}
+        </span>
+      </div>
+      <div className="session-terminal__actions">
+        {failed ? (
+          <Button size="sm" onPress={() => store.acknowledgeFailure(session.id)}>
+            Acknowledge locally
+          </Button>
+        ) : null}
+        <Button size="sm" onPress={() => void exportTranscript(session)}>
+          <Download className="btn__icon icon" />
+          Export
+        </Button>
+        <Button size="sm" variant="primary" onPress={onSpawnReplacement}>
+          Spawn replacement
+        </Button>
+      </div>
     </div>
   );
 }

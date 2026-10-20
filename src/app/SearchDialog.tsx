@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Square, TriangleAlert } from "lucide-react";
+import { Search, Square } from "lucide-react";
 import { Button } from "../components/Button";
+import { Notice } from "../components/Notice";
 import { Handle } from "../components/Status";
 import {
   store,
@@ -9,6 +10,7 @@ import {
   type SearchScope,
 } from "../store/store";
 import { displayLabel, formatClock, formatDateTime } from "../store/model";
+import { asWireError } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
 import { ToggleRow } from "./ui";
 
@@ -63,11 +65,7 @@ export function SearchDialog({
       .catch((cause: unknown) => {
         if (token !== runToken.current) return;
         setRunning(false);
-        setError(
-          cause && typeof cause === "object" && "message" in cause
-            ? String((cause as { message: unknown }).message)
-            : String(cause),
-        );
+        setError(asWireError(cause).message);
       });
   };
 
@@ -186,13 +184,9 @@ export function SearchDialog({
       </div>
 
       {error ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">Search failed</span>
-            <span>{error}</span>
-          </span>
-        </div>
+        <Notice tone="danger" title="Search failed">
+          {error}
+        </Notice>
       ) : null}
 
       {running ? (

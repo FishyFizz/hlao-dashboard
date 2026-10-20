@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
+import { cn } from "../lib/cn";
 import { canUse, type DashboardState } from "../store/store";
 import {
   contextPercent,
@@ -12,6 +13,7 @@ import {
   sessionLocalKey,
 } from "../store/model";
 import type { SessionView } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { useNow } from "./hooks";
 import { CopyButton } from "./ui";
 
@@ -89,7 +91,7 @@ export function StateStrip({
         ) : null}
         <Fact
           label="Last event"
-          value={`${lastEventLabel(session, canUse(state, "session.lastEvent"))} · ${formatAge(session.lastEvent?.at ?? session.lastActivityAt, now)}`}
+          value={`${lastEventLabel(session, canUse(state, CAPABILITIES.lastEvent))} · ${formatAge(session.lastEvent?.at ?? session.lastActivityAt, now)}`}
           title={formatDateTime(session.lastEvent?.at)}
         />
         {unread > 0 ? <Fact label="New" value={String(unread)} /> : null}
@@ -154,7 +156,7 @@ function Fact({
   return (
     <div className="state-fact" title={title}>
       <span className="state-fact__label">{label}</span>
-      <span className={`state-fact__value${mono ? " mono" : ""}`}>{value}</span>
+      <span className={cn("state-fact__value", mono && "mono")}>{value}</span>
       {copy && typeof value === "string" ? (
         <CopyButton text={value} label={label} className="state-fact__copy" />
       ) : null}

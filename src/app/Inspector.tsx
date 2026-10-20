@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
 import { ListTree, Shield, TriangleAlert } from "lucide-react";
 import {
-  Label,
-  Slider,
-  SliderFill,
-  SliderThumb,
-  SliderTrack,
+  Radio,
+  RadioGroup,
 } from "react-aria-components";
 import { Button } from "../components/Button";
 import { Handle } from "../components/Status";
+import { Notice } from "../components/Notice";
+import { cn } from "../lib/cn";
 import {
   canUse,
   store,
@@ -21,12 +19,14 @@ import {
   formatCost,
   formatDateTime,
   formatTokens,
+  isTerminalStatus,
   parentOf,
   planKindLabel,
   rootOf,
   sessionLocalKey,
 } from "../store/model";
 import type { SessionConfigOptionView, SessionView } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { CopyButton, SelectField, ToggleRow } from "./ui";
 import { PolicySelector } from "./PolicySelector";
 
@@ -43,23 +43,23 @@ export function Inspector({
   const notice = state.notices[key];
   const usage = session.usage;
   const percent = contextPercent(usage);
-  const parent = parentOf(session, Object.values(state.sessions));
-  const root = rootOf(session, Object.values(state.sessions));
-  const children = childrenOf(session.id, Object.values(state.sessions));
-  const subtree = Object.values(state.sessions).filter(
+  const sessions = Object.values(state.sessions);
+  const parent = parentOf(session, sessions);
+  const root = rootOf(session, sessions);
+  const children = childrenOf(session.id, sessions);
+  const subtree = sessions.filter(
     (candidate) => candidate.rootId === session.rootId,
   );
-  const canPlan = canUse(state, "session.plan");
-  const canCompaction = canUse(state, "session.compaction");
-  const canNotices = canUse(state, "session.notices");
-  const canMessages = canUse(state, "session.messages");
-  const canUsage = canUse(state, "session.usage");
-  const canTitle = canUse(state, "session.title");
-  const canAgent = canUse(state, "session.agent");
+  const canPlan = canUse(state, CAPABILITIES.plan);
+  const canCompaction = canUse(state, CAPABILITIES.compaction);
+  const canNotices = canUse(state, CAPABILITIES.notices);
+  const canMessages = canUse(state, CAPABILITIES.messages);
+  const canUsage = canUse(state, CAPABILITIES.usage);
+  const canTitle = canUse(state, CAPABILITIES.title);
+  const canAgent = canUse(state, CAPABILITIES.agent);
   const pendingPolicy = Boolean(state.pending.policy);
   const pendingMode = Boolean(state.pending.mode);
-  const terminal =
-    state.removed || session.status === "closed" || session.status === "failed";
+  const terminal = state.removed || isTerminalStatus(session.status);
 
   return (
     <div className="inspector">
@@ -118,13 +118,13 @@ export function Inspector({
           </p>
         ) : null}
         {session.permissionPolicy === "ask" ? (
-          <div className="notice notice--warn inspector__warn">
-            <TriangleAlert className="icon" />
-            <span className="notice__body">
-              <span className="notice__title">ask can park a session indefinitely</span>
-              <span>Answering is an operator action, here or in another client.</span>
-            </span>
-          </div>
+          <Notice
+            tone="warn"
+            title="ask can park a session indefinitely"
+            className="inspector__warn"
+          >
+            Answering is an operator action, here or in another client.
+          </Notice>
         ) : null}
 
         {session.modes ? (
@@ -172,7 +172,7 @@ export function Inspector({
           <p className="inspector__none">Not supported by this supervisor.</p>
         ) : usage ? (
           <>
-            <div className={`meter${percent !== null && percent >= 90 ? " meter--danger" : percent !== null && percent >= 75 ? " meter--warn" : ""}`}>
+            <div className={cn("meter", meterTone(percent))}>
               <div className="meter__head">
                 <span className="meter__label">context</span>
                 <span className="meter__value">
@@ -223,10 +223,12 @@ export function Inspector({
               session.plan.entries.map((entry, index) => (
                 <div className="plan__row" key={`${entry.content}-${index}`}>
                   <span
-                    className={`plan__state plan__state--${entry.status === "completed" ? "completed" : entry.status === "in_progress" ? "in_progress" : "pending"}`}
+                    className={`plan__state plan__state--${planStateTone(entry.status)}`}
                   />
                   <span>{entry.content}</span>
-                  <span className={`plan__priority plan__priority--${entry.priority === "high" ? "high" : entry.priority === "medium" ? "medium" : "low"}`}>
+                  <span
+                    className={`plan__priority plan__priority--${planPriorityTone(entry.priority)}`}
+                  >
                     {entry.priority}
                   </span>
                 </div>
@@ -430,21 +432,42 @@ function ConfigOption({
   pending: boolean;
   disabled: boolean;
 }) {
-  const effortIndex = option.values.findIndex(
-    (candidate) => candidate.value === String(option.currentValue),
-  );
-  if (
+  const isEffort =
     option.type === "select" &&
     option.values.length > 1 &&
-    effortIndex >= 0 &&
-    /effort/i.test(`${option.id} ${option.name}`)
+    /effort/i.test(`${option.id} ${option.name}`);
+  const currentValue = String(option.currentValue);
+  if (
+    isEffort &&
+    option.values.some((candidate) => candidate.value === currentValue)
   ) {
     return (
-      <EffortSlider
-        option={option}
-        currentIndex={effortIndex}
-        disabled={disabled || pending}
-      />
+      <div className="field">
+        <span className="field__label">{option.name}</span>
+        <RadioGroup
+          className="segmented segmented--bar segmented--effort"
+          aria-label={option.name}
+          value={currentValue}
+          isDisabled={disabled || pending}
+          onChange={(value) => {
+            if (value !== currentValue) {
+              void store.setConfigOption(option.id, value);
+            }
+          }}
+        >
+          {option.values.map((candidate) => (
+            <Radio
+              key={candidate.value}
+              className="segmented__item"
+              value={candidate.value}
+            >
+              <span title={candidate.description ?? candidate.name}>
+                {candidate.name}
+              </span>
+            </Radio>
+          ))}
+        </RadioGroup>
+      </div>
     );
   }
   if (option.type === "boolean") {
@@ -460,7 +483,7 @@ function ConfigOption({
   return (
     <SelectField
       label={option.name}
-      value={String(option.currentValue)}
+      value={currentValue}
       disabled={disabled || pending}
       onChange={(value) => void store.setConfigOption(option.id, value)}
     >
@@ -473,60 +496,23 @@ function ConfigOption({
   );
 }
 
-function EffortSlider({
-  option,
-  currentIndex,
-  disabled,
-}: {
-  option: SessionConfigOptionView;
-  currentIndex: number;
-  disabled: boolean;
-}) {
-  const [local, setLocal] = useState(currentIndex);
+function meterTone(percent: number | null): string | null {
+  if (percent === null) return null;
+  if (percent >= 90) return "meter--danger";
+  if (percent >= 75) return "meter--warn";
+  return null;
+}
 
-  useEffect(() => {
-    if (!disabled) setLocal(currentIndex);
-  }, [currentIndex, disabled]);
+function planStateTone(status: string): "completed" | "in_progress" | "pending" {
+  if (status === "completed") return "completed";
+  if (status === "in_progress") return "in_progress";
+  return "pending";
+}
 
-  const commit = (value: number) => {
-    const next = option.values[Math.round(value)];
-    if (!next || next.value === String(option.currentValue)) return;
-    void store.setConfigOption(option.id, next.value);
-  };
-
-  return (
-    <Slider
-      className="slider effort-slider"
-      value={local}
-      minValue={0}
-      maxValue={Math.max(0, option.values.length - 1)}
-      step={1}
-      isDisabled={disabled}
-      onChange={(value) => setLocal(Number(value))}
-      onChangeEnd={(value) => commit(Number(value))}
-    >
-      <div className="slider__head">
-        <Label className="slider__label">{option.name}</Label>
-        <span className="effort-slider__value">
-          {option.values[local]?.name ?? "not reported"}
-        </span>
-      </div>
-      <SliderTrack className="slider__track">
-        <SliderFill className="slider__fill" />
-        <SliderThumb className="slider__thumb" />
-      </SliderTrack>
-      <div className="effort-slider__ticks">
-        {option.values.map((candidate, index) => (
-          <span
-            key={candidate.value}
-            data-active={index === local ? "true" : undefined}
-          >
-            {candidate.name}
-          </span>
-        ))}
-      </div>
-    </Slider>
-  );
+function planPriorityTone(priority: string): "high" | "medium" | "low" {
+  if (priority === "high") return "high";
+  if (priority === "medium") return "medium";
+  return "low";
 }
 
 function Row({
@@ -543,7 +529,7 @@ function Row({
   return (
     <div className="inspector__row">
       <span className="inspector__label">{label}</span>
-      <span className={`inspector__value${mono ? " mono" : ""}`}>{value}</span>
+      <span className={cn("inspector__value", mono && "mono")}>{value}</span>
       {copy ? (
         <CopyButton
           text={value}

@@ -17,10 +17,12 @@ import {
   type DashboardState,
 } from "../store/store";
 import {
+  attentionKey,
   displayLabel,
   failureReason,
   formatAge,
   formatDateTime,
+  isTerminalStatus,
   lastEventLabel,
   lastEventTime,
   matchesQuery,
@@ -30,6 +32,7 @@ import {
   type AttentionItem,
 } from "../store/model";
 import type { SessionView } from "../wire/protocol";
+import { CAPABILITIES, statusLabel } from "../wire/protocol";
 import { useNow } from "./hooks";
 import { copyWithToast } from "./ui";
 
@@ -58,7 +61,7 @@ export function FleetHome({
         if (!matchesQuery(session, state.local.filters.query)) return false;
         if (
           !state.local.filters.showEnded &&
-          (session.status === "closed" || session.status === "failed")
+          isTerminalStatus(session.status)
         ) {
           return false;
         }
@@ -67,17 +70,13 @@ export function FleetHome({
       state.local.filters.sort,
     ),
   ];
-  const live = sessions.filter(
-    (session) => session.status !== "closed" && session.status !== "failed",
-  );
+  const live = sessions.filter((session) => !isTerminalStatus(session.status));
   const running = sessions.filter(
     (session) => session.status === "busy" || session.status === "starting",
   );
   const quiet = sessions.filter((session) => session.status === "idle");
-  const ended = sessions.filter(
-    (session) => session.status === "closed" || session.status === "failed",
-  );
-  const capabilityLastEvent = canUse(state, "session.lastEvent");
+  const ended = sessions.filter((session) => isTerminalStatus(session.status));
+  const capabilityLastEvent = canUse(state, CAPABILITIES.lastEvent);
   const orphans = orphanedDrafts(state);
   const hasFilter =
     state.local.filters.query.trim().length > 0 ||
@@ -148,9 +147,8 @@ export function FleetHome({
           <div className="attention-grid">
             {attention.map((item) => (
               <AttentionCard
-                key={`${item.session.id}:${item.kind}:${item.noticeSeq ?? item.permission?.requestId ?? ""}`}
+                key={attentionKey(item)}
                 item={item}
-                state={state}
                 now={now}
                 onSelect={onSelect}
               />
@@ -313,7 +311,9 @@ export function FleetHome({
 }
 
 function tableStatusLabel(status: SessionView["status"]): string {
-  return status === "waiting_permission" ? "Waiting permission" : status === "busy" ? "Running" : status === "idle" ? "Idle" : status === "starting" ? "Starting" : status === "failed" ? "Failed" : "Closed";
+  // The status column is tighter than the status pill; keep the full language
+  // everywhere else and abbreviate only this label.
+  return status === "waiting_permission" ? "Waiting permission" : statusLabel(status);
 }
 
 function OrphanDrafts({
@@ -348,18 +348,14 @@ function OrphanDrafts({
 
 function AttentionCard({
   item,
-  state,
   now,
   onSelect,
 }: {
   item: AttentionItem;
-  state: DashboardState;
   now: number;
   onSelect: (sessionId: string) => void;
 }) {
   const session = item.session;
-  const key = sessionLocalKey(session);
-  const notice = state.notices[key];
   const isPermission = item.kind === "permission";
   const at =
     item.kind === "permission"
@@ -393,7 +389,7 @@ function AttentionCard({
           ? item.permission?.title
           : item.kind === "failure"
             ? failureReason(session)
-            : notice?.text ?? item.reason}
+            : item.reason}
       </div>
       <div className="attention-card__meta">
         {isPermission

@@ -114,7 +114,8 @@ Rules:
 | Gallery chrome | topbar, sidebar, hero, section, specimen, swatches, type rows | `styles/gallery.css` |
 
 Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`, `Tag`, `Kbd`,
-`Handle`, `Section`, `Specimen`). Everything else is RAC + semantic HTML styled by class.
+`Handle`, `Section`, `Specimen`, `BrandMark`, `Notice`). Everything else is RAC + semantic HTML
+styled by class.
 
 ## State and interaction
 

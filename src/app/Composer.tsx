@@ -3,9 +3,10 @@ import { Copy, Send, Trash2 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Tag } from "../components/Status";
 import { isMod } from "./hooks";
-import { sessionLocalKey } from "../store/model";
+import { isTerminalStatus, sessionLocalKey } from "../store/model";
 import { canUse, store, type DashboardState } from "../store/store";
 import type { QueueItemView, SessionView } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { copyWithToast } from "./ui";
 
 export function Composer({
@@ -20,14 +21,14 @@ export function Composer({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const key = sessionLocalKey(session);
   const draft = state.local.drafts[key]?.text ?? "";
-  const terminal = session.status === "closed" || session.status === "failed";
+  const terminal = isTerminalStatus(session.status);
   const waiting = session.status === "waiting_permission";
   const busy = session.status === "busy" || session.queued > 0;
   const pending = Boolean(state.pending.send);
   const error = state.actionError[`send:${session.id}`];
   const queue = state.queue;
   const queuedCount = queue?.queue.length ?? session.queued;
-  const canRetrySafely = canUse(state, "send.idempotency");
+  const canRetrySafely = canUse(state, CAPABILITIES.sendIdempotency);
   const canSend = !terminal && !pending && draft.trim().length > 0;
   const label = busy || waiting ? "Queue prompt" : "Send prompt";
 

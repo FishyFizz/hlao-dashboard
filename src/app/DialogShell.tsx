@@ -6,6 +6,7 @@ import {
   Modal,
   ModalOverlay,
 } from "react-aria-components";
+import { cn } from "../lib/cn";
 
 export function DialogShell({
   open,
@@ -35,7 +36,7 @@ export function DialogShell({
         if (!value) onClose();
       }}
     >
-      <Modal className={`dialog${wide ? " dialog--wide" : ""}${className ? ` ${className}` : ""}`}>
+      <Modal className={cn("dialog", wide && "dialog--wide", className)}>
         <Dialog>
           <div className="dialog__head">
             <div>

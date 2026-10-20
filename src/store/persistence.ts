@@ -103,15 +103,6 @@ export function savePersistence(state: PersistedState): void {
   }
 }
 
-export function clearPersistence(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-    window.localStorage.removeItem(THEME_KEY);
-  } catch {
-    // Nothing to clear.
-  }
-}
-
 function sanitizeInstances(value: unknown): Record<string, InstanceLocalState> {
   if (!value || typeof value !== "object") return {};
   const result: Record<string, InstanceLocalState> = {};
@@ -131,12 +122,7 @@ function sanitizeInstances(value: unknown): Record<string, InstanceLocalState> {
       dismissedNotices: sanitizeNumbers(source.dismissedNotices),
       filters: {
         query: typeof source.filters?.query === "string" ? source.filters.query : "",
-        sort:
-          source.filters?.sort === "activity" ||
-          source.filters?.sort === "name" ||
-          source.filters?.sort === "created"
-            ? source.filters.sort
-            : "created",
+        sort: sanitizeSort(source.filters?.sort),
         showEnded: source.filters?.showEnded !== false,
       },
       lastBackend:
@@ -145,6 +131,12 @@ function sanitizeInstances(value: unknown): Record<string, InstanceLocalState> {
     };
   }
   return result;
+}
+
+function sanitizeSort(value: unknown): FleetSort {
+  return value === "activity" || value === "name" || value === "created"
+    ? value
+    : "created";
 }
 
 function sanitizeDrafts(value: unknown): Record<string, DraftRecord> {

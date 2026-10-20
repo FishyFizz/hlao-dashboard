@@ -9,8 +9,10 @@ import {
 } from "lucide-react";
 import { Button } from "../components/Button";
 import { Kbd, Tag } from "../components/Status";
+import { cn } from "../lib/cn";
 import { store, type DashboardState } from "../store/store";
 import { formatDateTime } from "../store/model";
+import { wireVersionLabel } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
 import { ToggleRow, copyWithToast } from "./ui";
 
@@ -74,7 +76,7 @@ export function HelpDialog({
           <Fact label="version" value={instance?.version ?? "not connected"} mono />
           <Fact
             label="protocol"
-            value={instance ? `${instance.protocolVersion.major}.${instance.protocolVersion.minor}` : "2.5"}
+            value={wireVersionLabel(instance?.protocolVersion)}
             mono
           />
           <Fact
@@ -263,7 +265,7 @@ function Fact({
   return (
     <div className="help-fact">
       <span className="help-fact__label">{label}</span>
-      <span className={`help-fact__value${mono ? " mono" : ""}`}>{value}</span>
+      <span className={cn("help-fact__value", mono && "mono")}>{value}</span>
       {copy && value !== "not connected" ? (
         <Button size="sm" variant="ghost" onPress={() => void copyWithToast(value, label)}>
           Copy

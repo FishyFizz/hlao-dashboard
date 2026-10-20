@@ -3,7 +3,9 @@ import { DemoSupervisor } from "../demo/demoSupervisor";
 import {
   appendEvents,
   attentionFor,
+  attentionKey,
   buildRenderItems,
+  nextAttentionSession,
   resolveTarget,
   sessionLocalKey,
   unreadFor,
@@ -282,6 +284,40 @@ describe("event merge", () => {
       kind: "message",
       text: "# Result\n\nBody",
     });
+  });
+});
+
+describe("attention navigation", () => {
+  it("cycles and wraps, starting at the first item when nothing is selected", () => {
+    const permission = session({
+      id: "perm01",
+      status: "waiting_permission",
+      pendingPermission: {
+        requestId: "req-1",
+        toolCallId: null,
+        title: "Run shell command",
+        kind: "execute",
+        options: [],
+        requestedAt: "2026-10-20T10:05:00.000Z",
+      },
+    });
+    const failure = session({
+      id: "fail01",
+      status: "failed",
+      endedAt: "2026-10-20T10:06:00.000Z",
+    });
+    const items = attentionFor(
+      [permission, failure],
+      {},
+      { acknowledged: {}, dismissedNotices: {} },
+    );
+
+    expect(nextAttentionSession(items, null, 1)?.id).toBe("perm01");
+    expect(nextAttentionSession(items, "perm01", 1)?.id).toBe("fail01");
+    expect(nextAttentionSession(items, "fail01", 1)?.id).toBe("perm01");
+    expect(nextAttentionSession(items, "perm01", -1)?.id).toBe("fail01");
+    expect(nextAttentionSession([], null, 1)).toBeNull();
+    expect(attentionKey(items[0]!)).toBe("perm01:permission:req-1");
   });
 });
 

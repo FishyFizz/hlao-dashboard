@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Shield, TriangleAlert } from "lucide-react";
+import { Shield } from "lucide-react";
 import { Button } from "../components/Button";
+import { Notice } from "../components/Notice";
 import { Handle } from "../components/Status";
 import { store, type DashboardState } from "../store/store";
-import { descendantsOf, displayLabel, formatDateTime } from "../store/model";
-import type { PermissionView, QueueResult, SessionView } from "../wire/protocol";
+import { descendantsOf, displayLabel, formatDateTime, isTerminalStatus } from "../store/model";
+import type { PermissionView, QueueItemView, QueueResult, SessionView } from "../wire/protocol";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DialogShell } from "./DialogShell";
 import { ToggleRow } from "./ui";
@@ -133,15 +134,12 @@ export function CloseDialog({
         the supervisor’s retention period, then expires.
       </p>
       {session.queued > 0 ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">
-              {session.queued} queued prompt{session.queued === 1 ? "" : "s"} will be discarded
-            </span>
-            <span>Closing does not run queued work.</span>
-          </span>
-        </div>
+        <Notice
+          tone="danger"
+          title={`${session.queued} queued prompt${session.queued === 1 ? "" : "s"} will be discarded`}
+        >
+          Closing does not run queued work.
+        </Notice>
       ) : null}
       <ToggleRow
         label="Force close (advanced)"
@@ -321,7 +319,7 @@ export function DropDialog({
 }: {
   open: boolean;
   session: SessionView;
-  item: { id: string; textPreview: string; from: string; position: number | null } | null;
+  item: QueueItemView | null;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -369,9 +367,7 @@ export function ShutdownDialog({
     if (open) setForce(false);
   }, [open]);
   const sessions = Object.values(state.sessions);
-  const live = sessions.filter(
-    (session) => session.status !== "closed" && session.status !== "failed",
-  );
+  const live = sessions.filter((session) => !isTerminalStatus(session.status));
   const retained = sessions.length - live.length;
   const pending = Boolean(store.getSnapshot().pending.shutdown);
   return (

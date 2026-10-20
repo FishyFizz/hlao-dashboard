@@ -404,12 +404,7 @@ export type BackendsListResult = { backends: AgentView[] };
 export type ReloadResult = { configHash: string; configError: string | null };
 export type ShutdownResult = {
   sessionsClosed: number;
-  discarded: number;
-};
-
-export type HelloParams = {
-  protocolVersion?: ProtocolVersion;
-  stream?: { persistent?: boolean };
+  retainedDiscarded: number;
 };
 
 export type RpcMethod =
@@ -440,6 +435,11 @@ export type RpcMethod =
 export const WIRE_MAJOR = 2;
 export const WIRE_MINOR = 5;
 
+/** `2.5` for a live hello, or the version this client speaks when offline. */
+export function wireVersionLabel(version?: ProtocolVersion | null): string {
+  return version ? `${version.major}.${version.minor}` : `${WIRE_MAJOR}.${WIRE_MINOR}`;
+}
+
 export const CAPABILITIES = {
   backendsList: "backends.list",
   usage: "session.usage",
@@ -467,10 +467,6 @@ export function hasCapability(
   capability: string,
 ): boolean {
   return capabilities.includes(capability);
-}
-
-export function isTerminal(status: SessionStatus): boolean {
-  return status === "closed" || status === "failed";
 }
 
 export function statusLabel(status: SessionStatus): string {

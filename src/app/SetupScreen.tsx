@@ -8,9 +8,17 @@ import {
   Terminal,
 } from "lucide-react";
 import { Button } from "../components/Button";
+import { BrandMark } from "../components/BrandMark";
 import { Kbd, Tag } from "../components/Status";
 import type { DashboardState } from "../store/store";
 import { copyWithToast } from "./ui";
+
+const SETUP_TITLES: Record<string, string> = {
+  bridge_unavailable: "The local bridge is not running.",
+  unauthorized: "The supervisor rejected this home’s token.",
+  version_mismatch: "This supervisor speaks a different wire major.",
+  config_invalid: "The HLAO config is invalid, so no supervisor started.",
+};
 
 export function SetupScreen({
   state,
@@ -27,16 +35,7 @@ export function SetupScreen({
   const code = error?.code ?? "supervisor_unavailable";
   const knownHome = state.home && state.home !== "unknown" ? state.home : null;
   const home = knownHome ?? "~/.hlao (bridge default)";
-  const title =
-    code === "bridge_unavailable"
-      ? "The local bridge is not running."
-      : code === "unauthorized"
-        ? "The supervisor rejected this home’s token."
-        : code === "version_mismatch"
-          ? "This supervisor speaks a different wire major."
-          : code === "config_invalid"
-            ? "The HLAO config is invalid, so no supervisor started."
-            : "No HLAO supervisor at this home.";
+  const title = SETUP_TITLES[code] ?? "No HLAO supervisor at this home.";
   const bridgeCommand = knownHome
     ? `npm run bridge -- --home "${knownHome}"`
     : "npm run bridge";
@@ -45,11 +44,7 @@ export function SetupScreen({
     <div className="setup">
       <header className="setup__top">
         <a className="dash-brand" href="/" onClick={(event) => event.preventDefault()}>
-          <svg className="brand__mark" viewBox="0 0 18 18" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="17" height="17" fill="none" stroke="currentColor" />
-            <rect x="6" y="6" width="6" height="6" fill="var(--accent)" />
-            <path d="M9 0v4M9 14v4M0 9h4M14 9h4" stroke="currentColor" />
-          </svg>
+          <BrandMark />
           <span className="dash-brand__name">HLAO</span>
           <span className="dash-brand__sub">Dashboard</span>
         </a>

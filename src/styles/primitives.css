@@ -1716,10 +1716,6 @@
     color: var(--text-2);
   }
 
-  .tool__out--ok {
-    color: var(--ok);
-  }
-
   .tool__out--danger {
     color: var(--danger);
   }
@@ -1943,15 +1939,7 @@
     white-space: nowrap;
   }
 
-  .compaction__text {
-    margin-top: var(--sp-2);
-    color: var(--text-3);
-    font-family: var(--font-sans);
-    font-size: var(--fs-11);
-    line-height: 1.5;
-    text-transform: none;
-    letter-spacing: 0;
-  }
+  /* Permission */
 
   /* Inter-session message */
 
@@ -2143,12 +2131,6 @@
     border-top: var(--bw) solid var(--line-2);
   }
 
-  .tree__lamp {
-    flex: none;
-    width: 6px;
-    height: 6px;
-  }
-
   .tree__handle {
     color: var(--accent-text);
     font-family: var(--font-mono);
@@ -2333,15 +2315,6 @@
     height: 1px;
     margin: var(--sp-1) 0;
     background: var(--line);
-  }
-
-  .menu__label {
-    padding: 6px var(--sp-2) 3px;
-    color: var(--text-3);
-    font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
   }
 
   .tooltip {

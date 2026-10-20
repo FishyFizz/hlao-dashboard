@@ -28,16 +28,6 @@ export function displayLabel(session: SessionView): string {
   return `#${session.id}`;
 }
 
-export function labelKind(session: SessionView): "name" | "title" | "handle" {
-  if (session.name?.trim()) return "name";
-  if (session.title?.trim()) return "title";
-  return "handle";
-}
-
-export function isActive(status: SessionStatus): boolean {
-  return status === "starting" || status === "busy" || status === "waiting_permission";
-}
-
 export function isTerminalStatus(status: SessionStatus): boolean {
   return status === "closed" || status === "failed";
 }
@@ -143,8 +133,30 @@ export function failureReason(session: SessionView): string {
   return "session failed";
 }
 
-export function attentionSummary(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+/** Stable identity for one attention episode; a new request or failure is a new key. */
+export function attentionKey(item: AttentionItem): string {
+  if (item.kind === "permission") {
+    return `${item.session.id}:permission:${item.permission?.requestId ?? ""}`;
+  }
+  if (item.kind === "failure") {
+    return `${item.session.id}:failure:${item.session.endedAt ?? ""}`;
+  }
+  return `${item.session.id}:notice:${item.noticeSeq ?? ""}`;
+}
+
+/**
+ * Cycle through the attention queue. With nothing selected, both directions
+ * start at the first item; otherwise the walk wraps.
+ */
+export function nextAttentionSession(
+  items: readonly AttentionItem[],
+  currentId: string | null,
+  direction: 1 | -1,
+): SessionView | null {
+  if (items.length === 0) return null;
+  const index = items.findIndex((item) => item.session.id === currentId);
+  if (index === -1) return items[0]!.session;
+  return items[(index + direction + items.length) % items.length]!.session;
 }
 
 export function noticeFromEvent(event: EventView): NoticeRecord | null {
@@ -155,6 +167,16 @@ export function noticeFromEvent(event: EventView): NoticeRecord | null {
       : "info";
   const text = stringField(event.data, ["text", "message", "title"]) || "Notice";
   return { seq: event.seq, severity, text, at: event.at };
+}
+
+/** The newest notice in a batch; a notice is a reported signal, not attention by itself. */
+export function latestNotice(events: readonly EventView[]): NoticeRecord | null {
+  let latest: NoticeRecord | null = null;
+  for (const event of events) {
+    const notice = noticeFromEvent(event);
+    if (notice && (!latest || notice.seq > latest.seq)) latest = notice;
+  }
+  return latest;
 }
 
 /* ------------------------------------------------------------------ */

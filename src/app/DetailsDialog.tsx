@@ -1,6 +1,5 @@
 import { Button } from "../components/Button";
-import type { DashboardState } from "../store/store";
-import { store } from "../store/store";
+import { store, type DashboardState } from "../store/store";
 import type { SessionView } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
 import { Inspector } from "./Inspector";

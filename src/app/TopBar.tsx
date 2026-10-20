@@ -1,10 +1,24 @@
 import { Command, Moon, Plus, Search, Settings, Sun } from "lucide-react";
+import { BrandMark } from "../components/BrandMark";
 import { Button, IconButton } from "../components/Button";
 import { Tag } from "../components/Status";
-import { attentionItems } from "../store/store";
-import type { DashboardState } from "../store/store";
+import {
+  attentionItems,
+  type DashboardState,
+} from "../store/store";
 import { useNow } from "./hooks";
 import { formatAge } from "../store/model";
+import { wireVersionLabel } from "../wire/protocol";
+
+const CONNECTION_VIEW: Record<
+  DashboardState["connection"],
+  { tone: string; label: string }
+> = {
+  open: { tone: "live", label: "Live" },
+  reconnecting: { tone: "reconnecting", label: "Reconnecting" },
+  connecting: { tone: "connecting", label: "Connecting" },
+  offline: { tone: "offline", label: "Disconnected" },
+};
 
 export function TopBar({
   state,
@@ -27,22 +41,7 @@ export function TopBar({
 }) {
   const now = useNow();
   const attention = attentionItems(state);
-  const connection =
-    state.connection === "open"
-      ? "live"
-      : state.connection === "reconnecting"
-        ? "reconnecting"
-        : state.connection === "connecting"
-          ? "connecting"
-          : "offline";
-  const connectionLabel =
-    connection === "live"
-      ? "Live"
-      : connection === "reconnecting"
-        ? "Reconnecting"
-        : connection === "connecting"
-          ? "Connecting"
-          : "Disconnected";
+  const { tone: connection, label: connectionLabel } = CONNECTION_VIEW[state.connection];
   const demo = state.mode === "demo";
   const lastUpdate = state.lastUpdatedAt ? formatAge(state.lastUpdatedAt, now) : null;
 
@@ -57,11 +56,7 @@ export function TopBar({
         }}
         aria-label="HLAO dashboard, return to fleet"
       >
-        <svg className="brand__mark" viewBox="0 0 18 18" aria-hidden="true">
-          <rect x="0.5" y="0.5" width="17" height="17" fill="none" stroke="currentColor" />
-          <rect x="6" y="6" width="6" height="6" fill="var(--accent)" />
-          <path d="M9 0v4M9 14v4M0 9h4M14 9h4" stroke="currentColor" />
-        </svg>
+        <BrandMark />
         <span className="dash-brand__name">HLAO</span>
         <span className="dash-brand__sub">Dashboard</span>
       </a>
@@ -84,7 +79,7 @@ export function TopBar({
           {demo ? "Demo instance" : state.home || "No instance"}
         </span>
         <span className="dash-instance__meta">
-          {state.instance ? `wire ${state.instance.protocolVersion.major}.${state.instance.protocolVersion.minor}` : "wire 2.5"}
+          {`wire ${wireVersionLabel(state.instance?.protocolVersion)}`}
           <span className="dash-instance__sep">/</span>
           {lastUpdate === null
             ? "not updated"

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Replaced the provider effort slider with a cyan-filled segmented bar, matching
+  the permission policy selector's shape.
+- Maintenance pass, no surface changes: one status vocabulary (full label,
+  short label, lamp class) shared by the rail, tables, and specimen; one
+  terminal-session predicate; one local-id helper, wire-error reader, and set of
+  capability names; and one `Notice` component for the repeated warning markup.
+  Attention notifications and the live-region announcer, hash routing, and the
+  spawn cwd browser now live in their own modules. Transcript rows share one
+  frame/gutter/meta shell. Removed dead exports and unused CSS rules. Small
+  consistency fixes: the command-palette hint uses the documented "running"
+  label, previous-attention with nothing selected starts at the first item, and
+  the demo shutdown reports the contracted `retainedDiscarded` count.
 - Rendered provider markdown in transcript messages with `react-markdown`,
   `remark-gfm`, and `remark-breaks`: headings, lists, tables, task lists,
   quotes, links, and fenced code. Code blocks have their own copy control.

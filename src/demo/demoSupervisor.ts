@@ -1710,11 +1710,11 @@ export class DemoSupervisor {
 
   private async shutdown(): Promise<ShutdownResult> {
     let sessionsClosed = 0;
-    let discarded = 0;
+    let retainedDiscarded = 0;
     for (const session of this.sessions.values()) {
-      if (!this.isTerminal(session)) {
+      if (this.isTerminal(session)) retainedDiscarded += 1;
+      else {
         sessionsClosed += 1;
-        discarded += (this.queues.get(session.id) ?? []).length;
         this.clearTimers(session.id);
       }
     }
@@ -1723,7 +1723,7 @@ export class DemoSupervisor {
       this.notifyRemoved(sessionId);
     }
     this.shuttingDown = true;
-    return { sessionsClosed, discarded };
+    return { sessionsClosed, retainedDiscarded };
   }
 
   private subscribe(params: SubscribeParams): SubscribeResult {

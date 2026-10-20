@@ -7,7 +7,7 @@ import {
   store,
   type DashboardState,
 } from "../store/store";
-import { displayLabel } from "../store/model";
+import { displayLabel, nextAttentionSession } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
 import {
   AlwaysDialog,
@@ -37,6 +37,8 @@ import { TopBar } from "./TopBar";
 import { isMod, isTypingTarget, useDashboard } from "./hooks";
 import { Inspector } from "./Inspector";
 import { exportTranscript } from "./export";
+import { parseSessionHash, replaceLocation, sessionHash } from "./routing";
+import { useAttentionAnnouncement, useAttentionNotifications } from "./attention";
 
 type ActionDialog =
   | { kind: "rename" }
@@ -59,8 +61,6 @@ export function Dashboard() {
   const [railOpen, setRailOpen] = useState(false);
   const [action, setAction] = useState<ActionDialog | null>(null);
   const [dropItem, setDropItem] = useState<QueueItemView | null>(null);
-  const [announcement, setAnnouncement] = useState("");
-  const announcedKeys = useRef<Set<string> | null>(null);
   const appliedHash = useRef(false);
   const attention = attentionItems(state);
   const selected = selectedSession(state);
@@ -103,71 +103,26 @@ export function Dashboard() {
       return;
     }
     appliedHash.current = true;
-    const hash = window.location.hash;
-    const target = parseSessionHash(hash);
-    if (target) {
-      const session = state.sessions[target.id];
-      if (session && (!target.createdAt || session.createdAt === target.createdAt)) {
-        store.selectSession(session.id);
-      } else if (session && target.createdAt && session.createdAt !== target.createdAt) {
-        store.addToast({
-          tone: "info",
-          title: "That handle now belongs to a different session",
-          text: "The dashboard did not retarget the link. The fleet is shown instead.",
-        });
-        store.backToFleet();
-      }
-      return;
-    }
-    if (hash === "#/fleet" && state.selection) store.backToFleet();
-  }, [state.phase, state.fleetLoaded, state.sessions, state.selection]);
+    applySessionHash();
+  }, [state.phase, state.fleetLoaded]);
 
   useEffect(() => {
     if (!state.mode) return;
-    const url = new URL(window.location.href);
-    if (state.mode === "demo") url.searchParams.set("demo", "1");
-    else url.searchParams.delete("demo");
-    const next = `${url.pathname}${url.search}${window.location.hash}`;
-    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== next) {
-      window.history.replaceState(null, "", next);
-    }
+    const params = new URLSearchParams(window.location.search);
+    if (state.mode === "demo") params.set("demo", "1");
+    else params.delete("demo");
+    const search = params.toString();
+    replaceLocation(search ? `?${search}` : "", window.location.hash);
   }, [state.mode]);
 
   useEffect(() => {
     if (state.phase !== "live" || !state.fleetLoaded) return;
-    const hash = state.selection
-      ? `#/s/${state.selection.id}?created=${encodeURIComponent(state.selection.createdAt)}`
-      : "#/fleet";
-    const next = `${window.location.pathname}${window.location.search}${hash}`;
-    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
-      window.history.replaceState(null, "", next);
-    }
+    replaceLocation(window.location.search, sessionHash(state.selection));
   }, [state.phase, state.fleetLoaded, state.selection]);
 
   useEffect(() => {
-    const onHashChange = () => {
-      const snapshot = store.getSnapshot();
-      const target = parseSessionHash(window.location.hash);
-      if (target) {
-        const session = snapshot.sessions[target.id];
-        if (session && (!target.createdAt || session.createdAt === target.createdAt)) {
-          store.selectSession(session.id);
-        } else if (session && target.createdAt) {
-          store.addToast({
-            tone: "info",
-            title: "That handle now belongs to a different session",
-            text: "The dashboard did not retarget the link.",
-          });
-          store.backToFleet();
-        }
-        return;
-      }
-      if (window.location.hash === "#/fleet" && snapshot.selection) {
-        store.backToFleet();
-      }
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("hashchange", applySessionHash);
+    return () => window.removeEventListener("hashchange", applySessionHash);
   }, []);
 
   useEffect(() => {
@@ -185,30 +140,8 @@ export function Dashboard() {
     setRailOpen(false);
   }, [state.selection?.id]);
 
+  const announcement = useAttentionAnnouncement(attention);
   useAttentionNotifications(state, attention);
-
-  useEffect(() => {
-    const keys = new Set(attention.map((item) => attentionKey(item)));
-    if (announcedKeys.current === null) {
-      announcedKeys.current = keys;
-      return;
-    }
-    const fresh = attention.filter(
-      (item) => !announcedKeys.current?.has(attentionKey(item)),
-    );
-    announcedKeys.current = keys;
-    if (fresh.length === 0) return;
-    const first = fresh[0]!;
-    const kind =
-      first.kind === "permission"
-        ? "Permission requested"
-        : first.kind === "failure"
-          ? "Session failed"
-          : "Error notice";
-    setAnnouncement(
-      `${kind} for ${displayLabel(first.session)}, handle ${first.session.id}. ${first.reason}`,
-    );
-  }, [attention]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -296,19 +229,17 @@ export function Dashboard() {
   ]);
 
   const stepAttention = (direction: 1 | -1) => {
-    const items = attentionItems(store.getSnapshot());
-    if (items.length === 0) {
+    const snapshot = store.getSnapshot();
+    const next = nextAttentionSession(
+      attentionItems(snapshot),
+      snapshot.selection?.id ?? null,
+      direction,
+    );
+    if (!next) {
       store.addToast({ tone: "info", title: "Nothing needs you" });
       return;
     }
-    const current = items.findIndex(
-      (item) => item.session.id === store.getSnapshot().selection?.id,
-    );
-    const next =
-      current === -1
-        ? items[0]!
-        : items[(current + direction + items.length) % items.length]!;
-    store.selectSession(next.session.id);
+    store.selectSession(next.id);
   };
 
   const openSession = (sessionId: string) => {
@@ -414,7 +345,7 @@ export function Dashboard() {
         </main>
         {displayed ? (
           <aside className="dash-inspector" aria-label="Session inspector">
-            <SessionInspector state={state} session={displayed} onOpenSession={openSession} />
+            <Inspector state={state} session={displayed} onOpenSession={openSession} />
           </aside>
         ) : null}
       </div>
@@ -545,64 +476,27 @@ export function Dashboard() {
               if (target) void store.dropQueued(target.id);
             }}
           />
-          <ShutdownDialog
-            open={action?.kind === "shutdown"}
-            state={state}
-            onClose={() => setAction(null)}
-            onConfirm={(force) => {
-              setAction(null);
-              void store.shutdownSupervisor(force);
-            }}
-          />
-          <ClearLocalDialog
-            open={action?.kind === "clear"}
-            onClose={() => setAction(null)}
-            onConfirm={() => {
-              setAction(null);
-              store.clearLocalState();
-            }}
-          />
         </>
-      ) : (
-        <>
-          <ShutdownDialog
-            open={action?.kind === "shutdown"}
-            state={state}
-            onClose={() => setAction(null)}
-            onConfirm={(force) => {
-              setAction(null);
-              void store.shutdownSupervisor(force);
-            }}
-          />
-          <ClearLocalDialog
-            open={action?.kind === "clear"}
-            onClose={() => setAction(null)}
-            onConfirm={() => {
-              setAction(null);
-              store.clearLocalState();
-            }}
-          />
-        </>
-      )}
-    </div>
-  );
-}
+      ) : null}
 
-function SessionInspector({
-  state,
-  session,
-  onOpenSession,
-}: {
-  state: DashboardState;
-  session: SessionView;
-  onOpenSession: (sessionId: string) => void;
-}) {
-  return (
-    <Inspector
-      state={state}
-      session={session}
-      onOpenSession={onOpenSession}
-    />
+      <ShutdownDialog
+        open={action?.kind === "shutdown"}
+        state={state}
+        onClose={() => setAction(null)}
+        onConfirm={(force) => {
+          setAction(null);
+          void store.shutdownSupervisor(force);
+        }}
+      />
+      <ClearLocalDialog
+        open={action?.kind === "clear"}
+        onClose={() => setAction(null)}
+        onConfirm={() => {
+          setAction(null);
+          store.clearLocalState();
+        }}
+      />
+    </div>
   );
 }
 
@@ -621,96 +515,23 @@ function BootScreen({ state }: { state: DashboardState }) {
   );
 }
 
-function useAttentionNotifications(
-  state: DashboardState,
-  attention: ReturnType<typeof attentionItems>,
-): void {
-  const previousKeys = useRef<Set<string> | null>(null);
-  const liveNotifications = useRef<Map<string, Notification>>(new Map());
-
-  useEffect(() => {
-    const keys = new Set(attention.map((item) => attentionKey(item)));
-    if (previousKeys.current === null) {
-      previousKeys.current = keys;
-      return;
-    }
-    const previous = previousKeys.current;
-    for (const [key, notification] of liveNotifications.current) {
-      if (!state.notifications || !keys.has(key)) {
-        notification.close();
-        liveNotifications.current.delete(key);
-      }
-    }
-    previousKeys.current = keys;
-
-    if (
-      !state.notifications ||
-      !document.hidden ||
-      typeof Notification === "undefined" ||
-      Notification.permission !== "granted"
-    ) {
-      return;
-    }
-    for (const item of attention) {
-      const key = attentionKey(item);
-      if (previous.has(key) || liveNotifications.current.has(key)) continue;
-      const title =
-        item.kind === "permission"
-          ? "Permission requested"
-          : item.kind === "failure"
-            ? "Session failed"
-            : "Error notice";
-      try {
-        const notification = new Notification(`${title} · #${item.session.id}`, {
-          body: `${displayLabel(item.session)} · ${item.reason}`,
-          tag: key,
-          silent: false,
-        });
-        notification.onclick = () => {
-          window.focus();
-          store.selectSession(item.session.id);
-          notification.close();
-          liveNotifications.current.delete(key);
-        };
-        liveNotifications.current.set(key, notification);
-      } catch {
-        // The OS may refuse a notification even after permission was granted.
-      }
-    }
-  }, [attention, state.notifications]);
-
-  useEffect(
-    () => () => {
-      for (const notification of liveNotifications.current.values()) {
-        notification.close();
-      }
-      liveNotifications.current.clear();
-    },
-    [],
-  );
-}
-
-function parseSessionHash(
-  hash: string,
-): { id: string; createdAt: string | null } | null {
-  const match = /^#\/s\/([a-z0-9]+)(?:\?created=([^&]+))?$/i.exec(hash);
-  if (!match) return null;
-  try {
-    return {
-      id: match[1]!,
-      createdAt: match[2] ? decodeURIComponent(match[2]) : null,
-    };
-  } catch {
-    return { id: match[1]!, createdAt: null };
+function applySessionHash(): void {
+  const snapshot = store.getSnapshot();
+  const target = parseSessionHash(window.location.hash);
+  if (!target) {
+    if (window.location.hash === "#/fleet" && snapshot.selection) store.backToFleet();
+    return;
   }
-}
-
-function attentionKey(item: ReturnType<typeof attentionItems>[number]): string {
-  if (item.kind === "permission") {
-    return `${item.session.id}:permission:${item.permission?.requestId ?? ""}`;
+  const session = snapshot.sessions[target.id];
+  if (!session) return;
+  if (!target.createdAt || session.createdAt === target.createdAt) {
+    store.selectSession(session.id);
+    return;
   }
-  if (item.kind === "failure") {
-    return `${item.session.id}:failure:${item.session.endedAt ?? ""}`;
-  }
-  return `${item.session.id}:notice:${item.noticeSeq ?? ""}`;
+  store.addToast({
+    tone: "info",
+    title: "That handle now belongs to a different session",
+    text: "The dashboard did not retarget the link. The fleet is shown instead.",
+  });
+  store.backToFleet();
 }

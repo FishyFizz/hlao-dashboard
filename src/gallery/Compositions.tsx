@@ -10,25 +10,13 @@ import {
 } from "lucide-react";
 import { Button, IconButton } from "../components/Button";
 import { Section } from "../components/Section";
-import { Handle, Status, Tag, type SessionStatus } from "../components/Status";
+import {
+  Handle,
+  Status,
+  Tag,
+  statusLampClass,
+} from "../components/Status";
 import { fleet } from "../data/fleet";
-
-function lampClass(status: SessionStatus): string {
-  switch (status) {
-    case "busy":
-      return "lamp lamp--accent";
-    case "idle":
-      return "lamp lamp--ok";
-    case "waiting_permission":
-      return "lamp lamp--warn lamp--blink";
-    case "failed":
-      return "lamp lamp--danger";
-    case "closed":
-      return "lamp lamp--off";
-    default:
-      return "lamp lamp--off";
-  }
-}
 
 export function Compositions() {
   return (
@@ -75,7 +63,7 @@ export function Compositions() {
                 key={row.id}
                 data-active={row.selected ? true : undefined}
               >
-                <span className={lampClass(row.status)} />
+                <span className={statusLampClass(row.status)} />
                 <span className="console__fleet-name">{row.name}</span>
                 <span className="console__fleet-id">{String(row.turn).padStart(2, "0")}</span>
               </div>

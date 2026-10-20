@@ -59,23 +59,6 @@ export function CopyButton({
   );
 }
 
-export function FieldLabel({
-  children,
-  hint,
-  htmlFor,
-}: {
-  children: ReactNode;
-  hint?: string;
-  htmlFor?: string;
-}) {
-  return (
-    <label className="field" htmlFor={htmlFor}>
-      <span className="field__label">{children}</span>
-      {hint ? <span className="field__hint">{hint}</span> : null}
-    </label>
-  );
-}
-
 export function SelectField({
   label,
   value,
@@ -162,14 +145,4 @@ export function safeText(text: string): string {
   return text
     .replace(/\r\n/g, "\n")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
-}
-
-export function shortStatus(status: string): string {
-  if (status === "waiting_permission") return "Waiting";
-  if (status === "busy") return "Running";
-  if (status === "idle") return "Idle";
-  if (status === "starting") return "Starting";
-  if (status === "failed") return "Failed";
-  if (status === "closed") return "Closed";
-  return status;
 }

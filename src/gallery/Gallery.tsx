@@ -1,28 +1,18 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { BrandMark } from "../components/BrandMark";
 import { IconButton } from "../components/Button";
 import { Tag } from "../components/Status";
 import { navGroups } from "../data/fleet";
 import { cn } from "../lib/cn";
+import { loadTheme, saveTheme, type Theme } from "../store/persistence";
 import { Foundations } from "./Foundations";
 import { Controls } from "./Controls";
 import { DataDisplay } from "./DataDisplay";
 import { Surfaces } from "./Surfaces";
 import { Compositions } from "./Compositions";
 
-type Theme = "dark" | "light";
-
 const allSectionIds = navGroups.flatMap((group) => group.items.map((item) => item.id));
-
-function getInitialTheme(): Theme {
-  try {
-    const stored = window.localStorage.getItem("hlao-dashboard-theme");
-    if (stored === "dark" || stored === "light") return stored;
-  } catch {
-    // Local storage can be unavailable in a locked-down local shell.
-  }
-  return "dark";
-}
 
 function useActiveSection(): string {
   const [active, setActive] = useState(allSectionIds[0] ?? "");
@@ -50,34 +40,26 @@ function useActiveSection(): string {
 }
 
 export function Gallery() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setTheme] = useState<Theme>(loadTheme);
   const active = useActiveSection();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    try {
-      window.localStorage.setItem("hlao-dashboard-theme", theme);
-    } catch {
-      // The theme still applies for this session.
-    }
+    saveTheme(theme);
   }, [theme]);
 
   return (
     <div className="app">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="HLAO dashboard design primitives, back to top">
-          <svg className="brand__mark" viewBox="0 0 18 18" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="17" height="17" fill="none" stroke="currentColor" />
-            <rect x="6" y="6" width="6" height="6" fill="var(--accent)" />
-            <path d="M9 0v4M9 14v4M0 9h4M14 9h4" stroke="currentColor" />
-          </svg>
+          <BrandMark />
           <span className="brand__name">HLAO</span>
           <span className="brand__divider" aria-hidden="true" />
           <span className="brand__sub">Dashboard / Design</span>
         </a>
 
         <div className="topbar__right">
-          <span className="conn" title="Design specimen �?no supervisor connection">
+          <span className="conn" title="Design specimen — no supervisor connection">
             <span className="lamp lamp--accent" />
             <span className="conn__label">Instance default</span>
             <span className="conn__sep">/</span>

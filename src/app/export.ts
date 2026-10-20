@@ -1,5 +1,6 @@
 import { store } from "../store/store";
 import type { SessionView } from "../wire/protocol";
+import { asWireError } from "../wire/protocol";
 import { downloadText } from "./ui";
 
 export async function exportTranscript(session: SessionView): Promise<void> {
@@ -35,9 +36,7 @@ export async function exportTranscript(session: SessionView): Promise<void> {
     store.addToast({
       tone: "danger",
       title: "Export failed",
-      text: error && typeof error === "object" && "message" in error
-        ? String((error as { message: unknown }).message)
-        : String(error),
+      text: asWireError(error).message,
     });
   }
 }

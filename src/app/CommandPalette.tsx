@@ -11,8 +11,14 @@ import {
   store,
   type DashboardState,
 } from "../store/store";
-import { displayLabel, formatAge } from "../store/model";
+import {
+  displayLabel,
+  formatAge,
+  isTerminalStatus,
+  nextAttentionSession,
+} from "../store/model";
 import type { SessionView } from "../wire/protocol";
+import { statusLabel } from "../wire/protocol";
 import { useNow } from "./hooks";
 import { exportTranscript } from "./export";
 import { copyWithToast } from "./ui";
@@ -59,6 +65,18 @@ export function CommandPalette({
     : null;
 
   const commands = useMemo<CommandItem[]>(() => {
+    const stepAttention = (direction: 1 | -1) => {
+      const next = nextAttentionSession(
+        attention,
+        state.selection?.id ?? null,
+        direction,
+      );
+      if (!next) {
+        store.addToast({ tone: "info", title: "Nothing needs you" });
+        return;
+      }
+      store.selectSession(next.id);
+    };
     const items: CommandItem[] = [
       {
         id: "spawn",
@@ -86,35 +104,14 @@ export function CommandPalette({
         group: "Attention",
         label: "Jump to next attention item",
         shortcut: "J",
-        run: () => {
-          if (attention.length === 0) {
-            store.addToast({ tone: "info", title: "Nothing needs you" });
-            return;
-          }
-          const current = attention.findIndex(
-            (item) => item.session.id === state.selection?.id,
-          );
-          const next = attention[(current + 1) % attention.length]!;
-          store.selectSession(next.session.id);
-        },
+        run: () => stepAttention(1),
       },
       {
         id: "prev-attention",
         group: "Attention",
         label: "Jump to previous attention item",
         shortcut: "K",
-        run: () => {
-          if (attention.length === 0) {
-            store.addToast({ tone: "info", title: "Nothing needs you" });
-            return;
-          }
-          const current = attention.findIndex(
-            (item) => item.session.id === state.selection?.id,
-          );
-          const previous =
-            attention[(current <= 0 ? attention.length : current) - 1]!;
-          store.selectSession(previous.session.id);
-        },
+        run: () => stepAttention(-1),
       },
       {
         id: "theme",
@@ -203,7 +200,7 @@ export function CommandPalette({
           run: onStop,
         });
       }
-      if (selected.status !== "closed" && selected.status !== "failed") {
+      if (!isTerminalStatus(selected.status)) {
         items.push({
           id: "close",
           group: "Selected session",
@@ -281,8 +278,23 @@ export function CommandPalette({
       ?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  const groups = [...new Set(filtered.map((item) => item.group))];
-  let flatIndex = -1;
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, CommandItem[]>();
+    for (const item of filtered) {
+      const bucket = byGroup.get(item.group);
+      if (bucket) bucket.push(item);
+      else {
+        byGroup.set(item.group, [item]);
+        order.push(item.group);
+      }
+    }
+    let index = 0;
+    return order.map((group) => ({
+      group,
+      items: (byGroup.get(group) ?? []).map((item) => ({ item, index: index++ })),
+    }));
+  }, [filtered]);
 
   const run = (item: CommandItem) => {
     onClose();
@@ -355,34 +367,28 @@ export function CommandPalette({
                 <span>No commands or sessions match “{query}”.</span>
               </div>
             ) : (
-              groups.map((group) => (
+              groups.map(({ group, items }) => (
                 <div className="palette__group" key={group}>
                   <div className="palette__group-label">{group}</div>
-                  {filtered
-                    .filter((item) => item.group === group)
-                    .map((item) => {
-                      flatIndex += 1;
-                      const index = flatIndex;
-                      return (
-                        <button
-                          type="button"
-                          className="palette__item"
-                          id={`palette-item-${index}`}
-                          data-active={index === active ? "true" : undefined}
-                          key={item.id}
-                          onMouseEnter={() => setActive(index)}
-                          onClick={() => run(item)}
-                        >
-                          <span className="palette__item-label">{item.label}</span>
-                          {item.hint ? (
-                            <span className="palette__item-meta">{item.hint}</span>
-                          ) : null}
-                          {item.shortcut ? (
-                            <span className="palette__shortcut">{item.shortcut}</span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
+                  {items.map(({ item, index }) => (
+                    <button
+                      type="button"
+                      className="palette__item"
+                      id={`palette-item-${index}`}
+                      data-active={index === active ? "true" : undefined}
+                      key={item.id}
+                      onMouseEnter={() => setActive(index)}
+                      onClick={() => run(item)}
+                    >
+                      <span className="palette__item-label">{item.label}</span>
+                      {item.hint ? (
+                        <span className="palette__item-meta">{item.hint}</span>
+                      ) : null}
+                      {item.shortcut ? (
+                        <span className="palette__shortcut">{item.shortcut}</span>
+                      ) : null}
+                    </button>
+                  ))}
                 </div>
               ))
             )}
@@ -404,11 +410,5 @@ export function CommandPalette({
 }
 
 function sessionHint(session: SessionView, now: number): string {
-  const attention =
-    session.status === "waiting_permission"
-      ? "waiting for permission"
-      : session.status === "failed"
-        ? "failed"
-        : session.status;
-  return `#${session.id} · ${attention} · ${formatAge(session.lastActivityAt, now)}`;
+  return `#${session.id} · ${statusLabel(session.status).toLowerCase()} · ${formatAge(session.lastActivityAt, now)}`;
 }

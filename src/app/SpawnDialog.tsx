@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ChevronUp,
   FolderOpen,
   RefreshCw,
-  TriangleAlert,
-  X,
 } from "lucide-react";
 import { Button } from "../components/Button";
+import { Notice } from "../components/Notice";
 import { Tag } from "../components/Status";
 import {
   canUse,
@@ -15,7 +13,11 @@ import {
   type DirectoryListing,
 } from "../store/store";
 import type { AgentView, PermissionPolicy } from "../wire/protocol";
+import { asWireError, CAPABILITIES } from "../wire/protocol";
+import { isTerminalStatus } from "../store/model";
+import { newId } from "../lib/id";
 import { DialogShell } from "./DialogShell";
+import { CwdBrowser } from "./CwdBrowser";
 import { PolicySelector } from "./PolicySelector";
 import { SelectField, ToggleRow } from "./ui";
 
@@ -49,11 +51,11 @@ export function SpawnDialog({
   const backendList = useRef(0);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
   const pending = Boolean(state.pending.spawn);
-  const supportsBackends = canUse(state, "backends.list");
-  const supportsIdempotency = canUse(state, "spawn.idempotency");
+  const supportsBackends = canUse(state, CAPABILITIES.backendsList);
+  const supportsIdempotency = canUse(state, CAPABILITIES.spawnIdempotency);
   const configError = state.instance?.configError ?? null;
   const parentChoices = Object.values(state.sessions).filter(
-    (session) => session.status !== "closed" && session.status !== "failed",
+    (session) => !isTerminalStatus(session.status),
   );
   const selectedBackend = backends?.find((candidate) => candidate.name === backend);
   const noBackends = supportsBackends && backends !== null && backends.length === 0;
@@ -65,7 +67,7 @@ export function SpawnDialog({
     void store
       .listDirectories(path)
       .then((result) => setListing(result))
-      .catch((cause: unknown) => setBrowseError(messageOf(cause)))
+      .catch((cause: unknown) => setBrowseError(asWireError(cause).message))
       .finally(() => setBrowseLoading(false));
   };
 
@@ -118,11 +120,7 @@ export function SpawnDialog({
         .catch((cause) => {
           if (token !== backendList.current) return;
           setLoadingBackends(false);
-          setBackendsError(
-            cause && typeof cause === "object" && "message" in cause
-              ? String((cause as { message: unknown }).message)
-              : String(cause),
-          );
+          setBackendsError(asWireError(cause).message);
         });
     }, 320);
     return () => window.clearTimeout(timer);
@@ -153,7 +151,7 @@ export function SpawnDialog({
       return;
     }
     if (attempt.current?.signature !== signature) {
-      attempt.current = { signature, key: cryptoId() };
+      attempt.current = { signature, key: newId("spawn") };
     }
     const idempotencyKey = supportsIdempotency ? attempt.current.key : undefined;
     void store
@@ -169,13 +167,10 @@ export function SpawnDialog({
       })
       .then(() => onClose())
       .catch((cause: unknown) => {
-        const message =
-          cause && typeof cause === "object" && "message" in cause
-            ? String((cause as { message: unknown }).message)
-            : String(cause);
-        setError(message);
-        if (cause && typeof cause === "object" && "details" in cause) {
-          const payload = (cause as { details: unknown }).details;
+        const wire = asWireError(cause);
+        setError(wire.message);
+        if (wire.details !== undefined) {
+          const payload = wire.details;
           const stderr =
             payload && typeof payload === "object" && "stderr" in payload
               ? String((payload as { stderr: unknown }).stderr)
@@ -219,29 +214,17 @@ export function SpawnDialog({
       </p>
 
       {configError ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">New spawns are blocked by a config error</span>
-            <span>
-              {configError} Fix the file and use Reload config; live sessions are
-              unaffected.
-            </span>
-          </span>
-        </div>
+        <Notice tone="danger" title="New spawns are blocked by a config error">
+          {configError} Fix the file and use Reload config; live sessions are
+          unaffected.
+        </Notice>
       ) : null}
 
       {!supportsBackends ? (
-        <div className="notice notice--warn">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">backends.list is not available</span>
-            <span>
-              This supervisor cannot discover configured backends. Type the backend
-              name; the spawn will fail cleanly if it is not configured.
-            </span>
-          </span>
-        </div>
+        <Notice tone="warn" title="backends.list is not available">
+          This supervisor cannot discover configured backends. Type the backend
+          name; the spawn will fail cleanly if it is not configured.
+        </Notice>
       ) : null}
 
       <div className="form-grid">
@@ -331,90 +314,17 @@ export function SpawnDialog({
             ) : null}
           </div>
           {browseOpen ? (
-            <div className="cwd-browser">
-              <div className="cwd-browser__head">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  isDisabled={!listing?.parent || browseLoading}
-                  onPress={() => {
-                    if (listing?.parent) loadDirectory(listing.parent);
-                  }}
-                  title="Parent directory"
-                >
-                  <ChevronUp className="btn__icon icon" />
-                  Up
-                </Button>
-                <span className="cwd-browser__path" title={listing?.path}>
-                  {listing?.path ?? "Loading..."}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  isDisabled={browseLoading}
-                  onPress={() => setBrowseOpen(false)}
-                  aria-label="Close directory browser"
-                >
-                  <X className="btn__icon icon" />
-                </Button>
-              </div>
-              {listing && listing.roots.length > 1 ? (
-                <div className="cwd-browser__roots">
-                  {listing.roots.map((root) => (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      key={root}
-                      onPress={() => loadDirectory(root)}
-                    >
-                      {root}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-              {browseError ? (
-                <p className="cwd-browser__error" role="alert">
-                  {browseError}
-                </p>
-              ) : null}
-              <div className="cwd-browser__list">
-                {browseLoading ? (
-                  <span className="cwd-browser__empty">Loading directories...</span>
-                ) : listing?.entries.length ? (
-                  listing.entries.map((entry) => (
-                    <button
-                      type="button"
-                      className="cwd-browser__entry"
-                      key={entry.path}
-                      onClick={() => loadDirectory(entry.path)}
-                      title={entry.path}
-                    >
-                      <FolderOpen className="icon" />
-                      <span>{entry.name}</span>
-                    </button>
-                  ))
-                ) : (
-                  <span className="cwd-browser__empty">No subdirectories.</span>
-                )}
-              </div>
-              <div className="cwd-browser__foot">
-                <span className="caption">
-                  {listing ? `${listing.entries.length} folders` : ""}
-                </span>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  isDisabled={!listing || browseLoading}
-                  onPress={() => {
-                    if (!listing) return;
-                    setCwd(listing.path);
-                    setBrowseOpen(false);
-                  }}
-                >
-                  Use this folder
-                </Button>
-              </div>
-            </div>
+            <CwdBrowser
+              listing={listing}
+              loading={browseLoading}
+              error={browseError}
+              onNavigate={loadDirectory}
+              onUse={(path) => {
+                setCwd(path);
+                setBrowseOpen(false);
+              }}
+              onClose={() => setBrowseOpen(false)}
+            />
           ) : null}
         </div>
 
@@ -479,37 +389,25 @@ export function SpawnDialog({
       </details>
 
       {noBackends ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">No backends are configured</span>
-            <span>Fix the HLAO config or install a backend, then reopen this form.</span>
-          </span>
-        </div>
+        <Notice tone="danger" title="No backends are configured">
+          Fix the HLAO config or install a backend, then reopen this form.
+        </Notice>
       ) : null}
       {backendsError ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">Backend discovery failed</span>
-            <span>{backendsError}</span>
-          </span>
-        </div>
+        <Notice tone="danger" title="Backend discovery failed">
+          {backendsError}
+        </Notice>
       ) : null}
       {error ? (
-        <div className="notice notice--danger">
-          <TriangleAlert className="icon" />
-          <span className="notice__body">
-            <span className="notice__title">Spawn failed</span>
-            <span>{error}</span>
-            {details ? (
-              <details className="dialog-details">
-                <summary>Adapter stderr / details</summary>
-                <pre>{details}</pre>
-              </details>
-            ) : null}
-          </span>
-        </div>
+        <Notice tone="danger" title="Spawn failed">
+          {error}
+          {details ? (
+            <details className="dialog-details">
+              <summary>Adapter stderr / details</summary>
+              <pre>{details}</pre>
+            </details>
+          ) : null}
+        </Notice>
       ) : null}
 
       <div className="spawn-foot">
@@ -526,16 +424,4 @@ export function SpawnDialog({
       </div>
     </DialogShell>
   );
-}
-
-function messageOf(cause: unknown): string {
-  return cause && typeof cause === "object" && "message" in cause
-    ? String((cause as { message: unknown }).message)
-    : String(cause);
-}
-
-function cryptoId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `spawn-${Math.random().toString(16).slice(2)}`;
 }

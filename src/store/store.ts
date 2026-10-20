@@ -4,9 +4,10 @@ import {
   attentionFor,
   descendantsOf,
   eventText,
+  isTerminalStatus,
+  latestNotice,
   mergeEvents,
   normalizeHome,
-  noticeFromEvent,
   resolveTarget,
   sessionLocalKey,
   type AttentionItem,
@@ -31,20 +32,27 @@ import {
 } from "../wire/transport";
 import type {
   BackendsListResult,
+  CancelResult,
+  CloseResult,
   EventView,
   HelloResult,
   LastCrash,
   NotificationFrame,
+  PermitResult,
+  QueueDropResult,
   QueueResult,
   ReadResult,
+  ReloadResult,
   SendResult,
   SessionView,
+  ShutdownResult,
   SpawnParams,
   SpawnResult,
   SubscribeResult,
   WireError,
 } from "../wire/protocol";
-import { asWireError, hasCapability } from "../wire/protocol";
+import { asWireError, CAPABILITIES, hasCapability } from "../wire/protocol";
+import { newId } from "../lib/id";
 
 export type Phase = "boot" | "connecting" | "setup" | "live";
 export type Mode = "bridge" | "demo";
@@ -155,6 +163,9 @@ export type DirectoryListing = {
   roots: string[];
 };
 
+/** Most mutations echo the full session view; the client never merges a patch. */
+type SessionResult = { session: SessionView };
+
 const EMPTY_EVENTS: SessionEventsState = {
   events: [],
   earliestRetainedSeq: 1,
@@ -168,6 +179,18 @@ const EMPTY_EVENTS: SessionEventsState = {
   loaded: false,
   gap: null,
 };
+
+/** Draw a gap only where the server reports eviction; never infer one. */
+function gapFor(
+  current: SessionEventsState,
+  incoming: readonly EventView[],
+  truncated: boolean,
+): Gap | null {
+  const first = incoming[0];
+  return truncated && first && first.seq > current.lastSeq + 1
+    ? { from: current.lastSeq + 1, to: first.seq - 1 }
+    : current.gap;
+}
 
 export function selectedSession(state: DashboardState): SessionView | null {
   if (!state.selection) return null;
@@ -201,14 +224,6 @@ export function canUse(
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function newId(prefix: string): string {
-  const random =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(16).slice(2);
-  return `${prefix}-${random}`;
 }
 
 export class DashboardStore {
@@ -666,11 +681,7 @@ export class DashboardStore {
 
     if (selectedBefore) {
       const after = sessions[selectedBefore.id];
-      if (after && after.lastSeq === selectedBefore.lastSeq && after.queued !== selectedBefore.queued) {
-        changedSelectedQueue = true;
-      } else if (after && after.queued !== selectedBefore.queued) {
-        changedSelectedQueue = true;
-      }
+      if (after && after.queued !== selectedBefore.queued) changedSelectedQueue = true;
     }
 
     this.setState({ sessions, removedIds, selection, removed });
@@ -685,7 +696,7 @@ export class DashboardStore {
     const transport = this.transport;
     if (!transport) return;
     const capabilities = this.state.instance?.capabilities ?? [];
-    if (!hasCapability(capabilities, "stream.subscribe")) {
+    if (!hasCapability(capabilities, CAPABILITIES.streamSubscribe)) {
       this.startPolling();
       return;
     }
@@ -704,7 +715,7 @@ export class DashboardStore {
     const followedId = this.selectedId;
     const sessionIds = followedId ? [followedId] : [];
     const loaded = followedId ? this.state.events[followedId] : null;
-    const canResume = hasCapability(capabilities, "stream.resume");
+    const canResume = hasCapability(capabilities, CAPABILITIES.streamResume);
     const since =
       canResume && followedId && loaded?.loaded && loaded.lastSeq > 0
         ? { [followedId]: loaded.lastSeq }
@@ -796,7 +807,7 @@ export class DashboardStore {
       const previousSelected = this.state.selection
         ? this.state.sessions[this.state.selection.id] ?? null
         : null;
-      const sessions = await this.loadFleet();
+      await this.loadFleet();
       const selection = this.state.selection;
       if (selection) {
         const current = this.state.sessions[selection.id];
@@ -818,12 +829,6 @@ export class DashboardStore {
         }
       }
       await this.subscribeToFleet();
-      if (selection && !sessions[selection.id]) {
-        this.setState({
-          removed: true,
-          removedSession: previousSelected,
-        });
-      }
     } catch (error) {
       this.setState({ connection: "offline", connectError: asWireError(error) });
     } finally {
@@ -1005,11 +1010,7 @@ export class DashboardStore {
       });
     } else {
       const appended = appendEvents(current.events, result.events, current.lastSeq);
-      const first = result.events[0];
-      const gap =
-        result.truncated && first && first.seq > current.lastSeq + 1
-          ? { from: current.lastSeq + 1, to: first.seq - 1 }
-          : current.gap;
+      const gap = gapFor(current, result.events, result.truncated);
       const nextLastSeq = Math.max(current.lastSeq, nextCursor);
       this.patchSessionEvents(sessionId, {
         events: appended.events,
@@ -1180,10 +1181,7 @@ export class DashboardStore {
 
     const current = this.state.events[frame.sessionId] ?? EMPTY_EVENTS;
     const first = frame.events[0];
-    const gap =
-      frame.truncated && first && first.seq > current.lastSeq + 1
-        ? { from: current.lastSeq + 1, to: first.seq - 1 }
-        : current.gap;
+    const gap = gapFor(current, frame.events, frame.truncated);
     const appended = appendEvents(current.events, frame.events, current.lastSeq);
     const lastSeq = Math.max(
       current.lastSeq,
@@ -1332,10 +1330,10 @@ export class DashboardStore {
     const capabilities = this.state.instance?.capabilities ?? [];
     const attempt = this.sendAttempts.get(session.id);
     const reuse = attempt && attempt.text === text ? attempt : null;
-    const idempotencyKey = hasCapability(capabilities, "send.idempotency")
+    const idempotencyKey = hasCapability(capabilities, CAPABILITIES.sendIdempotency)
       ? reuse?.key || newId("send")
       : undefined;
-    const messageId = hasCapability(capabilities, "send.messageId")
+    const messageId = hasCapability(capabilities, CAPABILITIES.sendMessageId)
       ? reuse?.messageId || newId("msg")
       : undefined;
 
@@ -1359,11 +1357,7 @@ export class DashboardStore {
       this.setLocal({ ...this.state.local, drafts });
       this.addToast({
         tone: "ok",
-        title: result.duplicate
-          ? "Prompt was already accepted"
-          : result.queued
-            ? "Prompt queued"
-            : `Prompt sent to turn ${result.turn ?? session.turn + 1}`,
+        title: sendOutcomeTitle(result, session),
         text: result.queued
           ? "It runs after the current turn. The queue snapshot shows its position."
           : undefined,
@@ -1402,12 +1396,7 @@ export class DashboardStore {
         optionId ??
         "Allow";
     try {
-      const result = await transport.request<{
-        session: SessionView;
-        requestId: string;
-        optionId: string;
-        by: string;
-      }>("sessions.permit", {
+      const result = await transport.request<PermitResult>("sessions.permit", {
         sessionId: session.id,
         ...(optionId ? { optionId } : {}),
         ...(always ? { always: true } : {}),
@@ -1442,7 +1431,7 @@ export class DashboardStore {
     if (this.state.pending.cancel) return;
     this.setPending("cancel", true);
     try {
-      const result = await transport.request<{ session: SessionView; discarded: number }>(
+      const result = await transport.request<CancelResult>(
         "sessions.cancel",
         { sessionId: session.id, keepQueue },
       );
@@ -1476,17 +1465,16 @@ export class DashboardStore {
     if (this.state.pending.close) return;
     this.setPending("close", true);
     try {
-      const result = await transport.request<{
-        session: SessionView;
-        killed: boolean;
-        wasTerminal: boolean;
-      }>("sessions.close", { sessionId: session.id, force });
+      const result = await transport.request<CloseResult>(
+        "sessions.close",
+        { sessionId: session.id, force },
+      );
       this.applySession(result.session);
       this.addToast({
         tone: "ok",
         title: result.wasTerminal
           ? "Session was already terminal"
-          : `Closed ${displayHandle(result.session)}`,
+          : `Closed #${result.session.id}`,
         text: result.wasTerminal
           ? "No change was made by this action."
           : "It remains readable for the retention period. The event log is not permanent.",
@@ -1514,11 +1502,10 @@ export class DashboardStore {
     const errors: string[] = [];
     for (const target of targets) {
       try {
-        const result = await transport.request<{
-          session: SessionView;
-          killed: boolean;
-          wasTerminal: boolean;
-        }>("sessions.close", { sessionId: target.id });
+        const result = await transport.request<CloseResult>(
+          "sessions.close",
+          { sessionId: target.id },
+        );
         this.applySession(result.session);
         if (!result.wasTerminal) closed += 1;
       } catch (error) {
@@ -1582,7 +1569,7 @@ export class DashboardStore {
     if (this.state.pending.rename) return false;
     this.setPending("rename", true);
     try {
-      const result = await transport.request<{ session: SessionView }>(
+      const result = await transport.request<SessionResult>(
         "sessions.rename",
         { sessionId: session.id, name: name.trim() ? name.trim() : null },
       );
@@ -1614,7 +1601,7 @@ export class DashboardStore {
     if (this.state.pending.policy) return;
     this.setPending("policy", true);
     try {
-      const result = await transport.request<{ session: SessionView }>(
+      const result = await transport.request<SessionResult>(
         "sessions.set_policy",
         { sessionId: session.id, permissionPolicy: policy },
       );
@@ -1648,7 +1635,7 @@ export class DashboardStore {
     if (this.state.pending.mode) return;
     this.setPending("mode", true);
     try {
-      const result = await transport.request<{ session: SessionView }>(
+      const result = await transport.request<SessionResult>(
         "sessions.set_mode",
         { sessionId: session.id, modeId },
       );
@@ -1678,7 +1665,7 @@ export class DashboardStore {
     if (this.state.pending[key]) return;
     this.setPending(key, true);
     try {
-      const result = await transport.request<{ session: SessionView }>(
+      const result = await transport.request<SessionResult>(
         "sessions.set_config_option",
         { sessionId: session.id, configId, value },
       );
@@ -1708,11 +1695,10 @@ export class DashboardStore {
     if (this.state.pending["queue-drop"]) return;
     this.setPending("queue-drop", true);
     try {
-      const result = await transport.request<{
-        session: SessionView;
-        dropped: { textPreview: string };
-        discarded: number;
-      }>("sessions.queue_drop", { sessionId: session.id, messageId });
+      const result = await transport.request<QueueDropResult>("sessions.queue_drop", {
+        sessionId: session.id,
+        messageId,
+      });
       this.applySession(result.session);
       this.addToast({
         tone: "info",
@@ -1804,10 +1790,7 @@ export class DashboardStore {
     if (!transport || this.state.pending.reload) return;
     this.setPending("reload", true);
     try {
-      const result = await transport.request<{
-        configHash: string;
-        configError: string | null;
-      }>("supervisor.reload", {});
+      const result = await transport.request<ReloadResult>("supervisor.reload", {});
       if (this.state.instance) {
         this.setState({
           instance: {
@@ -1839,10 +1822,7 @@ export class DashboardStore {
     if (this.state.pending.shutdown) return;
     this.setPending("shutdown", true);
     try {
-      const result = await transport.request<{
-        sessionsClosed: number;
-        retainedDiscarded: number;
-      }>("supervisor.shutdown", { force });
+      const result = await transport.request<ShutdownResult>("supervisor.shutdown", { force });
       this.stopPolling();
       this.disposeTransport();
       this.setState({
@@ -1880,7 +1860,7 @@ export class DashboardStore {
     const transport = this.transport;
     if (!transport) return;
     try {
-      const result = await transport.request<{ session: SessionView }>(
+      const result = await transport.request<SessionResult>(
         "sessions.get",
         { sessionId },
       );
@@ -2010,9 +1990,7 @@ export class DashboardStore {
       } catch (error) {
         outcome.errors.push(asWireError(error).message);
         sessions = Object.values(this.state.sessions).filter(
-          (session) =>
-            options.includeClosed ||
-            (session.status !== "closed" && session.status !== "failed"),
+          (session) => options.includeClosed || !isTerminalStatus(session.status),
         );
       }
     }
@@ -2047,10 +2025,7 @@ export class DashboardStore {
           outcome.hits.push({
             session: result.session,
             event,
-            snippet: (
-              readable ||
-              `${event.type} · ${fallback}`
-            ).slice(0, 220),
+            snippet: (readable || `${event.type} · ${fallback}`).slice(0, 220),
           });
         }
       } catch (error) {
@@ -2103,17 +2078,10 @@ export class DashboardStore {
   }
 }
 
-function latestNotice(events: readonly EventView[]): NoticeRecord | null {
-  let latest: NoticeRecord | null = null;
-  for (const event of events) {
-    const notice = noticeFromEvent(event);
-    if (notice && (!latest || notice.seq > latest.seq)) latest = notice;
-  }
-  return latest;
-}
-
-function displayHandle(session: SessionView): string {
-  return `#${session.id}`;
+function sendOutcomeTitle(result: SendResult, session: SessionView): string {
+  if (result.duplicate) return "Prompt was already accepted";
+  if (result.queued) return "Prompt queued";
+  return `Prompt sent to turn ${result.turn ?? session.turn + 1}`;
 }
 
 export const store = new DashboardStore();

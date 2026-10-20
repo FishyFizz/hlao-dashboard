@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button, IconButton } from "../components/Button";
+import { shortStatusLabel, statusLampClass } from "../components/Status";
 import {
   attentionItems,
   canUse,
@@ -12,6 +13,7 @@ import {
   fleetGroupFor,
   formatAge,
   formatDateTime,
+  isTerminalStatus,
   lastEventLabel,
   lastEventTime,
   matchesQuery,
@@ -20,26 +22,9 @@ import {
   unreadFor,
   type FleetGroup,
 } from "../store/model";
-import type { SessionStatus, SessionView } from "../wire/protocol";
+import type { SessionView } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { useNow } from "./hooks";
-import { shortStatus } from "./ui";
-
-function lampClass(status: SessionStatus): string {
-  switch (status) {
-    case "busy":
-      return "lamp lamp--accent";
-    case "idle":
-      return "lamp lamp--ok";
-    case "waiting_permission":
-      return "lamp lamp--warn lamp--blink";
-    case "failed":
-      return "lamp lamp--danger";
-    case "starting":
-      return "lamp lamp--off";
-    case "closed":
-      return "lamp lamp--off";
-  }
-}
 
 type GroupOrder = Record<FleetGroup, string[]>;
 
@@ -63,9 +48,7 @@ export function FleetRail({
 
   const visible = sessions.filter((session) => {
     if (!matchesQuery(session, queries)) return false;
-    if (!showEnded && (session.status === "closed" || session.status === "failed")) {
-      return false;
-    }
+    if (!showEnded && isTerminalStatus(session.status)) return false;
     return true;
   });
 
@@ -105,14 +88,10 @@ export function FleetRail({
   ]);
 
   const selected = selectedSession(state);
-  const capabilityLastEvent = canUse(state, "session.lastEvent");
+  const capabilityLastEvent = canUse(state, CAPABILITIES.lastEvent);
   const counts = {
-    live: sessions.filter(
-      (session) => session.status !== "closed" && session.status !== "failed",
-    ).length,
-    ended: sessions.filter(
-      (session) => session.status === "closed" || session.status === "failed",
-    ).length,
+    live: sessions.filter((session) => !isTerminalStatus(session.status)).length,
+    ended: sessions.filter((session) => isTerminalStatus(session.status)).length,
   };
   const shown = order.needs.length + order.running.length + order.quiet.length + order.ended.length;
 
@@ -150,12 +129,12 @@ export function FleetRail({
         data-selected={isSelected ? "true" : undefined}
         data-status={session.status}
         aria-current={isSelected ? "page" : undefined}
-        aria-label={`${session.id} ${session.name ?? session.title ?? ""} ${shortStatus(session.status)}`}
+        aria-label={`${session.id} ${session.name ?? session.title ?? ""} ${shortStatusLabel(session.status)}`}
         title={`${session.id} · ${absolute}`}
         onClick={() => onSelect(session)}
       >
         <span className="rail-row__top">
-          <span className={lampClass(session.status)} aria-hidden="true" />
+          <span className={statusLampClass(session.status)} aria-hidden="true" />
           <span className="rail-row__label">{session.name ?? session.title ?? `#${session.id}`}</span>
           {session.name && session.title ? (
             <span className="rail-row__title">{session.title}</span>
@@ -174,7 +153,7 @@ export function FleetRail({
           ) : null}
         </span>
         <span className="rail-row__bottom">
-          <span className="rail-row__status">{shortStatus(session.status)}</span>
+          <span className="rail-row__status">{shortStatusLabel(session.status)}</span>
           <span className="rail-row__handle">#{session.id}</span>
           <span className="rail-row__meta">
             {session.turn > 0 ? `T${session.turn}` : "—"}
@@ -236,13 +215,13 @@ export function FleetRail({
               value={queries}
               placeholder="Filter by name, handle, cwd"
               aria-label="Filter the fleet"
-              onChange={(event) => stateFilter(event.target.value)}
+              onChange={(event) => store.setFilters({ query: event.target.value })}
             />
             {queries ? (
               <span className="field__suffix">
                 <IconButton
                   aria-label="Clear fleet filter"
-                  onPress={() => stateFilter("")}
+                  onPress={() => store.setFilters({ query: "" })}
                 >
                   <X className="icon" />
                 </IconButton>
@@ -257,7 +236,7 @@ export function FleetRail({
               className="rail-sort__select"
               value={sort}
               onChange={(event) =>
-                storeSetFilters({
+                store.setFilters({
                   sort: event.target.value as "created" | "activity" | "name",
                 })
               }
@@ -272,7 +251,7 @@ export function FleetRail({
             className="rail-control"
             data-active={showEnded ? "true" : undefined}
             aria-pressed={showEnded}
-            onClick={() => storeSetFilters({ showEnded: !showEnded })}
+            onClick={() => store.setFilters({ showEnded: !showEnded })}
             title="Show retained closed and failed sessions"
           >
             Ended
@@ -308,8 +287,7 @@ export function FleetRail({
             <Button
               size="sm"
               onPress={() => {
-                stateFilter("");
-                storeSetFilters({ showEnded: true });
+                store.setFilters({ query: "", showEnded: true });
               }}
             >
               Clear filter
@@ -345,16 +323,4 @@ export function FleetRail({
       </div>
     </aside>
   );
-}
-
-function stateFilter(query: string): void {
-  storeSetFilters({ query });
-}
-
-function storeSetFilters(patch: {
-  query?: string;
-  sort?: "created" | "activity" | "name";
-  showEnded?: boolean;
-}): void {
-  store.setFilters(patch);
 }

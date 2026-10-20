@@ -59,7 +59,7 @@ the interaction model. It is not a real process and no work executes.
 
 ```bash
 npm run typecheck   # tsc --noEmit (TypeScript 7)
-npm test            # Vitest: attention, event merge, transcript coalescing, demo supervisor
+npm test            # Vitest: attention, event merge, transcript coalescing, routing, demo supervisor
 npm run build       # typecheck + Vite production build
 npm run preview     # preview the built SPA without the bridge (setup screen)
 ```
@@ -106,8 +106,8 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   export, export as paged JSON, copy handle, and copy the read command as CLI.
 - **Provider panels**: policy, mode, and config are separate layers. Policy is a
   color-coded segmented bar (allow green, ask amber, deny red); effort options
-  use a discrete slider. Plan and compaction are read-only. Usage is labelled
-  as the latest reported snapshot.
+  use a cyan-filled segmented bar. Plan and compaction are read-only. Usage is
+  labelled as the latest reported snapshot.
 
 ### Spawn, search, keyboard
 

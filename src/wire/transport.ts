@@ -216,7 +216,3 @@ function parseEvent<T>(event: Event): T | null {
     return null;
   }
 }
-
-export function isOfflineStatus(status: ConnectionStatus): boolean {
-  return status === "offline";
-}
