@@ -196,7 +196,9 @@ function ToolRow({
               <span className="tool__turn">turn {item.turn}</span>
             ) : null}
             <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
-            {payload ? <CopyButton text={payload} label="tool payload" /> : null}
+            {payload ? (
+              <CopyButton text={payload} label="tool payload" className="event__copy" />
+            ) : null}
           </div>
           <details className="tool__details">
             <summary>Inspect payload</summary>
@@ -308,7 +310,7 @@ function SingleEventRow({
               </>
             ) : null}
             <span className="event__meta-spacer" />
-            <CopyButton text={text} label="prompt" />
+            <CopyButton text={text} label="prompt" className="event__copy" />
           </div>
           <p className="event__text event__text--pre">{text}</p>
           {event.data.injected ? (
@@ -589,7 +591,7 @@ function SingleEventRow({
             </>
           ) : null}
           <span className="event__meta-spacer" />
-          <CopyButton text={text} label="event text" />
+          <CopyButton text={text} label="event text" className="event__copy" />
         </div>
         <p className="event__text event__text--pre">{text || `${event.type} (no preview)`}</p>
         <details className="event__inspect">

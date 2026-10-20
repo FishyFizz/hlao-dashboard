@@ -470,7 +470,13 @@ function Row({
     <div className="inspector__row">
       <span className="inspector__label">{label}</span>
       <span className={`inspector__value${mono ? " mono" : ""}`}>{value}</span>
-      {copy ? <CopyButton text={value} label={label} /> : null}
+      {copy ? (
+        <CopyButton
+          text={value}
+          label={label}
+          className="inspector__copy"
+        />
+      ) : null}
     </div>
   );
 }

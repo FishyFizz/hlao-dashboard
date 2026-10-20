@@ -98,6 +98,7 @@ export function SessionLens({
               <h1 className="session-head__name">{displayLabel(session)}</h1>
               <Handle id={session.id} />
               <IconButton
+                className="session-head__copy"
                 aria-label="Copy session handle"
                 title="Copy handle"
                 onPress={() => void copyWithToast(`#${session.id}`, "handle")}

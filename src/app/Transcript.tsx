@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { ArrowDown, Search, WifiOff } from "lucide-react";
 import { Button } from "../components/Button";
-import { Handle } from "../components/Status";
 import {
   buildRenderItems,
   formatAge,
@@ -247,24 +246,9 @@ export function Transcript({
     <div className="transcript">
       <div className="transcript__bar">
           <span className="transcript__title">
-            <span
-              className={`lamp ${live ? "lamp--accent" : "lamp--off"}`}
-              aria-hidden="true"
-            />
-            <strong>
-              {state.removed
-                ? "Local snapshot"
-                : live
-                  ? "Live"
-                  : state.connection === "reconnecting"
-                    ? "Reconnecting"
-                    : "Stale"}
-            </strong>
-            <Handle id={session.id} />
-            <span className="event__sep">/</span>
             <span>
               {eventsState.loaded
-                ? `${eventsState.earliestRetainedSeq}–${eventsState.lastSeq} · ${count} loaded`
+                ? `${eventsState.earliestRetainedSeq} - ${eventsState.lastSeq} / ${count} loaded`
                 : "not loaded"}
             </span>
             {state.removed ? (

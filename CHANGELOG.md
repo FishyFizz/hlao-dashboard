@@ -34,6 +34,10 @@
   rows tall and vertically resizable, removed the always-on composer footer,
   and showed transcript jump/action controls only when they are needed. The
   transcript and editor now use the reclaimed height for content.
+- Reduced copy affordances to 18px in transcript rows, the inspector, state
+  details, and the session header.
+- Removed the redundant LIVE/handle title from the transcript bar; the range
+  and follow state remain.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

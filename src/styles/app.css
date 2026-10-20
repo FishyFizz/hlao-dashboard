@@ -1223,10 +1223,17 @@
     white-space: nowrap;
   }
 
+  .session-head__copy {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+  }
+
   .session-head__hash {
     color: var(--text-3);
     font-family: var(--font-mono);
-    font-size: var(--fs-11);
+    font-size: 9px;
   }
 
   .session-head__meta {
@@ -1747,7 +1754,34 @@
 
   .event__copy,
   .event .event__meta .btn {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
     opacity: 0;
+  }
+
+  .event__copy .icon,
+  .event .event__meta .btn .icon {
+    width: 11px;
+    height: 11px;
+  }
+
+  .inspector__copy {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+  }
+
+  .inspector__copy .icon {
+    width: 11px;
+    height: 11px;
+  }
+
+  .state-fact__copy .icon {
+    width: 11px;
+    height: 11px;
   }
 
   .event:hover .event__copy,
