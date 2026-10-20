@@ -57,6 +57,10 @@ simulated supervisor. Demo mode is always named in the UI.
    50 ms and applied in one store pass, so a streaming agent cannot cause one
    full React render per event. Age labels share one clock. State lamps are
    static; no live surface animates indefinitely.
+9. **Older history is paged automatically.** Approaching the top of the
+   transcript requests the next `sessions.read { before }` page and preserves
+   the scroll anchor. The local view cap is 10,000 events; reaching it is shown
+   as a local limit, never as supervisor truncation.
 
 ## Liveness
 

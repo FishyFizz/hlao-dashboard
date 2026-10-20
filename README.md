@@ -88,8 +88,8 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - **Transcript**: turn skeleton, coalesced message chunks, one tool row updated
   in place, inline permission history, provider plan/compaction/usage/notice
   rows, unknown-type fallback with inspectable data. Tail-follow only at the
-  bottom; last-read divider, new-events affordance, bounded backward paging, and
-  visible truncation/gap markers.
+  bottom; last-read divider, new-events affordance, automatic backward paging as
+  the view approaches the top, and visible truncation/gap markers.
 - **Composer and queue**: drafts per session, multi-line text, explicit send,
   queue when busy or permission-parked, idempotent retry, message-id
   reconciliation, queue previews, and permanent drop confirmation. Ended
@@ -145,8 +145,9 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - A pre-spawn provider model/mode picker when the provider cannot enumerate
   values before a session exists; set those after spawn from advertised values.
 - Virtualized transcript rendering beyond the bounded page model. A session with
-  a very large retained log loads older pages on demand; this is the next scale
-  seam if thousands of rows are needed in one view.
+  a very large retained log auto-loads earlier pages as the view approaches the
+  top (local cap 10,000 events); virtualization is the next scale seam if
+  thousands of rows must stay rendered at once.
 - Playwright/axe and Tauri packaging. The bridge-backed UI has been exercised
   manually; the browser test stack is named in `STACK.md`.
 

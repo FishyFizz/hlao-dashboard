@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
-import { ArrowDown, ChevronUp, Search, WifiOff } from "lucide-react";
+import { ArrowDown, Search, WifiOff } from "lucide-react";
 import { Button } from "../components/Button";
 import { Handle } from "../components/Status";
 import {
@@ -31,6 +31,7 @@ export function Transcript({
 }) {
   const eventsState = eventsFor(state, session.id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const olderRef = useRef<HTMLDivElement>(null);
   const initialized = useRef<string | null>(null);
   const atBottomRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -122,16 +123,74 @@ export function Transcript({
     store.setFollowTail(session.id, false);
   };
 
+  const loadOlderPage = (force = false) => {
+    if (
+      (!force && atBottomRef.current) ||
+      !canPageBack ||
+      !eventsState.hasMoreOlder ||
+      eventsState.loadingOlder
+    ) {
+      return;
+    }
+    const element = scrollRef.current;
+    const anchor = element ? { height: element.scrollHeight } : null;
+    void store.loadOlder(session.id).then(() => {
+      requestAnimationFrame(() => {
+        const current = scrollRef.current;
+        if (!current || !anchor) return;
+        const delta = current.scrollHeight - anchor.height;
+        if (delta > 0) current.scrollTop += delta;
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!canPageBack || !eventsState.hasMoreOlder) return;
+    const root = scrollRef.current;
+    const target = olderRef.current;
+    if (!root || !target || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadOlderPage();
+      },
+      { root, rootMargin: "160px 0px 0px 0px", threshold: 0 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+    // The observer should be rebuilt when the page or loading state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPageBack, eventsState.hasMoreOlder, eventsState.loadingOlder, session.id]);
+
+  useEffect(() => {
+    if (!canPageBack || !eventsState.hasMoreOlder || eventsState.loadingOlder) {
+      return;
+    }
+    const element = scrollRef.current;
+    if (!element) return;
+    if (element.scrollHeight <= element.clientHeight + 80) {
+      loadOlderPage(true);
+    }
+    // Fill a short tail page so the first screen is not a dead end.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canPageBack,
+    eventsState.events.length,
+    eventsState.hasMoreOlder,
+    session.id,
+  ]);
+
   const onScroll = () => {
     const element = scrollRef.current;
     if (!element) return;
     const bottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < 36;
-    if (bottom === atBottomRef.current) return;
-    atBottomRef.current = bottom;
-    setAtBottom(bottom);
-    store.setFollowTail(session.id, bottom);
-    if (bottom) store.markSeen(session.id, eventsState.lastSeq);
+    if (bottom !== atBottomRef.current) {
+      atBottomRef.current = bottom;
+      setAtBottom(bottom);
+      store.setFollowTail(session.id, bottom);
+      if (bottom) store.markSeen(session.id, eventsState.lastSeq);
+    }
+    if (element.scrollTop < 80) loadOlderPage();
   };
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -240,17 +299,20 @@ export function Transcript({
           aria-label={`Transcript for ${session.name ?? session.id}`}
           aria-live="off"
         >
-          {eventsState.hasMoreOlder && canPageBack ? (
+          {eventsState.viewCapped ? (
             <div className="transcript__older">
-              <Button
-                size="sm"
-                variant="ghost"
-                isDisabled={eventsState.loadingOlder}
-                onPress={() => void store.loadOlder(session.id)}
-              >
-                <ChevronUp className="btn__icon icon" />
-                {eventsState.loadingOlder ? "Loading older…" : "Load older events"}
-              </Button>
+              <span className="caption">
+                Local transcript limit reached; earlier events remain on the
+                supervisor.
+              </span>
+            </div>
+          ) : eventsState.hasMoreOlder && canPageBack ? (
+            <div className="transcript__older" ref={olderRef} role="status">
+              <span className="caption">
+                {eventsState.loadingOlder
+                  ? "Loading earlier events..."
+                  : "Earlier events load automatically"}
+              </span>
             </div>
           ) : null}
           {items.length === 0 ? (

@@ -13,6 +13,9 @@
 - Compacted the session lens: one-line permission/usage rows, a single tool
   header, a two-row composer, and a transcript that yields space so the
   composer stays inside the viewport.
+- Removed the "Load older events" button. Earlier pages now load automatically
+  near the top, preserve the reading anchor, and stop at an honest 10,000-event
+  local cap.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
 
 ## 0.1.0 — 2026-10-20

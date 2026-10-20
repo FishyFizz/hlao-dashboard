@@ -60,6 +60,7 @@ export type SessionEventsState = {
   nextBefore: number | null;
   hasMoreOlder: boolean;
   truncated: boolean;
+  viewCapped: boolean;
   loading: boolean;
   loadingOlder: boolean;
   loaded: boolean;
@@ -154,6 +155,7 @@ const EMPTY_EVENTS: SessionEventsState = {
   nextBefore: null,
   hasMoreOlder: false,
   truncated: false,
+  viewCapped: false,
   loading: false,
   loadingOlder: false,
   loaded: false,
@@ -900,6 +902,7 @@ export class DashboardStore {
         nextBefore: result.nextBefore,
         hasMoreOlder: result.nextBefore !== null,
         truncated: result.truncated,
+        viewCapped: false,
         loading: false,
         loadingOlder: false,
         loaded: true,
@@ -931,16 +934,18 @@ export class DashboardStore {
         before: current.nextBefore,
         limit: 100,
       });
-      const merged = mergeEvents(current.events, result.events);
+      const merged = mergeEvents(current.events, result.events, 10_000);
+      const viewCapped = current.viewCapped || merged.dropped > 0;
       this.patchSessionEvents(sessionId, {
         events: merged.events,
-        earliestRetainedSeq: Math.min(
-          current.earliestRetainedSeq,
-          result.earliestRetainedSeq,
-        ),
+        earliestRetainedSeq:
+          merged.dropped > 0 && merged.events[0]
+            ? merged.events[0].seq
+            : Math.min(current.earliestRetainedSeq, result.earliestRetainedSeq),
         nextBefore: result.nextBefore,
-        hasMoreOlder: result.nextBefore !== null,
+        hasMoreOlder: viewCapped ? false : result.nextBefore !== null,
         truncated: current.truncated || result.truncated,
+        viewCapped,
         loadingOlder: false,
       });
     } catch (error) {

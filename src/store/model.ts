@@ -278,7 +278,7 @@ export function mergeEvents(
   existing: readonly EventView[],
   incoming: readonly EventView[],
   max = 5000,
-): { events: EventView[]; added: number } {
+): { events: EventView[]; added: number; dropped: number } {
   const map = new Map<number, EventView>();
   for (const event of existing) map.set(event.seq, event);
   let added = 0;
@@ -289,9 +289,11 @@ export function mergeEvents(
     }
   }
   const events = [...map.values()].sort((a, b) => a.seq - b.seq);
+  const dropped = Math.max(0, events.length - max);
   return {
-    events: events.length > max ? events.slice(events.length - max) : events,
+    events: dropped > 0 ? events.slice(dropped) : events,
     added,
+    dropped,
   };
 }
 
