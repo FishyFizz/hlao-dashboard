@@ -244,6 +244,28 @@ export function unreadFor(
   return { unread: count > 0, count, partlyEvicted: false };
 }
 
+/**
+ * Agent messages after the local read cursor. A streamed message can span many
+ * `agent.message` events, so chunks that share a message id count once; a
+ * provider that sends no id counts each event. Tool calls, thoughts, usage, and
+ * other activity are deliberately excluded: the sequence delta is noise, the
+ * messages are what the operator has not read.
+ */
+export function countNewAgentMessages(
+  events: readonly EventView[],
+  afterSeq: number,
+): number {
+  const messages = new Set<string>();
+  let anonymous = 0;
+  for (const event of events) {
+    if (event.seq <= afterSeq || event.type !== "agent.message") continue;
+    const id = stringField(event.data, ["messageId", "id"]);
+    if (id) messages.add(id);
+    else anonymous += 1;
+  }
+  return messages.size + anonymous;
+}
+
 /* ------------------------------------------------------------------ */
 /* Fleet search target resolution                                     */
 /* ------------------------------------------------------------------ */

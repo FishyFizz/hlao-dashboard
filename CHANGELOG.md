@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- The transcript's unread affordance now counts **new agent messages** instead
+  of new events, and the state strip's "New messages" fact uses the same count.
+  Streamed chunks that share a message id count once; thoughts, tool calls,
+  tool updates, usage, and other activity are excluded. The raw sequence delta
+  was dominated by streaming noise and could reach the thousands without a
+  single unread reply. The fleet row keeps its coarse local new-activity
+  marker because the fleet subscription carries views, not event payloads.
+- The session header is one line: status, name, handle, title, provider, queued
+  and attention tags share a single 46px row. The provider tag no longer wraps
+  to a second line, and the name keeps its width while the title truncates.
+  Double-clicking the session name opens the rename dialog prefilled with the
+  visible label — the operator name, or the provider title for an unnamed
+  session; the menu's Rename… action remains the discoverable path.
+- The Inspector no longer stretches its grid rows with `min-height: 100%`,
+  which was distributing the aside's height as dead gaps between sections. Its
+  top bar is a standalone header instead of a reused section/details block:
+  12px type in a 46px row whose rule aligns with the session header's seam.
+  The first section keeps the standard 12px inset below it.
 - Replaced the transcript's independent **System** toggle with one view-mode
   control: **Default**, **System**, and **Minimal**. Minimal keeps agent,
   operator, and peer messages and collapses the work between them into one

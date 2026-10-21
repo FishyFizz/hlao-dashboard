@@ -489,7 +489,10 @@ The numbering is stable so implementation and review can refer to it.
   and the UI labels them as raw provider data.
 - **TR5 — Tail-follow only at the bottom.** If the operator is at the latest event, new events
   append and the view stays at the bottom. If they have scrolled up, nothing moves; show a
-  "N new events" affordance and an explicit jump-to-latest. Never yank the viewport.
+  "N new messages" affordance and an explicit jump-to-latest. The count is agent messages since
+  the read cursor, not the event-sequence delta: tool calls, updates, thoughts, and usage are
+  activity, not unread replies, and would otherwise inflate the count into the thousands. Never
+  yank the viewport.
 - **TR6 — History is paged and bounded.** Opening a session loads the latest bounded page.
   Older pages load on demand through the backward cursor. When `truncated` is set, show "history
   begins at seq N" at the exact boundary. Never render an evicted gap as if nothing happened.

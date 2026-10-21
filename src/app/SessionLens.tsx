@@ -97,7 +97,13 @@ export function SessionLens({
           <div className="session-head__text">
             <div className="session-head__line">
               <Status status={session.status} />
-              <h1 className="session-head__name">{displayLabel(session)}</h1>
+              <h1
+                className="session-head__name"
+                title={state.removed ? undefined : "Double-click to rename"}
+                onDoubleClick={state.removed ? undefined : onRename}
+              >
+                {displayLabel(session)}
+              </h1>
               <Handle id={session.id} />
               <IconButton
                 className="session-head__copy"
@@ -107,8 +113,6 @@ export function SessionLens({
               >
                 <span className="session-head__hash">#</span>
               </IconButton>
-            </div>
-            <div className="session-head__meta">
               {session.name && session.title ? (
                 <span className="session-head__title">{session.title}</span>
               ) : null}

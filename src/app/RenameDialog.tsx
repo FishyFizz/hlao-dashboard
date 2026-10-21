@@ -16,12 +16,16 @@ export function RenameDialog({
   session: SessionView;
   onClose: () => void;
 }) {
-  const [name, setName] = useState(session.name ?? "");
+  // The header shows the name, falling back to the provider title for a
+  // session the operator never named. Start the field with that visible label
+  // so double-clicking the header edits what is actually on screen.
+  const current = session.name ?? session.title ?? "";
+  const [name, setName] = useState(current);
   const pending = Boolean(state.pending.rename);
 
   useEffect(() => {
-    if (open) setName(session.name ?? "");
-  }, [open, session.name]);
+    if (open) setName(current);
+  }, [open, current]);
 
   const duplicate = Object.values(state.sessions).filter(
     (candidate) =>

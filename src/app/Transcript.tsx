@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import {
   buildRenderItems,
   buildTranscriptRows,
+  countNewAgentMessages,
   formatAge,
   formatDateTime,
   isSystemItem,
@@ -94,10 +95,9 @@ export function Transcript({
   const count = eventsState.events.length;
   const live = state.connection === "open" && !state.removed;
   const canPageBack = canUse(state, CAPABILITIES.readBefore);
-  const unseen = Math.max(
-    state.newEvents[session.id] ?? 0,
-    Math.max(0, session.lastSeq - lastSeen),
-  );
+  // Count unread agent messages, not the event-sequence delta: streaming tool
+  // updates and thoughts can run into the thousands without a single message.
+  const unseen = countNewAgentMessages(eventsState.events, lastSeen);
   const lastReadVisible =
     lastSeen > 0 && lastSeen < eventsState.lastSeq && lastSeen >= eventsState.earliestRetainedSeq;
   const lastReadEvicted = lastSeen > 0 && lastSeen < eventsState.earliestRetainedSeq;
@@ -528,7 +528,7 @@ export function Transcript({
             ) : null}
             {unseen > 0 ? (
               <Button size="sm" variant="primary" onPress={jumpToLatest}>
-                {unseen} new event{unseen === 1 ? "" : "s"}
+                {unseen} new message{unseen === 1 ? "" : "s"}
               </Button>
             ) : null}
           </span>

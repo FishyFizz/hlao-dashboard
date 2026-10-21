@@ -4,6 +4,7 @@ import { cn } from "../lib/cn";
 import { canUse, type DashboardState } from "../store/store";
 import {
   contextPercent,
+  countNewAgentMessages,
   formatAge,
   formatCost,
   formatDateTime,
@@ -31,7 +32,10 @@ export function StateStrip({
       (candidate) => candidate.id === session.modes?.currentModeId,
     ) ?? null;
   const lastSeen = state.local.lastSeen[sessionLocalKey(session)] ?? 0;
-  const unread = Math.max(0, session.lastSeq - lastSeen);
+  const newMessages = countNewAgentMessages(
+    state.events[session.id]?.events ?? [],
+    lastSeen,
+  );
   const runningElapsed =
     !state.removed &&
     (session.status === "busy" || session.status === "waiting_permission")
@@ -94,7 +98,13 @@ export function StateStrip({
           value={`${lastEventLabel(session, canUse(state, CAPABILITIES.lastEvent))} · ${formatAge(session.lastEvent?.at ?? session.lastActivityAt, now)}`}
           title={formatDateTime(session.lastEvent?.at)}
         />
-        {unread > 0 ? <Fact label="New" value={String(unread)} /> : null}
+        {newMessages > 0 ? (
+          <Fact
+            label="New messages"
+            value={String(newMessages)}
+            title="Agent messages since the local read cursor"
+          />
+        ) : null}
 
         <details className="state-more">
           <summary title="Mode, cwd, agent, cost, time, instance">More</summary>

@@ -6,6 +6,7 @@ import {
   attentionKey,
   buildRenderItems,
   buildTranscriptRows,
+  countNewAgentMessages,
   lastThoughtLine,
   nextAttentionSession,
   resolveTarget,
@@ -191,6 +192,24 @@ describe("unread", () => {
       count: 0,
       partlyEvicted: false,
     });
+  });
+});
+
+describe("new agent messages", () => {
+  it("counts distinct messages after the cursor and ignores other activity", () => {
+    const events = [
+      event(1, "agent.message", { messageId: "m1", text: "old" }),
+      event(2, "tool.call", { toolCallId: "t1" }),
+      event(3, "agent.message", { messageId: "m2", text: "one" }),
+      event(4, "agent.message", { messageId: "m2", text: " chunk" }),
+      event(5, "agent.thought", { messageId: "th1", text: "hmm" }),
+      event(6, "tool.update", { toolCallId: "t1" }),
+      event(7, "agent.message", { messageId: "m3", text: "two" }),
+      event(8, "agent.message", { text: "no id" }),
+    ];
+    expect(countNewAgentMessages(events, 2)).toBe(3);
+    expect(countNewAgentMessages(events, 0)).toBe(4);
+    expect(countNewAgentMessages(events, 8)).toBe(0);
   });
 });
 

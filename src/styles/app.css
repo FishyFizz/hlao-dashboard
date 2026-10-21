@@ -1191,26 +1191,29 @@
 
   .session-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: var(--sp-3);
-    padding: var(--sp-3);
+    min-height: 46px;
+    padding: 0 var(--sp-3);
     border-bottom: var(--bw) solid var(--line);
     background: var(--panel);
   }
 
   .session-head__identity {
     display: flex;
-    align-items: flex-start;
+    flex: 1 1 auto;
+    align-items: center;
     gap: var(--sp-2);
     min-width: 0;
   }
 
   .session-head__back {
-    margin-top: 1px;
+    margin-top: 0;
   }
 
   .session-head__text {
+    flex: 1 1 auto;
     min-width: 0;
   }
 
@@ -1219,10 +1222,14 @@
     align-items: center;
     gap: var(--sp-2);
     min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
 
   .session-head__name {
+    flex: 0 0 auto;
     min-width: 0;
+    max-width: 40%;
     overflow: hidden;
     color: var(--text);
     font-size: var(--fs-16);
@@ -1246,17 +1253,9 @@
     font-size: 9px;
   }
 
-  .session-head__meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px var(--sp-2);
-    margin-top: 4px;
-    color: var(--text-3);
-    font-size: var(--fs-10);
-  }
-
   .session-head__title {
+    flex: 0 1 auto;
+    min-width: 0;
     max-width: 420px;
     overflow: hidden;
     color: var(--text-2);
@@ -2197,7 +2196,6 @@
   .inspector {
     display: grid;
     gap: 0;
-    min-height: 100%;
   }
 
   .inspector__section {
@@ -2366,6 +2364,65 @@
     font-size: 9px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+  }
+
+  /* The inspector's top bar: same height as the session header, no dead
+     padding under the summary when the provider details are collapsed. */
+  .inspector__header {
+    display: block;
+    padding: 0;
+  }
+
+  .inspector__header > summary {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--sp-2);
+    min-height: 46px;
+    padding: 0 var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-12);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .inspector__header > summary > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inspector__header > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .inspector__header > summary::before {
+    content: "+";
+    color: var(--text-3);
+    font-weight: 400;
+  }
+
+  .inspector__header[open] > summary::before {
+    content: "−";
+  }
+
+  .inspector__header > :not(summary) {
+    margin-inline: var(--sp-3);
+  }
+
+  .inspector__header > .inspector__rows {
+    padding-top: var(--sp-2);
+  }
+
+  .inspector__header > :last-child {
+    margin-bottom: var(--sp-2);
   }
 
   .inspector__error {

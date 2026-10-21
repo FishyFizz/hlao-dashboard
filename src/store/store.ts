@@ -115,7 +115,6 @@ export type DashboardState = {
   queue: QueueResult | null;
   queueLoading: boolean;
   followTail: Record<string, boolean>;
-  newEvents: Record<string, number>;
   focus: { sessionId: string; seq: number } | null;
   local: InstanceLocalState;
   pending: Record<string, boolean>;
@@ -278,7 +277,6 @@ export class DashboardStore {
       queue: null,
       queueLoading: false,
       followTail: {},
-      newEvents: {},
       focus: null,
       local: emptyInstanceState(),
       pending: {},
@@ -528,7 +526,6 @@ export class DashboardStore {
             queue: null,
             subscription: null,
             followTail: {},
-            newEvents: {},
             focus: null,
             transportKind: null,
             restartNotice: restarted && previous
@@ -1058,12 +1055,12 @@ export class DashboardStore {
         truncated: current.truncated || result.truncated,
         gap,
       });
-      if (appended.added > 0 && this.state.selection?.id === sessionId) {
-        if (this.state.followTail[sessionId]) {
-          this.markSeen(sessionId, nextLastSeq);
-        } else {
-          this.bumpNewEvents(sessionId, appended.added);
-        }
+      if (
+        appended.added > 0 &&
+        this.state.selection?.id === sessionId &&
+        this.state.followTail[sessionId]
+      ) {
+        this.markSeen(sessionId, nextLastSeq);
       }
     }
     this.markReplayBoundary(sessionId, result.events);
@@ -1159,11 +1156,6 @@ export class DashboardStore {
       ...this.state.local,
       lastSeen: { ...this.state.local.lastSeen, [key]: seq },
     });
-    if (this.state.newEvents[sessionId] !== undefined) {
-      const newEvents = { ...this.state.newEvents };
-      delete newEvents[sessionId];
-      this.setState({ newEvents });
-    }
   }
 
   setFollowTail(sessionId: string, value: boolean): void {
@@ -1180,15 +1172,6 @@ export class DashboardStore {
       const session = this.state.sessions[sessionId];
       if (session) this.markSeen(sessionId, session.lastSeq);
     }
-  }
-
-  private bumpNewEvents(sessionId: string, count: number): void {
-    this.setState({
-      newEvents: {
-        ...this.state.newEvents,
-        [sessionId]: (this.state.newEvents[sessionId] ?? 0) + count,
-      },
-    });
   }
 
   /* ---------------------------------------------------------------- */
@@ -1257,12 +1240,12 @@ export class DashboardStore {
       gap,
       loaded: current.loaded,
     });
-    if (appended.added > 0 && this.state.selection?.id === frame.sessionId) {
-      if (!this.state.followTail[frame.sessionId]) {
-        this.bumpNewEvents(frame.sessionId, appended.added);
-      } else {
-        this.markSeen(frame.sessionId, lastSeq);
-      }
+    if (
+      appended.added > 0 &&
+      this.state.selection?.id === frame.sessionId &&
+      this.state.followTail[frame.sessionId]
+    ) {
+      this.markSeen(frame.sessionId, lastSeq);
     }
     this.markReplayBoundary(frame.sessionId, frame.events);
     const notice = latestNotice(frame.events);
@@ -2014,7 +1997,6 @@ export class DashboardStore {
       removedSession: null,
       queue: null,
       focus: null,
-      newEvents: {},
       followTail: {},
     });
     this.addToast({

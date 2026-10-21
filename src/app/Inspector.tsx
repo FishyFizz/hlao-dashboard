@@ -87,7 +87,7 @@ export function Inspector({
 
   return (
     <div className="inspector">
-      <details className="inspector__section inspector__details">
+      <details className="inspector__header">
         <summary>
           <span>{session.backend ? `${session.backend} details` : "provider details"}</span>
         </summary>
