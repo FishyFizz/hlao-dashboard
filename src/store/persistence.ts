@@ -19,6 +19,8 @@ export type InstanceLocalState = {
   lastSeen: Record<string, number>;
   acknowledged: Record<string, string>;
   dismissedNotices: Record<string, number>;
+  /** session local key → earliest retained seq whose eviction banner was dismissed */
+  dismissedEvictions: Record<string, number>;
   filters: InstanceFilters;
   lastBackend: string | null;
   lastCwd: string | null;
@@ -42,6 +44,7 @@ export function emptyInstanceState(): InstanceLocalState {
     lastSeen: {},
     acknowledged: {},
     dismissedNotices: {},
+    dismissedEvictions: {},
     filters: { query: "", sort: "created", showEnded: true },
     lastBackend: null,
     lastCwd: null,
@@ -120,6 +123,7 @@ function sanitizeInstances(value: unknown): Record<string, InstanceLocalState> {
       lastSeen: sanitizeNumbers(source.lastSeen),
       acknowledged: sanitizeStrings(source.acknowledged),
       dismissedNotices: sanitizeNumbers(source.dismissedNotices),
+      dismissedEvictions: sanitizeNumbers(source.dismissedEvictions),
       filters: {
         query: typeof source.filters?.query === "string" ? source.filters.query : "",
         sort: sanitizeSort(source.filters?.sort),

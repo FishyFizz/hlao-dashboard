@@ -9,6 +9,7 @@ import {
 import {
   Check,
   CircleAlert,
+  Copy,
   Info,
   ListTree,
   MessageSquare,
@@ -16,7 +17,7 @@ import {
   Terminal,
   TriangleAlert,
 } from "lucide-react";
-import { Button } from "../components/Button";
+import { Button, IconButton } from "../components/Button";
 import { Handle } from "../components/Status";
 import { cn } from "../lib/cn";
 import {
@@ -36,7 +37,7 @@ import {
 } from "../store/model";
 import { store } from "../store/store";
 import { asWireError, type EventView, type SessionView } from "../wire/protocol";
-import { CopyButton, safeText } from "./ui";
+import { CopyButton, copyWithToast, safeText } from "./ui";
 import { MarkdownText } from "./MarkdownText";
 
 /** True while rendering events restored by ACP session/load. */
@@ -437,6 +438,49 @@ function ToolRow({
     };
   }, [open, sessionId, item.id, firstSeq, lastSeq]);
 
+  // The copy control is always present. A collapsed row may not have the
+  // provider payload yet (live pages redact it), so fetch it on demand rather
+  // than hiding the action until the row is opened.
+  const copyPayload = async () => {
+    let text = payload;
+    if (!text) {
+      attemptedThrough.current = lastSeq;
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await store.loadToolPayload(
+          sessionId,
+          item.id,
+          firstSeq,
+          lastSeq,
+        );
+        setPeek(result);
+        text = [result.input, result.output].filter(Boolean).join("\n\n");
+      } catch (cause) {
+        attemptedThrough.current = -1;
+        const message = asWireError(cause).message;
+        setError(message);
+        store.addToast({
+          tone: "danger",
+          title: "Could not read the provider payload",
+          text: message,
+        });
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (!text) {
+      store.addToast({
+        tone: "info",
+        title: "No provider payload",
+        text: "This call reported no input or output to copy.",
+      });
+      return;
+    }
+    await copyWithToast(text, "tool payload");
+  };
+
   return (
     <EventFrame
       seq={item.seq}
@@ -464,13 +508,15 @@ function ToolRow({
               <span className="tool__turn">turn {item.turn}</span>
             ) : null}
             <span className={`tool__status tool__status--${tone}`}>{item.status}</span>
-            <span className="tool__toggle" aria-hidden="true">
-              {open ? "-" : "+"}
-            </span>
           </button>
-          {payload ? (
-            <CopyButton text={payload} label="tool payload" className="event__copy" />
-          ) : null}
+          <IconButton
+            className="tool__copy"
+            aria-label="Copy tool payload"
+            title="Copy provider payload"
+            onPress={() => void copyPayload()}
+          >
+            <Copy className="icon" />
+          </IconButton>
         </div>
         {open ? (
           <div className="tool__body">

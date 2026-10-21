@@ -589,6 +589,7 @@ export class DashboardStore {
       lastSeen: { ...stored.lastSeen },
       acknowledged: { ...stored.acknowledged },
       dismissedNotices: { ...stored.dismissedNotices },
+      dismissedEvictions: { ...stored.dismissedEvictions },
       filters: { ...stored.filters },
     };
   }
@@ -1954,6 +1955,24 @@ export class DashboardStore {
       tone: "info",
       title: "Notice dismissed locally",
       text: "It remains in the transcript; no server state changed.",
+    });
+  }
+
+  /**
+   * Hide the eviction banner for the boundary currently shown. A later read
+   * that evicts more history gets a new boundary, so the banner returns.
+   */
+  dismissEviction(sessionId: string): void {
+    const session = this.state.sessions[sessionId];
+    const boundary = this.state.events[sessionId]?.earliestRetainedSeq;
+    if (!session || !boundary) return;
+    const key = sessionLocalKey(session);
+    this.setLocal({
+      ...this.state.local,
+      dismissedEvictions: {
+        ...this.state.local.dismissedEvictions,
+        [key]: boundary,
+      },
     });
   }
 

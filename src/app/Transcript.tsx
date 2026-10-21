@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
-import { ArrowDown, Search, WifiOff } from "lucide-react";
-import { Button } from "../components/Button";
+import { ArrowDown, Search, WifiOff, X } from "lucide-react";
+import { Button, IconButton } from "../components/Button";
 import {
   buildRenderItems,
   buildTranscriptRows,
@@ -101,6 +101,8 @@ export function Transcript({
   const lastReadVisible =
     lastSeen > 0 && lastSeen < eventsState.lastSeq && lastSeen >= eventsState.earliestRetainedSeq;
   const lastReadEvicted = lastSeen > 0 && lastSeen < eventsState.earliestRetainedSeq;
+  const evictionDismissed =
+    state.local.dismissedEvictions[key] === eventsState.earliestRetainedSeq;
   const gap = eventsState.gap;
   const showFoot = lastReadVisible || !atBottom || unseen > 0;
   const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
@@ -339,7 +341,7 @@ export function Transcript({
         </span>
       </div>
 
-      {eventsState.truncated ? (
+      {eventsState.truncated && !evictionDismissed ? (
         <div className="banner banner--warn transcript-banner">
           <span className="banner__text">
             History begins at seq {eventsState.earliestRetainedSeq}. Earlier events
@@ -359,6 +361,13 @@ export function Transcript({
               Fork to open history
             </Button>
           ) : null}
+          <IconButton
+            aria-label="Dismiss history banner"
+            title="Dismiss this banner locally; the evicted range is still missing"
+            onPress={() => store.dismissEviction(session.id)}
+          >
+            <X className="icon" />
+          </IconButton>
         </div>
       ) : null}
       {lastReadEvicted ? (

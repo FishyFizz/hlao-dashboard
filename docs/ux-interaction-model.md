@@ -496,9 +496,11 @@ The numbering is stable so implementation and review can refer to it.
 - **TR6 — History is paged and bounded.** Opening a session loads the latest bounded page.
   Older pages load on demand through the backward cursor. When `truncated` is set, show "history
   begins at seq N" at the exact boundary. Never render an evicted gap as if nothing happened.
-  The bounded log is not the whole record: the provider keeps its own transcript. When the
-  session reports a provider id and the supervisor supports `spawn.fork`, the banner offers a
-  fork that opens that transcript; `spawn.resume` is the reattach path after a restart.
+  The banner can be dismissed locally for that boundary; a later read that evicts more history
+  shows it again. The bounded log is not the whole record: the provider keeps its own
+  transcript. When the session reports a provider id and the supervisor supports `spawn.fork`,
+  the banner offers a fork that opens that transcript; `spawn.resume` is the reattach path after
+  a restart.
 - **TR9 — Restored history is marked.** Events with `replay: true` come from ACP
   `session/load`, not from live observation. Mark them (`history` in the gutter), never count
   them as new activity, and keep the `session.resumed` / `session.forked` row visible as the

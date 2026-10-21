@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Tool-call rows keep a coherent header: the payload copy control is always
+  present, including the initial collapsed state. When the live page redacted
+  the payload it is read on demand at copy time instead of being loaded just
+  to reveal a button. The redundant `+`/`-` marker is gone — the whole header
+  is the expand target — and the hover highlight covers the whole header
+  strip, including the copy control.
 - The transcript's unread affordance now counts **new agent messages** instead
   of new events, and the state strip's "New messages" fact uses the same count.
   Streamed chunks that share a message id count once; thoughts, tool calls,
@@ -15,6 +21,17 @@
   Double-clicking the session name opens the rename dialog prefilled with the
   visible label — the operator name, or the provider title for an unnamed
   session; the menu's Rename… action remains the discoverable path.
+- The session actions menu now has **Fork provider session** when the session
+  reports a provider id and the supervisor advertises `spawn.fork`, so the
+  operator no longer has to open the Inspector's Diagnostics block to reach
+  it.
+- The transcript's eviction banner is dismissible locally. The dismissal is
+  keyed to the boundary it describes, so it stays hidden for that evicted
+  range and returns if a later read evicts more history.
+- Removed the session state strip's "+ More" reveal. Its facts live in the
+  Inspector's provider details — mode, cwd, agent, cost, instance, and last
+  stop were already there, and created/ended were added — so the strip keeps
+  only the at-a-glance facts.
 - The Inspector no longer stretches its grid rows with `min-height: 100%`,
   which was distributing the aside's height as dead gaps between sections. Its
   top bar is a standalone header instead of a reused section/details block:

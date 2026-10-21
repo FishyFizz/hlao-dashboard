@@ -1,12 +1,10 @@
 import type { ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
-import { cn } from "../lib/cn";
 import { canUse, type DashboardState } from "../store/store";
 import {
   contextPercent,
   countNewAgentMessages,
   formatAge,
-  formatCost,
   formatDateTime,
   formatElapsed,
   formatTokens,
@@ -16,7 +14,6 @@ import {
 import type { SessionView } from "../wire/protocol";
 import { CAPABILITIES } from "../wire/protocol";
 import { useNow } from "./hooks";
-import { CopyButton } from "./ui";
 
 export function StateStrip({
   state,
@@ -27,10 +24,6 @@ export function StateStrip({
 }) {
   const now = useNow();
   const percent = contextPercent(session.usage ?? null);
-  const mode =
-    session.modes?.availableModes.find(
-      (candidate) => candidate.id === session.modes?.currentModeId,
-    ) ?? null;
   const lastSeen = state.local.lastSeen[sessionLocalKey(session)] ?? 0;
   const newMessages = countNewAgentMessages(
     state.events[session.id]?.events ?? [],
@@ -41,9 +34,6 @@ export function StateStrip({
     (session.status === "busy" || session.status === "waiting_permission")
       ? formatElapsed(session.turnStartedAt, now)
       : null;
-  const endedElapsed = session.endedAt
-    ? formatElapsed(session.createdAt, now, session.endedAt)
-    : null;
 
   return (
     <div className="state-strip" aria-label="Session state">
@@ -105,46 +95,6 @@ export function StateStrip({
             title="Agent messages since the local read cursor"
           />
         ) : null}
-
-        <details className="state-more">
-          <summary title="Mode, cwd, agent, cost, time, instance">More</summary>
-          <div className="state-more__grid">
-            <Fact
-              label="Mode"
-              value={
-                session.modes
-                  ? (mode?.name ?? session.modes.currentModeId)
-                  : "not advertised"
-              }
-              title={mode?.description}
-            />
-            <Fact label="Cwd" value={session.cwd} mono copy />
-            <Fact
-              label="Agent"
-              value={
-                session.agentName
-                  ? `${session.agentName}${session.agentVersion ? `@${session.agentVersion}` : ""}`
-                  : "not reported"
-              }
-              mono
-            />
-            <Fact label="Reported cost" value={formatCost(session.usage ?? null)} />
-            <Fact label="Created" value={formatDateTime(session.createdAt)} />
-            {session.endedAt ? (
-              <Fact
-                label="Ended"
-                value={`${formatDateTime(session.endedAt)} · ${endedElapsed}`}
-              />
-            ) : null}
-            {session.createdBy ? (
-              <Fact label="Created by" value={session.createdBy} />
-            ) : null}
-            <Fact label="Instance" value={state.home} mono />
-            {session.lastStopReason ? (
-              <Fact label="Last stop" value={session.lastStopReason} mono />
-            ) : null}
-          </div>
-        </details>
       </div>
     </div>
   );
@@ -153,23 +103,16 @@ export function StateStrip({
 function Fact({
   label,
   value,
-  mono,
-  copy,
   title,
 }: {
   label: string;
   value: ReactNode;
-  mono?: boolean;
-  copy?: boolean;
   title?: string;
 }) {
   return (
     <div className="state-fact" title={title}>
       <span className="state-fact__label">{label}</span>
-      <span className={cn("state-fact__value", mono && "mono")}>{value}</span>
-      {copy && typeof value === "string" ? (
-        <CopyButton text={value} label={label} className="state-fact__copy" />
-      ) : null}
+      <span className="state-fact__value">{value}</span>
     </div>
   );
 }

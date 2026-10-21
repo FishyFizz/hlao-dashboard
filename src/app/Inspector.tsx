@@ -18,6 +18,7 @@ import {
   displayLabel,
   formatCost,
   formatDateTime,
+  formatElapsed,
   formatTokens,
   isTerminalStatus,
   parentOf,
@@ -61,6 +62,9 @@ export function Inspector({
   const pendingPolicy = Boolean(state.pending.policy);
   const pendingMode = Boolean(state.pending.mode);
   const terminal = state.removed || isTerminalStatus(session.status);
+  const endedElapsed = session.endedAt
+    ? formatElapsed(session.createdAt, Date.now(), session.endedAt)
+    : null;
 
   const spawnProvider = (
     target: SessionView,
@@ -112,6 +116,18 @@ export function Inspector({
             <Row label="first prompt" value={session.firstPrompt} />
           ) : null}
           <Row label="created by" value={session.createdBy ?? "not reported"} />
+          <Row
+            label="created"
+            value={formatDateTime(session.createdAt)}
+            mono
+          />
+          {session.endedAt ? (
+            <Row
+              label="ended"
+              value={`${formatDateTime(session.endedAt)}${endedElapsed ? ` · ${endedElapsed}` : ""}`}
+              mono
+            />
+          ) : null}
           <Row label="instance" value={state.home} mono />
         </div>
         {canMessages ? (

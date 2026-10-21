@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   CircleAlert,
   Download,
+  GitFork,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -22,6 +23,7 @@ import { Handle, Status, Tag } from "../components/Status";
 import { cn } from "../lib/cn";
 import {
   attentionItems,
+  canUse,
   store,
   type DashboardState,
 } from "../store/store";
@@ -33,6 +35,7 @@ import {
   isTerminalStatus,
 } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
+import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { cli } from "./cli";
 import { exportTranscript } from "./export";
 import { Composer } from "./Composer";
@@ -82,6 +85,24 @@ export function SessionLens({
   const terminal = isTerminalStatus(session.status);
   const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const active = session.status === "busy" || session.status === "waiting_permission";
+  const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
+  const forkProvider = () => {
+    const providerId = session.agentSessionId;
+    if (providerId === null) return;
+    void store
+      .spawnSession({
+        backend: session.backend,
+        cwd: session.cwd,
+        forkSessionId: providerId,
+      })
+      .catch((cause: unknown) => {
+        store.addToast({
+          tone: "danger",
+          title: "Fork failed",
+          text: asWireError(cause).message,
+        });
+      });
+  };
 
   return (
     <div className="session-lens" ref={lensRef}>
@@ -170,6 +191,9 @@ export function SessionLens({
                       case "details":
                         onDetails();
                         break;
+                      case "fork-provider":
+                        forkProvider();
+                        break;
                       case "close-subtree":
                         onCloseSubtree();
                         break;
@@ -206,6 +230,16 @@ export function SessionLens({
                     <PanelRight className="icon" />
                     Session details
                   </MenuItem>
+                  {session.agentSessionId && canForkProvider ? (
+                    <MenuItem
+                      className="menu__item"
+                      id="fork-provider"
+                      textValue="Fork provider session"
+                    >
+                      <GitFork className="icon" />
+                      Fork provider session
+                    </MenuItem>
+                  ) : null}
                   <Separator className="menu__sep" />
                   {session.status === "failed" ? (
                     <MenuItem className="menu__item" id="ack" textValue="Acknowledge failure">
