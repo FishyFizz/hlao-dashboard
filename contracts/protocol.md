@@ -259,7 +259,7 @@ The token is the instance boundary.
   compatible with an older client; a newer client must use capabilities or version checks
   before relying on an addition.
 - `capabilities` lists additive features this supervisor implements. Unknown capabilities must
-  be ignored. Known values: `backends.list`, `session.usage`, `read.filters`, `read.before`,
+  be ignored. Known values: `backends.list`, `backends.sessions`, `session.usage`, `read.filters`, `read.before`,
   `wait.multi`, `stream.persistent`, `stream.subscribe`, `stream.resume`, `wait.settled`,
   `wait.filters`, `session.settled`, `session.lastEvent`, `send.messageId`, `send.idempotency`,
   `spawn.idempotency`, `spawn.createdBy`, `supervisor.lastCrash`, `prompt.injected`,
@@ -319,6 +319,12 @@ The token is the instance boundary.
   are operator-only. There is no compatibility shim: a major-3 client requires major equality
   and reports `version_mismatch` for a 2.x supervisor, which the operator stops with the old
   client before starting 3.0. Queue and timeout rules are below.
+- **3.1** adds provider session discovery: `backends.sessions`, which reads the adapter's
+  own `session/list` for a backend and an optional cwd, joined to the live table. New types
+  `ProviderSessionsParams`, `ProviderSessionView`, and `ProviderSessionsResult`; new
+  capability `backends.sessions`. The read creates no HLAO session and stores no mapping. A
+  resume or fork keeps the provider's mode; `defaultMode` applies to new sessions only. A
+  3.0 client that does not call the method is unaffected.
 
 ## Client model
 
@@ -415,6 +421,7 @@ Method index:
 |---|---|---|
 | `hello` | `HelloParams` | `HelloResult` |
 | `backends.list` | `{ cwd? }` | `{ backends: AgentView[] }` |
+| `backends.sessions` | `{ backend, cwd?, cursor? }` | `ProviderSessionsResult` |
 | `sessions.spawn` | `SpawnParams` | `SpawnResult` |
 | `sessions.list` | `{ includeClosed?, cwd? }` | `{ sessions: SessionView[] }` |
 | `sessions.get` | `{ sessionId }` | `{ session: SessionView }` |
@@ -514,6 +521,51 @@ type AgentView = {
 };
 ```
 
+### `backends.sessions`
+
+Params:
+
+```ts
+{
+  backend: string;
+  cwd?: string;      // absolute cwd filter; omit to read across cwds
+  cursor?: string;   // opaque cursor from an earlier nextCursor
+}
+```
+
+Result:
+
+```ts
+{
+  backend: string;
+  cwd: string | null;
+  agentName: string | null;
+  agentVersion: string | null;
+  sessions: ProviderSessionView[];
+  nextCursor: string | null;
+}
+
+type ProviderSessionView = {
+  sessionId: string;         // the provider's durable id, not an HLAO id
+  cwd: string;
+  title: string | null;
+  updatedAt: string | null;
+  attached: boolean;         // a non-terminal HLAO session holds this provider id
+  hlaoSessionId: string | null;
+  hlaoName: string | null;
+  hlaoStatus: SessionStatus | null;
+  loadable: boolean;         // the adapter advertises ACP loadSession
+  forkable: boolean;         // the adapter advertises ACP session/fork
+};
+```
+
+This reads the provider's own catalog through ACP `session/list`; it is not an HLAO
+session list and it stores no mapping. The supervisor starts a short-lived adapter and
+kills it after the read. `attached` is a live lookup by provider id; a row without it is
+provider-only and must not be presented as an HLAO session. A provider session already
+live in this instance is marked attached; adopting it through `sessions.spawn` returns a
+duplicate instead of opening a second adapter.
+
 ### `sessions.spawn`
 
 Params:
@@ -595,7 +647,8 @@ The source is never modified and keeps its own id; the new session gets a provid
 id and `SessionView.forkedFrom` records the source. When the backend also advertises
 `loadSession`, HLAO immediately loads the new session so the copied history is replayed with
 `replay: true`; otherwise the fork starts with the copied context but sends no history.
-`resumeSessionId` and `forkSessionId` are mutually exclusive.
+`resumeSessionId` and `forkSessionId` are mutually exclusive. A resume or fork keeps the
+provider's persisted mode; `BackendManifest.defaultMode` applies to new sessions only.
 
 ### `sessions.list`
 

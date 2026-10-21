@@ -42,6 +42,7 @@ import type {
   NotificationFrame,
   PermitParams,
   PermitResult,
+  ProviderSessionsResult,
   QueueDropResult,
   QueueResult,
   ReadResult,
@@ -1817,6 +1818,30 @@ export class DashboardStore {
       "backends.list",
       cwd ? { cwd } : {},
     );
+  }
+
+  /**
+   * Read the provider's own session catalog. This is an on-demand read: it
+   * starts an adapter and creates no HLAO session. Call it when the operator
+   * opens the provider-session surface, not on every render.
+   */
+  async listProviderSessions(
+    backend: string,
+    cwd?: string,
+    cursor?: string,
+  ): Promise<ProviderSessionsResult> {
+    const transport = this.transport;
+    if (!transport) {
+      throw {
+        code: "bridge_unavailable",
+        message: "Not connected.",
+      } satisfies WireError;
+    }
+    return transport.request<ProviderSessionsResult>("backends.sessions", {
+      backend,
+      ...(cwd ? { cwd } : {}),
+      ...(cursor ? { cursor } : {}),
+    });
   }
 
   async listDirectories(path?: string): Promise<DirectoryListing> {

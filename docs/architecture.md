@@ -26,7 +26,7 @@ shapes against a simulated supervisor. Demo mode is always named in the UI.
 
 | Path | Responsibility | Public surface |
 |---|---|---|
-| `src/wire/protocol.ts` | Wire 3.0 types, capabilities, permission-queue and mode shapes, status language | types + `hasCapability`, `statusLabel` |
+| `src/wire/protocol.ts` | Wire 3.1 types, capabilities, permission-queue, mode, and provider-catalog shapes, status language | types + `hasCapability`, `statusLabel` |
 | `src/wire/transport.ts` | Browser bridge transport | `SupervisorTransport`, `BridgeTransport` |
 | `src/demo/demoSupervisor.ts` | Simulated supervisor and demo transport | `DemoTransport` (request/notification contract) |
 | `src/store/model.ts` | Pure rules: attention, grouping, event merge, formatting, target resolution, transcript coalescing | exported functions only |
@@ -96,11 +96,20 @@ or mode action. Two actions are client assemblies and are labelled as such:
 
 No client-side task, job, workflow, or rollup status exists.
 
+Provider session discovery is a wire read, not a client cache. When the
+supervisor advertises `backends.sessions`, the spawn form reads the provider's
+own catalog on demand and joins it to the live views the dashboard already
+has. A provider-only row is labelled as such; the dashboard never invents an
+HLAO session for it. The read starts an adapter, so it is loaded when the
+provider-session surface opens, not on every render. Without the capability,
+the form keeps the manual provider-id input. The dashboard persists no
+provider-to-agent mapping.
+
 ## Tests
 
 `src/store/model.test.ts` covers attention ranking and cycling, local
 acknowledgements, target resolution ambiguity, event sequencing, transcript
-coalescing (including whitespace-only chunks), the demo supervisor's wire 3.0
+coalescing (including whitespace-only chunks), the demo supervisor's wire 3.1
 hello/default-mode projection, and its parallel permission queue (request-id
 answering, multi-pending errors, and the removed policy method).
 `src/store/store.test.ts` covers the notification coalescing window.

@@ -459,6 +459,35 @@ export type QueueDropResult = {
   discarded: number;
 };
 export type BackendsListResult = { backends: AgentView[] };
+
+/** A provider-owned session row, live-joined to this instance (wire 3.1). */
+export type ProviderSessionView = {
+  sessionId: string;
+  cwd: string;
+  title: string | null;
+  updatedAt: string | null;
+  attached: boolean;
+  hlaoSessionId: string | null;
+  hlaoName: string | null;
+  hlaoStatus: SessionStatus | null;
+  loadable: boolean;
+  forkable: boolean;
+};
+
+export type ProviderSessionsParams = {
+  backend: string;
+  cwd?: string;
+  cursor?: string;
+};
+
+export type ProviderSessionsResult = {
+  backend: string;
+  cwd: string | null;
+  agentName: string | null;
+  agentVersion: string | null;
+  sessions: ProviderSessionView[];
+  nextCursor: string | null;
+};
 export type ReloadResult = { configHash: string; configError: string | null };
 export type ShutdownResult = {
   sessionsClosed: number;
@@ -468,6 +497,7 @@ export type ShutdownResult = {
 export type RpcMethod =
   | "hello"
   | "backends.list"
+  | "backends.sessions"
   | "sessions.spawn"
   | "sessions.list"
   | "sessions.get"
@@ -490,7 +520,7 @@ export type RpcMethod =
   | "dashboard.fs.list";
 
 export const WIRE_MAJOR = 3;
-export const WIRE_MINOR = 0;
+export const WIRE_MINOR = 1;
 
 /** The live hello's version, or the version this client speaks when offline. */
 export function wireVersionLabel(version?: ProtocolVersion | null): string {
@@ -499,6 +529,7 @@ export function wireVersionLabel(version?: ProtocolVersion | null): string {
 
 export const CAPABILITIES = {
   backendsList: "backends.list",
+  providerSessions: "backends.sessions",
   pendingPermissions: "session.pendingPermissions",
   permitRequest: "permit.request",
   usage: "session.usage",

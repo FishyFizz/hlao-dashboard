@@ -6,7 +6,7 @@ the behaviour it owes the operator. **Not in scope:** stack, component library, 
 pixel layout, or internal implementation. Those are decided elsewhere; this document only pins
 the contract the interface must satisfy.
 
-**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 3.0). The client
+**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 3.1). The client
 posture is `README.md` and the parent `docs/protocol-stability.md`. Product intent is the
 parent `docs/PRODUCT.md`. If this document and the wire disagree, the wire wins; if this
 document and product intent disagree, product intent wins.
@@ -635,11 +635,19 @@ The numbering is stable so implementation and review can refer to it.
   defaults or freezes choices before the operator sees them.
 - **SP2 — Fields and defaults.** Backend (required), cwd (explicit; empty means "supervisor
   default" and is labelled as such), name (optional), first prompt (optional), the selected
-  backend's operator `defaultMode` (shown as a default; "provider default" when unset), parent
-  (default root; explicit child option), skill pointer (default on), and advanced provider
-  values only when the operator chooses to open them. There is no permission-policy field.
-  The wire's operator-only spawn `mode` is not exposed pre-spawn by this client; a mode is set
-  after spawn from the advertised values.
+  backend's operator `defaultMode` (shown as a new-session default; "provider default" when
+  unset), parent (default root; explicit child option), skill pointer (default on), and
+  advanced provider values only when the operator chooses to open them. There is no
+  permission-policy field. The wire's operator-only spawn `mode` is not exposed pre-spawn by
+  this client; a mode is set after spawn from the advertised values.
+- **SP2b — Provider sessions are chosen from the provider's catalog when available.** If the
+  supervisor advertises `backends.sessions`, read the provider's own rows on demand and show
+  provider id, title, cwd, age, and live attachment. Selecting a row fills the id and its cwd;
+  a cwd edit that disagrees with the row is refused. A provider-only row is labelled as such,
+  and adopting it creates a new HLAO session — never restore an old HLAO name or handle. Keep
+  the manual id and the live-session datalist for an older supervisor or an unlisted row.
+  Resuming or forking keeps the provider's persisted mode; only a new session uses the
+  backend `defaultMode`.
 - **SP3 — Backends are discovered, not assumed.** Use `backends.list`; unavailable backends are
   listed with the reason and cannot be submitted. When the spawn cwd changes, refresh
   `backends.list` with that cwd so project-config backends and availability are current. If the
@@ -649,8 +657,10 @@ The numbering is stable so implementation and review can refer to it.
 - **SP4 — Defaults are honest.** Show what the dashboard will send and label anything left to
   the supervisor as a default. If the wire does not report the supervisor's cwd or the
   backend's `defaultMode`, say "supervisor default" / "provider default" rather than displaying
-  a guessed value as if it were effective. The effective mode is resolved by the supervisor as
-  operator spawn `mode` → backend `defaultMode` → the provider's own default.
+  a guessed value as if it were effective. For a new session the effective mode is resolved
+  by the supervisor as operator spawn `mode` → backend `defaultMode` → the provider's own
+  default. A resumed or forked session keeps the provider's persisted mode; the backend
+  default is not applied to a reattached conversation.
 - **SP5 — Retry is safe.** Generate an idempotency key per spawn attempt; a retry after a
   dropped response must not create a second session. If a duplicate is returned, select the
   existing session and say so.
@@ -1063,8 +1073,11 @@ semantics the wire does not have, or turn the dashboard into a different product
 
 - A scheduler, cron UI, workflow graph, DAG editor, task board, kanban, backlog, or ticket
   system.
-- A durable transcript store, cross-restart recovery, or "resume after crash" (P0-14).
-  The dashboard reports the loss; it does not pretend to recover it.
+- A durable transcript store or automatic job recovery. The dashboard reports the loss and
+  offers the provider resume/fork path; it does not pretend to reconstruct old HLAO state.
+- A persisted provider-to-agent registry, an HLAO session index, or automatic job-tree
+  recovery. The dashboard reads the provider's catalog on demand and labels provider-only
+  rows; it stores no mapping and restores no old identity.
 - A global registry, cross-instance federation, or multi-user server.
 - Tags, projects, teams, assignments, or any taxonomy the agents do not share. Names and the
   root subtree are the available organization.

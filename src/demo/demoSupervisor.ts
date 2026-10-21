@@ -19,6 +19,8 @@ import type {
   NotificationFrame,
   PermissionView,
   PermitResult,
+  ProviderSessionView,
+  ProviderSessionsResult,
   QueueDropResult,
   QueueItemView,
   QueueResult,
@@ -227,6 +229,8 @@ export class DemoSupervisor {
         return this.hello();
       case "backends.list":
         return this.backends();
+      case "backends.sessions":
+        return this.providerSessions(params);
       case "sessions.list":
         return this.list(params.includeClosed === true);
       case "sessions.get":
@@ -1152,9 +1156,10 @@ export class DemoSupervisor {
 
   private hello(): HelloResult {
     return {
-      protocolVersion: { major: 3, minor: 0 },
+      protocolVersion: { major: 3, minor: 1 },
       capabilities: [
         "backends.list",
+        "backends.sessions",
         "session.pendingPermissions",
         "permit.request",
         "session.usage",
@@ -1190,10 +1195,56 @@ export class DemoSupervisor {
       ],
       pid: 4242,
       startedAt: this.startedAt,
-      version: "0.15.0-demo",
+      version: "0.16.0-demo",
       sessions: this.sessions.size,
       configHash: "demo-config",
       stream: { persistent: true },
+    };
+  }
+
+  private providerSessions(params: Record<string, unknown>): ProviderSessionsResult {
+    const backend = String(params.backend ?? "");
+    const cwd = typeof params.cwd === "string" && params.cwd.length > 0
+      ? params.cwd
+      : null;
+    const rows: ProviderSessionView[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.backend !== backend || !session.agentSessionId) continue;
+      rows.push({
+        sessionId: session.agentSessionId,
+        cwd: session.cwd,
+        title: session.title ?? null,
+        updatedAt: session.lastActivityAt,
+        attached:
+          session.status !== "closed" && session.status !== "failed",
+        hlaoSessionId: session.id,
+        hlaoName: session.name,
+        hlaoStatus: session.status,
+        loadable: true,
+        forkable: true,
+      });
+    }
+    const backendCwd = rows[0]?.cwd ?? "D:\\work\\svc";
+    rows.push({
+      sessionId: `demo-provider-${backend || "unknown"}-1`,
+      cwd: backendCwd,
+      title: "Earlier investigation",
+      updatedAt: ago(this.now, 3 * HOUR),
+      attached: false,
+      hlaoSessionId: null,
+      hlaoName: null,
+      hlaoStatus: null,
+      loadable: true,
+      forkable: true,
+    });
+    return {
+      backend,
+      cwd,
+      agentName: "demo-agent",
+      agentVersion: "1.0.0",
+      sessions:
+        cwd === null ? rows : rows.filter((row) => row.cwd === cwd),
+      nextCursor: null,
     };
   }
 

@@ -12,13 +12,29 @@ import {
   type DashboardState,
   type DirectoryListing,
 } from "../store/store";
-import type { AgentView } from "../wire/protocol";
+import type { AgentView, ProviderSessionView } from "../wire/protocol";
 import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { isTerminalStatus } from "../store/model";
 import { newId } from "../lib/id";
 import { DialogShell } from "./DialogShell";
 import { CwdBrowser } from "./CwdBrowser";
 import { SelectField, ToggleRow } from "./ui";
+
+/**
+ * Compare the form cwd with the provider row's cwd without a path module in
+ * the browser. Windows drive paths are case-insensitive; separators and a
+ * trailing slash are normalized.
+ */
+function sameCwd(left: string, right: string): boolean {
+  const normalize = (value: string) => value.trim().replace(/[\\/]+$/, "");
+  const a = normalize(left);
+  const b = normalize(right);
+  const windows = /^[A-Za-z]:/.test(a) || /^[A-Za-z]:/.test(b);
+  if (!windows) return a === b;
+  return (
+    a.replace(/\//g, "\\").toLowerCase() === b.replace(/\//g, "\\").toLowerCase()
+  );
+}
 
 export function SpawnDialog({
   open,
@@ -37,6 +53,14 @@ export function SpawnDialog({
   const [skill, setSkill] = useState(true);
   const [providerMode, setProviderMode] = useState<"new" | "resume" | "fork">("new");
   const [providerId, setProviderId] = useState("");
+  const [providerRows, setProviderRows] = useState<ProviderSessionView[]>([]);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+  const [selectedProviderRow, setSelectedProviderRow] = useState("");
+  const [selectedProviderSnapshot, setSelectedProviderSnapshot] =
+    useState<ProviderSessionView | null>(null);
+  const [providerAll, setProviderAll] = useState(false);
+  const [providerRefresh, setProviderRefresh] = useState(0);
   const [backends, setBackends] = useState<AgentView[] | null>(null);
   const [backendsError, setBackendsError] = useState<string | null>(null);
   const [loadingBackends, setLoadingBackends] = useState(false);
@@ -47,15 +71,22 @@ export function SpawnDialog({
   const [browseLoading, setBrowseLoading] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
   const backendList = useRef(0);
+  const providerLookup = useRef(0);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
   const pending = Boolean(state.pending.spawn);
   const supportsBackends = canUse(state, CAPABILITIES.backendsList);
+  const supportsProviderCatalog = canUse(state, CAPABILITIES.providerSessions);
   const supportsIdempotency = canUse(state, CAPABILITIES.spawnIdempotency);
   const supportsResume = canUse(state, CAPABILITIES.spawnResume);
   const supportsFork = canUse(state, CAPABILITIES.spawnFork);
   const providerSessions = Object.values(state.sessions).filter(
     (session) => Boolean(session.agentSessionId),
   );
+  const chosenProvider =
+    providerRows.find((row) => row.sessionId === providerId.trim()) ??
+    (selectedProviderSnapshot?.sessionId === providerId.trim()
+      ? selectedProviderSnapshot
+      : undefined);
   const configError = state.instance?.configError ?? null;
   const parentChoices = Object.values(state.sessions).filter(
     (session) => !isTerminalStatus(session.status),
@@ -89,6 +120,13 @@ export function SpawnDialog({
     setSkill(true);
     setProviderMode("new");
     setProviderId("");
+    setProviderRows([]);
+    setProviderError(null);
+    setProviderLoading(false);
+    setSelectedProviderRow("");
+    setSelectedProviderSnapshot(null);
+    setProviderAll(false);
+    setProviderRefresh(0);
     setError(null);
     setDetails(null);
     setBrowseOpen(false);
@@ -130,6 +168,76 @@ export function SpawnDialog({
     return () => window.clearTimeout(timer);
   }, [open, cwd, supportsBackends]);
 
+  // The provider catalog is an on-demand read that starts an adapter. Load it
+  // only when the operator is actually choosing a provider session.
+  useEffect(() => {
+    if (!open || providerMode === "new" || !supportsProviderCatalog) return;
+    if (!backend.trim()) {
+      setProviderRows([]);
+      return;
+    }
+    const token = ++providerLookup.current;
+    const timer = window.setTimeout(() => {
+      setProviderLoading(true);
+      setProviderError(null);
+      void store
+        .listProviderSessions(
+          backend.trim(),
+          providerAll ? undefined : cwd.trim() || undefined,
+        )
+        .then((result) => {
+          if (token !== providerLookup.current) return;
+          setProviderRows(result.sessions);
+          setProviderLoading(false);
+          setSelectedProviderRow((current) =>
+            result.sessions.some((row) => row.sessionId === current)
+              ? current
+              : "",
+          );
+          // Keep the selected row's cwd/mode for validation even when a later
+          // catalog page no longer lists it.
+          setSelectedProviderSnapshot((current) => {
+            if (current === null) return null;
+            return (
+              result.sessions.find(
+                (row) => row.sessionId === current.sessionId,
+              ) ?? current
+            );
+          });
+        })
+        .catch((cause: unknown) => {
+          if (token !== providerLookup.current) return;
+          setProviderLoading(false);
+          setProviderRows([]);
+          setProviderError(asWireError(cause).message);
+        });
+    }, 320);
+    return () => window.clearTimeout(timer);
+    // Intentionally not keyed on cwd: each catalog read starts an adapter, and
+    // editing the cwd must not drop the row the operator just selected. The
+    // explicit Refresh control re-scopes to the current cwd (or all cwds).
+  }, [open, providerMode, backend, providerAll, providerRefresh, supportsProviderCatalog]);
+
+  const chooseProviderRow = (sessionId: string) => {
+    setSelectedProviderRow(sessionId);
+    const row = providerRows.find((candidate) => candidate.sessionId === sessionId);
+    if (row === undefined) return;
+    setProviderId(row.sessionId);
+    setSelectedProviderSnapshot(row);
+    // The provider row's cwd is the safe default; a later edit is validated
+    // against it before the spawn request is sent.
+    setCwd(row.cwd);
+    setError(null);
+  };
+
+  const selectedRowUsable =
+    chosenProvider === undefined ||
+    (providerMode === "resume"
+      ? chosenProvider.loadable
+      : providerMode === "fork"
+        ? chosenProvider.forkable
+        : true);
+
   const signature = JSON.stringify({
     backend,
     cwd,
@@ -168,7 +276,31 @@ export function SpawnDialog({
         setError("This supervisor does not advertise spawn.fork.");
         return;
       }
+      if (chosenProvider !== undefined) {
+        if (providerMode === "resume" && !chosenProvider.loadable) {
+          setError(
+            `The adapter did not advertise loadSession for ${chosenProvider.sessionId}; it cannot be resumed.`,
+          );
+          return;
+        }
+        if (providerMode === "fork" && !chosenProvider.forkable) {
+          setError(
+            `The adapter did not advertise session/fork for ${chosenProvider.sessionId}; it cannot be copied.`,
+          );
+          return;
+        }
+        if (cwd.trim() && !sameCwd(cwd, chosenProvider.cwd)) {
+          setError(
+            `Provider session ${chosenProvider.sessionId} belongs to ${chosenProvider.cwd}. Clear the working directory to use the provider's cwd, or choose a different session.`,
+          );
+          return;
+        }
+      }
     }
+    const effectiveCwd =
+      providerMode !== "new" && chosenProvider !== undefined
+        ? chosenProvider.cwd
+        : cwd.trim() || undefined;
     if (attempt.current?.signature !== signature) {
       attempt.current = { signature, key: newId("spawn") };
     }
@@ -176,7 +308,7 @@ export function SpawnDialog({
     void store
       .spawnSession({
         backend: backend.trim(),
-        ...(cwd.trim() ? { cwd: cwd.trim() } : {}),
+        ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         ...(name.trim() ? { name: name.trim() } : {}),
         ...(prompt.trim() ? { prompt, wait: false } : {}),
         ...(parent ? { parentSessionId: parent } : {}),
@@ -224,6 +356,7 @@ export function SpawnDialog({
               Boolean(configError) ||
               noBackends ||
               (supportsBackends && loadingBackends) ||
+              !selectedRowUsable ||
               (selectedBackend ? !selectedBackend.available : false)
             }
           >
@@ -308,9 +441,11 @@ export function SpawnDialog({
           )}
           {selectedBackend ? (
             <span className="caption">
-              {selectedBackend.defaultMode
-                ? `Starts in the backend default mode “${selectedBackend.defaultMode}”; change it after spawn.`
-                : "No backend default mode is set; the provider chooses the start mode."}
+              {providerMode === "new"
+                ? selectedBackend.defaultMode
+                  ? `New sessions start in the backend default mode “${selectedBackend.defaultMode}”; change it after spawn.`
+                  : "No backend default mode is set; the provider chooses the start mode for a new session."
+                : "A resumed or forked session keeps the provider's persisted mode."}
             </span>
           ) : null}
         </div>
@@ -365,6 +500,12 @@ export function SpawnDialog({
               onClose={() => setBrowseOpen(false)}
             />
           ) : null}
+          {providerMode !== "new" && chosenProvider ? (
+            <span className="caption">
+              Provider cwd: <span className="mono">{chosenProvider.cwd}</span>.
+              A different directory is refused before the adapter starts.
+            </span>
+          ) : null}
         </div>
 
         <SelectField
@@ -399,6 +540,107 @@ export function SpawnDialog({
 
         {providerMode !== "new" ? (
           <div className="field form-grid__wide">
+            <span className="field__label">Provider session</span>
+            {supportsProviderCatalog ? (
+              <>
+                <div className="field__with-action">
+                  <select
+                    className="field__input app-select"
+                    value={selectedProviderRow}
+                    aria-label="Provider session from the provider catalog"
+                    disabled={pending || providerLoading || providerRows.length === 0}
+                    onChange={(event) => chooseProviderRow(event.target.value)}
+                  >
+                    <option value="">
+                      {providerLoading
+                        ? "Reading the provider catalog…"
+                        : providerRows.length === 0
+                          ? "No provider sessions reported"
+                          : "— choose a provider session —"}
+                    </option>
+                    {providerRows.map((row) => {
+                      const usable =
+                        providerMode === "resume" ? row.loadable : row.forkable;
+                      const suffix = row.attached
+                        ? ` · live #${row.hlaoSessionId ?? "?"}${
+                            row.hlaoName ? ` (${row.hlaoName})` : ""
+                          }`
+                        : " · provider-only";
+                      return (
+                        <option
+                          key={row.sessionId}
+                          value={row.sessionId}
+                          disabled={!usable}
+                        >
+                          {(row.title ?? row.sessionId)} · {row.cwd}
+                          {suffix}
+                          {usable
+                            ? ""
+                            : providerMode === "resume"
+                              ? " · cannot load"
+                              : " · cannot fork"}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => setProviderRefresh((value) => value + 1)}
+                    isDisabled={pending || providerLoading}
+                    title="Read the provider catalog again"
+                  >
+                    <RefreshCw className="btn__icon icon" />
+                    Refresh
+                  </Button>
+                </div>
+                <span className="caption">
+                  The provider catalog is read on demand. Refresh re-scopes to
+                  the current cwd
+                  {providerAll || !cwd.trim() ? " (all cwds)" : ""}; a selected
+                  row always supplies its own cwd.
+                </span>
+                {providerError ? (
+                  <Notice tone="warn" title="Provider catalog unavailable">
+                    {providerError} Paste the provider id and its original cwd
+                    below.
+                  </Notice>
+                ) : null}
+                {!providerError && !providerLoading && providerRows.length === 0 ? (
+                  <span className="caption">
+                    No provider sessions reported for this backend
+                    {!providerAll && cwd.trim() ? " and working directory" : ""}.
+                    Paste an id below, change the backend, or refresh.
+                  </span>
+                ) : null}
+                <ToggleRow
+                  label="Search all working directories"
+                  description="The catalog is read across cwds; a selected row still supplies its own cwd."
+                  checked={providerAll}
+                  onChange={setProviderAll}
+                  disabled={pending || providerLoading}
+                />
+                {chosenProvider ? (
+                  <span className="caption">
+                    {chosenProvider.attached
+                      ? `Live in this instance as #${chosenProvider.hlaoSessionId ?? "?"}${
+                          chosenProvider.hlaoName
+                            ? ` (${chosenProvider.hlaoName})`
+                            : ""
+                        }. `
+                      : "Provider-only row; adopting it creates a new HLAO session. "}
+                    {providerMode === "fork"
+                      ? "The copy keeps the source untouched."
+                      : "The provider row supplies the cwd and mode."}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <Notice tone="warn" title="Provider discovery is not available">
+                This supervisor predates <span className="mono">backends.sessions</span>.
+                Paste the provider id and its original cwd.
+              </Notice>
+            )}
             <label className="field__label" htmlFor="spawn-provider">
               Provider session id
             </label>
@@ -406,7 +648,15 @@ export function SpawnDialog({
               id="spawn-provider"
               className="field__input"
               value={providerId}
-              onChange={(event) => setProviderId(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setProviderId(value);
+                const row = providerRows.find(
+                  (candidate) => candidate.sessionId === value,
+                );
+                setSelectedProviderRow(row === undefined ? "" : value);
+                setSelectedProviderSnapshot(row ?? null);
+              }}
               placeholder="The id an earlier spawn reported as provider"
               spellCheck={false}
               list="spawn-provider-sessions"
@@ -423,8 +673,8 @@ export function SpawnDialog({
             </datalist>
             <span className="caption">
               {providerMode === "resume"
-                ? "Reopens the provider session and replays its history. The interrupted turn is not replayed; send the prompt again. Pass the original cwd."
-                : "Copies the provider session into a new one. The source keeps running untouched. Pass the original cwd."}
+                ? "Reopens the provider session and replays its history. The interrupted turn is not replayed; send the prompt again. A row chosen from the provider catalog supplies the cwd and mode."
+                : "Copies the provider session into a new one. The source keeps running untouched. A row chosen from the provider catalog supplies the cwd and mode."}
             </span>
           </div>
         ) : null}
@@ -444,20 +694,27 @@ export function SpawnDialog({
           Provider modes, model, and config options are provider-native and may not be
           enumerable before a session exists. A new session starts in the backend’s
           operator default mode when the manifest sets one, then the provider’s own
-          default. Set a different mode after spawn from the values the session
-          advertises. This form deliberately does not invent them.
+          default. A resumed or forked session keeps the provider’s persisted mode.
+          Set a different mode after spawn from the values the session advertises.
+          This form deliberately does not invent them.
         </p>
         <div className="form-advanced__facts">
           <span>
             <span className="caption">effective cwd</span>{" "}
-            <span className="mono">{cwd.trim() || "supervisor default"}</span>
+            <span className="mono">
+              {providerMode !== "new" && chosenProvider
+                ? chosenProvider.cwd
+                : cwd.trim() || "supervisor default"}
+            </span>
           </span>
           <span>
             <span className="caption">provider mode</span>{" "}
             <span className="mono">
-              {selectedBackend?.defaultMode
-                ? `backend default · ${selectedBackend.defaultMode}`
-                : "provider default"}
+              {providerMode !== "new"
+                ? "provider's persisted mode"
+                : selectedBackend?.defaultMode
+                  ? `backend default · ${selectedBackend.defaultMode}`
+                  : "provider default"}
             </span>
           </span>
           <span>

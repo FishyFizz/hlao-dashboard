@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Provider session discovery (wire 3.1).** The spawn form reads the
+  provider's own catalog through `backends.sessions` when the supervisor
+  advertises it: rows show provider id, title, cwd, age, and whether this
+  instance already drives them. Selecting a row fills the provider id and its
+  cwd; a mismatched cwd edit is refused before the request. Provider-only rows
+  are labelled and can be adopted as new HLAO sessions. The manual provider-id
+  input and live-session datalist remain for older supervisors or an unlisted
+  row. The catalog read is on demand (it starts an adapter) and is never
+  persisted by the dashboard.
+- The demo supervisor speaks **3.1** and serves a provider catalog with both
+  attached and provider-only rows, so the picker is exercisable without a real
+  adapter.
+- Resume and fork keep the provider's persisted mode; the spawn form and
+  Inspector now say so, and the backend `defaultMode` is described as a
+  new-session default only.
 - Pinned wire projection updated to **3.0** (breaking). Removed
   `PermissionPolicy`/`SessionView.permissionPolicy`,
   `SessionView.pendingPermission`, `SpawnParams.permissionPolicy`,

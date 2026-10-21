@@ -19,6 +19,7 @@ import type {
   AgentView,
   EventView,
   HelloResult,
+  ProviderSessionsResult,
   SessionView,
 } from "../wire/protocol";
 
@@ -565,12 +566,24 @@ describe("attention navigation", () => {
 });
 
 describe("demo supervisor", () => {
-  it("reports protocol 3.0 capabilities and per-backend default modes", async () => {
+  it("reports protocol 3.1 capabilities and per-backend default modes", async () => {
     const supervisor = new DemoSupervisor(() => {});
     const hello = await supervisor.request<HelloResult>("hello", {});
-    expect(hello.protocolVersion).toEqual({ major: 3, minor: 0 });
+    expect(hello.protocolVersion).toEqual({ major: 3, minor: 1 });
     expect(hello.capabilities).toContain("session.pendingPermissions");
     expect(hello.capabilities).toContain("permit.request");
+    expect(hello.capabilities).toContain("backends.sessions");
+
+    const providers = await supervisor.request<ProviderSessionsResult>(
+      "backends.sessions",
+      { backend: "claude" },
+    );
+    expect(providers.backend).toBe("claude");
+    expect(providers.sessions.some((row) => row.attached)).toBe(true);
+    expect(providers.sessions.some((row) => !row.attached)).toBe(true);
+    const live = providers.sessions.find((row) => row.attached);
+    expect(live?.hlaoSessionId).toBeTruthy();
+    expect(live?.sessionId).toBeTruthy();
 
     const backends = await supervisor.request<{ backends: AgentView[] }>(
       "backends.list",
