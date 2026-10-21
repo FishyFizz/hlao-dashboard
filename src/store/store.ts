@@ -1361,7 +1361,10 @@ export class DashboardStore {
     this.setLocal({ ...this.state.local, drafts });
   }
 
-  async sendPrompt(text: string): Promise<SendResult | null> {
+  async sendPrompt(
+    text: string,
+    options: { steer?: boolean } = {},
+  ): Promise<SendResult | null> {
     const session = selectedSession(this.state);
     const transport = this.transport;
     if (!session || !transport) return null;
@@ -1391,6 +1394,7 @@ export class DashboardStore {
       const result = await transport.request<SendResult>("sessions.send", {
         sessionId: session.id,
         text,
+        ...(options.steer ? { steer: true } : {}),
         ...(messageId ? { messageId } : {}),
         ...(idempotencyKey ? { idempotencyKey } : {}),
       });
@@ -1402,9 +1406,11 @@ export class DashboardStore {
       this.addToast({
         tone: "ok",
         title: sendOutcomeTitle(result, session),
-        text: result.queued
-          ? "It runs after the current turn. The queue snapshot shows its position."
-          : undefined,
+        text: result.steered
+          ? "It was injected into the running turn."
+          : result.queued
+            ? "It runs after the current turn. The queue snapshot shows its position."
+            : undefined,
       });
       void this.refreshQueue(session.id);
       return result;
@@ -2151,6 +2157,7 @@ export class DashboardStore {
 
 function sendOutcomeTitle(result: SendResult, session: SessionView): string {
   if (result.duplicate) return "Prompt was already accepted";
+  if (result.steered) return `Prompt steered into turn ${result.turn ?? session.turn}`;
   if (result.queued) return "Prompt queued";
   return `Prompt sent to turn ${result.turn ?? session.turn + 1}`;
 }

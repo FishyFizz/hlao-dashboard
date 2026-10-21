@@ -554,9 +554,11 @@ The numbering is stable so implementation and review can refer to it.
   orphaned and remains copyable.
 - **CO3 — Confirmed state only.** After send, show "sending" until the response/event confirms
   `queued` or active. Reconcile the outbound message with `messageId`; show it exactly once.
-- **CO4 — Busy is sendable.** Sending while busy is allowed and useful: show "queued" and,
-  when a queue snapshot confirms it, its position; say that it will run after the current turn.
-  The queue item is droppable.
+- **CO4 — Busy is steerable or queueable.** Sending while busy is allowed. When the supervisor
+  advertises `send.steering` and the session reports `steeringSupported`, the primary action is
+  **Steer** (injected into the running turn) and a secondary **Queue** action places the prompt
+  behind the turn. Otherwise the primary action queues the prompt. A queued prompt says it will
+  run after the current turn, and the queue item is droppable.
 - **CO5 — Permission-parked is sendable, with a warning.** A prompt can be queued while
   `waiting_permission`, but say plainly that it will not run until the current turn is
   answered. Do not disable the composer silently.

@@ -21,6 +21,16 @@
   Double-clicking the session name opens the rename dialog prefilled with the
   visible label — the operator name, or the provider title for an unnamed
   session; the menu's Rename… action remains the discoverable path.
+- Pinned wire projection updated to 2.9: `sessions.send` accepts `steer`,
+  `SendResult` gains `steered`, `SessionView` gains `steeringSupported`, the
+  `prompt.steered` event type marks an injected prompt, and the capability is
+  `send.steering`. `contracts/protocol.md` is re-synced from the parent repo.
+  The demo supervisor advertises steering and simulates injection.
+- The composer is the steering entrance. While the agent is in a turn and the
+  adapter reports steering support, the primary action is **Steer** and a
+  secondary **Queue** button appears beside it; Ctrl/Cmd+Enter steers. The
+  "will queue" badge is gone. Without steering support the primary action
+  still queues, and the permission-parked warning is unchanged.
 - The session actions menu now has **Fork provider session** when the session
   reports a provider id and the supervisor advertises `spawn.fork`, so the
   operator no longer has to open the Inspector's Diagnostics block to reach

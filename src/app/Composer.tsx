@@ -24,17 +24,28 @@ export function Composer({
   const terminal = isTerminalStatus(session.status);
   const waiting = session.status === "waiting_permission";
   const busy = session.status === "busy" || session.queued > 0;
+  const inTurn = session.status === "busy" && !terminal;
+  // A steered send silently falls back to the queue when the adapter does not
+  // support mid-turn injection, so only offer it when both sides can steer.
+  const canSteer =
+    inTurn &&
+    canUse(state, CAPABILITIES.sendSteering) &&
+    session.steeringSupported === true;
   const pending = Boolean(state.pending.send);
   const error = state.actionError[`send:${session.id}`];
   const queue = state.queue;
   const queuedCount = queue?.queue.length ?? session.queued;
   const canRetrySafely = canUse(state, CAPABILITIES.sendIdempotency);
   const canSend = !terminal && !pending && draft.trim().length > 0;
-  const label = busy || waiting ? "Queue prompt" : "Send prompt";
+  const label = canSteer
+    ? "Steer the current turn"
+    : busy || waiting
+      ? "Queue prompt"
+      : "Send prompt";
 
-  const submit = () => {
+  const submit = (steer = canSteer) => {
     if (!canSend) return;
-    void store.sendPrompt(draft).then((result) => {
+    void store.sendPrompt(draft, { steer }).then((result) => {
       if (result) textarea.current?.focus();
     });
   };
@@ -107,9 +118,11 @@ export function Composer({
               ? "This session has ended. The draft stays local and copyable."
               : waiting
                 ? "Write a prompt. It will queue until the permission request is answered."
-                : busy
-                  ? "Write a prompt. It runs after the current turn."
-                  : "Write a prompt. Ctrl/Cmd+Enter sends."
+                : canSteer
+                  ? "Write a prompt. Ctrl/Cmd+Enter steers the current turn."
+                  : busy
+                    ? "Write a prompt. It runs after the current turn."
+                    : "Write a prompt. Ctrl/Cmd+Enter sends."
           }
           readOnly={terminal}
           aria-label="Prompt"
@@ -118,7 +131,7 @@ export function Composer({
           onKeyDown={(event) => {
             if (event.key === "Enter" && isMod(event)) {
               event.preventDefault();
-              submit();
+              submit(canSteer);
             }
           }}
         />
@@ -131,11 +144,10 @@ export function Composer({
                 <Tag tone="warn">will not run until answered</Tag>
                 This queues only; it does not answer the request.
               </>
+            ) : canSteer ? (
+              "Steer injects into the current turn · Queue runs after it."
             ) : busy ? (
-              <>
-                <Tag tone="warn">will queue</Tag>
-                Runs after the current turn.
-              </>
+              "Runs after the current turn."
             ) : (
               "Draft stays local · text only."
             )}
@@ -152,11 +164,23 @@ export function Composer({
               Copy
             </Button>
           ) : null}
+          {canSteer ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={!canSend}
+              onPress={() => submit(false)}
+              aria-label="Queue prompt instead of steering"
+              title="Queue this prompt behind the current turn"
+            >
+              Queue
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="primary"
             isDisabled={!canSend}
-            onPress={submit}
+            onPress={() => submit(canSteer)}
             aria-label={label}
             title={
               canRetrySafely
@@ -165,7 +189,15 @@ export function Composer({
             }
           >
             <Send className="btn__icon icon" />
-            {pending ? "Sending…" : terminal ? "Ended" : busy || waiting ? "Queue" : "Send"}
+            {pending
+              ? "Sending…"
+              : terminal
+                ? "Ended"
+                : canSteer
+                  ? "Steer"
+                  : busy || waiting
+                    ? "Queue"
+                    : "Send"}
           </Button>
         </div>
       </div>

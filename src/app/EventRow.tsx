@@ -640,7 +640,11 @@ function SingleEventRow({
   // turn.started is a structural marker; the transcript draws the turn divider.
   if (event.type === "turn.started") return null;
 
-  if (event.type === "prompt.sent" || event.type === "prompt.queued") {
+  if (
+    event.type === "prompt.sent" ||
+    event.type === "prompt.queued" ||
+    event.type === "prompt.steered"
+  ) {
     return (
       <EventFrame
         seq={event.seq}
@@ -655,6 +659,11 @@ function SingleEventRow({
             <>
               <Sep />
               <span>queued behind the active turn</span>
+            </>
+          ) : event.type === "prompt.steered" ? (
+            <>
+              <Sep />
+              <span>steered into the running turn</span>
             </>
           ) : null}
           <MessageIdMeta data={event.data} />

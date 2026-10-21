@@ -61,6 +61,7 @@ export const EVENT_TYPES = [
   "session.renamed",
   "prompt.sent",
   "prompt.queued",
+  "prompt.steered",
   "prompt.discarded",
   "turn.started",
   "turn.ended",
@@ -199,6 +200,8 @@ export type SessionView = {
   firstPrompt?: string | null;
   agentName?: string | null;
   agentVersion?: string | null;
+  /** The adapter accepts mid-turn steering (`_session/steering`). (2.9) */
+  steeringSupported?: boolean;
 };
 
 export type EventView = {
@@ -288,6 +291,8 @@ export type SendParams = {
   timeoutMs?: number;
   messageId?: string;
   idempotencyKey?: string;
+  /** Inject into the running turn when the session and adapter support it (2.9). */
+  steer?: boolean;
 };
 
 export type UnsubscribeResult = { subscription: number; removed: true };
@@ -359,6 +364,8 @@ export type SendResult = {
   session: SessionView;
   messageId: string;
   queued: boolean;
+  /** Injected into the running turn. (2.9) */
+  steered?: boolean;
   turn: number | null;
   completed: boolean;
   timedOut: boolean;
@@ -450,7 +457,7 @@ export type RpcMethod =
   | "dashboard.fs.list";
 
 export const WIRE_MAJOR = 2;
-export const WIRE_MINOR = 8;
+export const WIRE_MINOR = 9;
 
 /** `2.8` for a live hello, or the version this client speaks when offline. */
 export function wireVersionLabel(version?: ProtocolVersion | null): string {
@@ -472,6 +479,7 @@ export const CAPABILITIES = {
   lastEvent: "session.lastEvent",
   sendMessageId: "send.messageId",
   sendIdempotency: "send.idempotency",
+  sendSteering: "send.steering",
   spawnIdempotency: "spawn.idempotency",
   lastCrash: "supervisor.lastCrash",
   compaction: "session.compaction",

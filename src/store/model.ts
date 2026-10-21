@@ -688,6 +688,7 @@ function isMinimalAnchor(item: RenderItem): boolean {
   return (
     type === "prompt.sent" ||
     type === "prompt.queued" ||
+    type === "prompt.steered" ||
     type === "prompt.discarded" ||
     type === "notice" ||
     type === "error" ||

@@ -158,6 +158,7 @@ function baseSession(
     firstPrompt: input.firstPrompt ?? null,
     agentName: input.agentName ?? null,
     agentVersion: input.agentVersion ?? null,
+    steeringSupported: input.steeringSupported ?? true,
   };
 }
 
@@ -1134,7 +1135,7 @@ export class DemoSupervisor {
 
   private hello(): HelloResult {
     return {
-      protocolVersion: { major: 2, minor: 8 },
+      protocolVersion: { major: 2, minor: 9 },
       capabilities: [
         "backends.list",
         "session.usage",
@@ -1153,6 +1154,7 @@ export class DemoSupervisor {
         "session.lastEvent",
         "send.messageId",
         "send.idempotency",
+        "send.steering",
         "spawn.idempotency",
         "spawn.createdBy",
         "supervisor.lastCrash",
@@ -1426,6 +1428,28 @@ export class DemoSupervisor {
       queuedAt: Date.now(),
     };
     if (key) this.idempotency.set(key, messageId);
+
+    if (
+      params.steer === true &&
+      session.status === "busy" &&
+      session.steeringSupported === true
+    ) {
+      this.emit(session.id, "prompt.steered", {
+        text: params.text,
+        from: "operator",
+        messageId,
+        turn: session.turn,
+      });
+      return {
+        session: this.requireSession(session.id),
+        messageId,
+        queued: false,
+        steered: true,
+        turn: session.turn,
+        completed: false,
+        timedOut: false,
+      };
+    }
 
     if (session.status === "busy" || session.status === "waiting_permission" || session.queued > 0) {
       this.enqueue(session.id, prompt);
