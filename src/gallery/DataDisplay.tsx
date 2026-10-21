@@ -118,7 +118,7 @@ export function DataDisplay() {
             </table>
             <div className="table__footer">
               <span>6 of 6 · 2 need attention</span>
-              <span>fleet subscription · wire 2.8</span>
+              <span>fleet subscription · wire 3.0</span>
             </div>
           </div>
         </Specimen>
@@ -246,7 +246,7 @@ export function DataDisplay() {
                       </Button>
                     </div>
                     <span className="permission-card__consequence">
-                      Always also switches the session policy to allow.
+                      Each option answers only this request; the provider mode is unchanged.
                     </span>
                   </div>
                 </div>

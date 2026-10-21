@@ -6,7 +6,7 @@ the behaviour it owes the operator. **Not in scope:** stack, component library, 
 pixel layout, or internal implementation. Those are decided elsewhere; this document only pins
 the contract the interface must satisfy.
 
-**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 2.7). The client
+**Sources of truth.** The pinned wire is `contracts/protocol.md` (protocol 3.0). The client
 posture is `README.md` and the parent `docs/protocol-stability.md`. Product intent is the
 parent `docs/PRODUCT.md`. If this document and the wire disagree, the wire wins; if this
 document and product intent disagree, product intent wins.
@@ -74,18 +74,18 @@ requirement below must be consistent with them.
 
 | ID | Constraint | Consequence for the UX |
 |---|---|---|
-| **C1** | The dashboard is a client, not core. It speaks wire major 2 and feature-detects `hello.capabilities`; it has no private access and adds no server semantics. | The UI cannot offer an action the wire cannot express. Missing capabilities degrade to an explained absence, not a fake control. |
+| **C1** | The dashboard is a client, not core. It speaks wire major 3 and feature-detects `hello.capabilities`; it has no private access and adds no server semantics. | The UI cannot offer an action the wire cannot express. Missing capabilities degrade to an explained absence, not a fake control. |
 | **C2** | The supervisor is the sole authority. Views and event logs are the truth; local state is a cache. | If local and server state disagree, the dashboard is wrong. Replace local state; never reconcile or merge. |
 | **C3** | One HLAO instance — one `HLAO_HOME`, supervisor, socket, token — is one address space and one swarm boundary. | The instance is always identifiable. Handles resolve only inside it. No merged fleets, no cross-instance search, no cross-instance links. |
 | **C4** | There is no durable orchestration store. Live sessions are the state; event logs are bounded memory. | The dashboard may persist *operator* state (preferences, drafts, read markers), never orchestration truth or a transcript-as-authority. |
-| **C5** | `wait` is one-shot; the supervisor owns no timer. Push is observation at the same append point. | The dashboard may be event-driven; it must not imply scheduled checks, background monitoring after exit, or server-side recurrence. |
+| **C5** | `wait` is one-shot and the supervisor runs no recurring timer. The permission relay adds one absolute one-shot deadline per pending request (`permissionTimeoutMs`), not a poll. Push is observation at the same append point. | The dashboard may be event-driven; it must not imply scheduled checks, background monitoring after exit, or server-side recurrence. The permission deadline is bounded and one-shot, not a monitor. |
 | **C6** | Reads speak about orchestration state, not the world. "Is the build done?" belongs to the leaf. | The dashboard never labels a session "done", "stuck", "healthy", or "complete". It shows `settled`, `lastStopReason`, elapsed time, and plan entries as facts. |
 | **C7** | Reads are bounded and cursor-addressed. Eviction is reported through `truncated` / `earliestRetainedSeq`; a stream close is not loss until resume reports truncation. | Gaps are shown where they occur. No view ever pretends history is complete. |
 | **C8** | Event `data` is an open object; unknown event types and fields are expected. | Unknown events render generically. No crash, no silent drop, no dependence on `raw`. |
 | **C9** | Every session is addressable by every caller; `parentId`/`rootId`/`depth` are lineage and context, not authority. | Grouping is a lens, never a permission boundary. Any session can be inspected or acted on regardless of which group it is in. |
 | **C10** | The supervisor token is full operator authority and must never reach a browser origin. | The UI never displays, copies, or puts the token in a link. A browser front end talks to a local bridge and holds no supervisor credential. |
-| **C11** | `permissionPolicy: ask` can park a session indefinitely; the default is `allow`. | Wherever `ask` is chosen or displayed, the consequence is stated. The dashboard never auto-answers a request on the operator's behalf. |
-| **C12** | Provider modes, config options, plan shapes, titles, and usage are provider-native values carried through generic ACP shapes. | Render what the provider advertises. Do not hardcode Claude/Codex model or mode lists. Missing provider state is "not reported", not an error. |
+| **C11** | The provider's mode is the coarse permission policy. Every provider ask is relayed to the operator; the pending queue is bounded (default 16) and a one-shot `permissionTimeoutMs` (default 30m, `0` = park) fails closed at its deadline, never allowing. | The dashboard never auto-answers a request, never offers a second HLAO policy, and never sends an agent identity. Multiple asks are shown as a FIFO queue, and the queue bound and timeout are stated where they matter. |
+| **C12** | Provider modes, config options, plan shapes, titles, and usage are provider-native values carried through generic ACP shapes. A backend manifest may set an operator `defaultMode`. | Render what the provider advertises. Do not hardcode Claude/Codex model or mode lists. Missing provider state is "not reported", not an error. Show `defaultMode` as the backend's operator default, not as a normalized mode value. |
 
 ---
 
@@ -157,8 +157,8 @@ Instance (one HLAO_HOME, one authority)
 │   └── Ended            retained closed/failed
 │
 └── Session lens — one selected session
-    ├── state area       identity · status · turn · queue · policy · usage · plan
-    ├── gate             only when waiting_permission
+    ├── state area       identity · status · turn · queue · mode · pending · usage · plan
+    ├── gate             only when pendingPermissions is non-empty
     ├── transcript       turns · events · paging · gaps · provider state
     ├── composer         draft · send · queue · drop
     └── actions          wire verbs + labelled client assemblies
@@ -182,9 +182,9 @@ are visibly local and never become a new source of truth.
 | **Turn** | `turn`, `turnStartedAt`, `lastStopReason` | The unit of work inside a session. A turn ending is not job completion. |
 | **Event** | `EventView` | One typed fact in a session's history. `seq` is its address. |
 | **Queue item** | `sessions.queue`, `QueueItemView` | A prompt waiting behind the active turn. Visible, ordered, attributable, removable. |
-| **Permission request** | `pendingPermission` | A blocking orchestration state. Answerable by the operator or another session. |
-| **Policy** | `permissionPolicy` | HLAO's `allow`/`ask`/`deny` decision for the session. |
-| **Mode** | `modes` | Provider-native permission mode. Provider-specific values. |
+| **Permission request** | `pendingPermissions` | A blocking orchestration state. A FIFO queue of provider asks, each answerable only by the operator with the provider's own options. |
+| **Mode** | `modes` | Provider-native permission mode and the coarse policy. Operator-only control; provider-specific values. |
+| **Default mode** | `AgentView.defaultMode` | The operator's per-backend default from the manifest. A shown default, not a live session value. |
 | **Config option** | `configOptions` | Provider-native setting (model, reasoning effort, …). Provider-specific values. |
 | **Plan** | `plan` | Provider-reported plan. Display only; never an editable task board. |
 | **Compaction** | `compaction` | Provider context compaction state and summary. |
@@ -240,7 +240,7 @@ judgment.
 
 | Rank | Condition | Why it is attention | Ordering |
 |---|---|---|---|
-| 1 | `status === "waiting_permission"` | The session cannot proceed without an answer. | Oldest `requestedAt` first. |
+| 1 | `status === "waiting_permission"` and `pendingPermissions` non-empty | The session cannot proceed without an operator answer. | Oldest queued `requestedAt` first; all requests remain individually visible in the lens. |
 | 2 | `status === "failed"` and not locally acknowledged | A terminal failure the operator has not seen. | Newest `endedAt` first. |
 | 3 | `notice` with severity `error` (for example, context pressure at 90%) and not locally dismissed | A reported condition that may require operator action. | Newest first. |
 | — | Everything else | Running, idle, starting, closed, ordinary activity. | Not in attention. |
@@ -270,8 +270,12 @@ Rules:
   the fact that another session is blocked.
 - **AT10** If a pending request is resolved by another client while the operator is looking, it
   leaves attention based on the updated view; if that session's events are loaded, the
-  attributed `permission.resolved` event explains it. Not a silent disappearance, and not a
-  locally invented success.
+  attributed `permission.resolved` event explains it. When several requests are queued, the
+  fleet anchor moves to the next oldest; the gate keeps every unresolved request visible. Not
+  a silent disappearance, and not a locally invented success.
+- **AT12** A queue-full or timeout resolution is server state. The dashboard replaces the view
+  and shows the attributed `permission.resolved` event; it never keeps offering a request the
+  supervisor says is gone.
 - **AT11** A new session never steals attention merely by existing. It is marked as new. The
   exception is a session the operator just spawned, which is selected by intent.
 
@@ -335,15 +339,16 @@ Rules:
 - **AC6** Disabled actions explain why they are disabled (wrong status, missing capability,
   ambiguous target, no pending request, session ended).
 - **AC7** Every mutation is attributed in the transcript (`by` / `from`). Operator actions show
-  as the operator; automatic policy answers show `policy:<name>`; other sessions show their
-  handle or label.
+  as the operator; permission timeout and queue-full/system resolutions show their own
+  `by`/`reason`; other sessions show their handle or label. There is no `policy:*` actor.
 - **AC8** Bulk actions are assemblies, not a new primitive: preview the resolved target set,
   show per-target results, and never let one failure silently stop the rest. Bound in-flight
   requests (the supervisor caps a connection at 64) and show queued work and progress.
 - **AC9** Report what changed, not "ok": the discarded count, the close result, the new name
   (with the unchanged handle), the option chosen.
-- **AC10** The dashboard never answers a permission request on the operator's behalf. Server
-  policy may auto-answer; that is shown as an event, not simulated in the client.
+- **AC10** The dashboard never auto-answers a permission request. It relays the provider's
+  ask and the operator's chosen option; the supervisor's timeout or queue bound may resolve a
+  request, and that is shown as an attributed event, not simulated in the client.
 - **AC11** No silent queue destruction. `cancel` has two distinct meanings; the UI must make the
   operator choose which one.
 - **AC12** No fake undo. If an action cannot be reversed, say so and offer the real next step
@@ -381,9 +386,9 @@ The dashboard is keyboard-complete. Pointing is optional, never required.
 The required intent set (bindings deliberately unspecified):
 
 > focus fleet · next/previous attention · open session · return to fleet · search · spawn ·
-> send · stop turn · stop and discard queue · close · permit allow/deny/option · toggle always ·
-> rename · switch instance · jump to latest · load older · copy handle · copy as CLI · dismiss
-> notification · open provider details.
+> send · stop turn · stop and discard queue · close · answer a queued permission request with a
+> provider option · change provider mode · rename · switch instance · jump to latest · load
+> older · copy handle · copy as CLI · dismiss notification · open provider details.
 
 ---
 
@@ -441,37 +446,43 @@ The numbering is stable so implementation and review can refer to it.
 
 - **SV1 — Orientation.** The session surface answers, in a persistent state area: what is this
   (label + handle), where does it run (backend, cwd), what state is it in, what turn, how many
-  queued, what policy/mode/config, what context/cost is reported, what plan and compaction are
-  current, who spawned it, and how it ended (if it did). Long provider option lists may be
-  progressively disclosed; none of these facts may require visiting a separate settings page.
+  queued, the provider mode (the coarse policy), how many permissions are pending, what
+  config/context/cost is reported, what plan and compaction are current, who spawned it, and
+  how it ended (if it did). Long provider option lists may be progressively disclosed; none of
+  these facts may require visiting a separate settings page.
 - **SV2 — Unknown is a value.** Missing `usage`, `exit`, `lastStopReason`, `title`, `plan`,
-  `compaction`, `agentName`, or `pendingPermission` renders as "not reported"/"none", never as
-  zero, empty success, or a blank that looks healthy.
-- **SV3 — Three layers, three controls.** HLAO policy (`allow`/`ask`/`deny`), provider mode, and
-  provider config options are presented as separate layers with separate consequences. They
-  are never collapsed into one "permissions" dial.
+  `compaction`, `agentName`, `defaultMode`, or `pendingPermissions` renders as
+  "not reported"/"none", never as zero, empty success, or a blank that looks healthy.
+- **SV3 — Two layers, two controls.** The provider mode (the coarse policy, operator-only) and
+  provider config options are presented as separate layers with separate consequences. There
+  is no HLAO `allow`/`ask`/`deny` policy control, and the two provider layers are never
+  collapsed into one "permissions" dial.
 - **SV4 — Provider controls are gated.** Modes/config options appear only when advertised by
   the session; values are the provider's names and descriptions. A session with no modes shows
-  no mode control, not a dead one. A rejected change is reported with the server error and
-  leaves the displayed value unchanged; no local guess.
+  no mode control, not a dead one. The inspector also shows the backend's `defaultMode` when
+  `backends.list` reports it, labelled as the operator default rather than the live value. A
+  rejected change is reported with the server error and leaves the displayed value unchanged;
+  no local guess. Mode changes and permits are operator-only; the dashboard never sends a
+  `callerSessionId` or exposes an agent-side control.
 - **SV5 — Plan and compaction are read-only.** They are displayed as provider-reported state.
   No checkboxes, no editing, no "approve plan", no conversion into a global task list.
 - **SV6 — Ended states are distinct.** `closed` and `failed` are different. Both are terminal
   and retained for a limited time. The composer is disabled with a reason; export, copy, and
   lineage remain available. There is no fake "resume" action.
-- **SV7 — Actor attribution.** Prompts, permissions, policy changes, renames, queue drops,
-  cancels, closes, and modes show who acted (`operator`, session handle/label, `policy:*`,
-  `agent` when the adapter changed it).
+- **SV7 — Actor attribution.** Prompts, permissions, renames, queue drops, cancels, closes,
+  and modes show who acted (`operator`, session handle/label, `timeout`, `system`, `agent`
+  when the adapter changed it). Permission reasons (`timeout`, `queue_full`, `withdrawn`) are
+  shown alongside the actor when present.
 - **SV8 — Turn context.** Show the current turn number, start time, and elapsed time while
   active. Never label a long turn "stuck".
 - **SV9 — No subtree status.** A root subtree may show counts (N sessions, M waiting, K failed)
   but no aggregated "job status", no progress percentage, and no "done".
 - **SV10 — Selection survives state changes.** Starting → busy → waiting → idle → closed never
   resets the lens or scroll. The operator's place is theirs.
-- **SV11 — Terms explain themselves.** Ambiguous terms — `idle`, `settled`, `ask`, policy vs
-  provider mode, compaction, plan, notice — have an inline explanation or accessible glossary
-  that uses the same words as the CLI. The explanation is available where the term is used,
-  without losing the session context.
+- **SV11 — Terms explain themselves.** Ambiguous terms — `idle`, `settled`, provider mode,
+  `defaultMode`, pending permission, permission timeout, compaction, plan, notice — have an
+  inline explanation or accessible glossary that uses the same words as the CLI. The
+  explanation is available where the term is used, without losing the session context.
 
 ### 5.3 Transcript
 
@@ -578,45 +589,57 @@ The numbering is stable so implementation and review can refer to it.
 - **CO11 — Outbound text is preserved.** No client-side truncation of the prompt; show the
   length if useful, but send the full text.
 
-### 5.5 Permission gate
+### 5.5 Permission relay
 
-- **PM1 — A gate is a stop, not a toast.** A pending request is visible globally (attention
-  count/row) and in the session, with the tool title and how long it has been waiting.
-- **PM2 — Show what is being asked.** Display the request title, kind, tool call id, requested
-  time, and every offered option exactly as the provider named it.
+- **PM1 — A gate is a stop, not a toast.** Every pending request is visible globally (attention
+  count/row) and in the session gate. The gate lists every request in FIFO order with the tool
+  title and how long it has been waiting. Parallel asks are queued, never collapsed into one
+  invisible choice.
+- **PM2 — Show what is being asked.** For each request, display title, kind, tool call id,
+  requested time, FIFO position, and every offered option exactly as the provider named it.
 - **PM3 — No accidental allow.** There is no default preselected sensitive choice; Enter does
-  not accept "allow". The operator chooses an option explicitly.
-- **PM4 — "Always" is explicit and explained.** `permit --always` answers the current request
-  and switches the session's policy to `allow`, preferring the provider's allow-always option
-  when offered. Show that consequence before the action; never make it the default or a
-  hidden modifier.
+  not accept "allow". The operator chooses an option explicitly for the request it names.
+- **PM4 — "Always" is the provider's option.** `permit --always` selects the provider's
+  `allow_always` or `reject_always` option; it does not change HLAO state. Show the option's
+  provider name; if the provider does not offer it, report `bad_option` rather than falling
+  back or inventing one. Never make it the default or a hidden modifier.
 - **PM5 — No client auto-answer.** The dashboard never answers on a timer, on a rule, or in the
-  background. Automatic answers from the server's policy are visible as `permission.resolved`
-  events with `by: policy:<name>`.
-- **PM6 — Race-safe.** If the request was already answered or cancelled, show the actual current
-  state (`no_pending_permission`, resolved by another client, session already ended) and
-  refresh. Never show a local success that the server did not confirm.
-- **PM7 — Resolution is attributed.** Show which option was chosen and by whom, including
-  cancellation/close reasons.
-- **PM8 — Bulk permit is an assembly.** If offered, it lists every pending target with the
-  exact option it will apply, requires confirmation, and reports per-target results. It never
-  applies "always" implicitly.
-- **PM9 — `ask` is warned everywhere.** Whenever the operator selects or sees `ask`, state that
-  an unattended session can wait indefinitely and needs an answer from this dashboard or
-  another client. This is a known product edge (R-14), not a defect the UI should hide.
-- **PM10 — Policy and provider mode are not the same control.** Explain the layer: HLAO policy
-  decides how requests are answered; provider mode can stop the provider from asking at the
-  source. Changing one does not silently change the other.
+  background. Every ask is relayed. A supervisor timeout or queue-full resolution is visible as
+  an attributed `permission.resolved` event (`by: "timeout"` / `by: "system"`), never as a
+  client decision.
+- **PM6 — Race-safe.** Answer by `requestId`. If the request was already answered, withdrawn,
+  timed out, or cancelled, show the actual current state (`no_pending_permission`, the
+  remaining ids, or the session already ended) and refresh. Never show a local success the
+  server did not confirm.
+- **PM7 — Resolution is attributed.** Show the option and actor (`operator`, `timeout`,
+  `system`, or the provider-withdraw actor) and any reason (`timeout`, `queue_full`,
+  `withdrawn`). A multi-request session updates the remaining queue in place.
+- **PM8 — Bulk answering is an assembly.** If offered, it lists every pending request with the
+  exact option it will apply and requires a choice per request; `--all-pending` is an operator
+  CLI selector, not an implicit "always". Never apply "always" implicitly.
+- **PM9 — The bound is stated.** The queue is bounded (`maxPendingPermissions`, default 16) and
+  a pending request has a one-shot `permissionTimeoutMs` deadline (default 30m; `0` parks).
+  State the consequence where the operator waits: an unanswered request fails closed at the
+  deadline, selecting a reject option when offered, and a full queue cancels the new request.
+- **PM10 — Provider mode is the coarse policy.** The provider mode can stop the provider from
+  asking at the source. It is operator-only and changed with `sessions.set_mode`; the backend's
+  `defaultMode` is the operator's spawn default. There is no second HLAO policy and changing
+  the mode does not silently rewrite a pending request.
+- **PM11 — A request is one provider ask.** Do not invent per-tool rules, auto-allow, or a
+  "trust this tool" control. Provider-specific option semantics are shown as the provider
+  names them.
 
 ### 5.6 Spawn
 
 - **SP1 — One form, no wizard.** Spawn is a single, honest form. No multi-step flow that hides
   defaults or freezes choices before the operator sees them.
 - **SP2 — Fields and defaults.** Backend (required), cwd (explicit; empty means "supervisor
-  default" and is labelled as such), name (optional), first prompt (optional), permission
-  policy (chosen value or "config default"; `ask` warned), parent (default root; explicit child
-  option), skill pointer (default on), and advanced provider values only when the operator
-  chooses to open them.
+  default" and is labelled as such), name (optional), first prompt (optional), the selected
+  backend's operator `defaultMode` (shown as a default; "provider default" when unset), parent
+  (default root; explicit child option), skill pointer (default on), and advanced provider
+  values only when the operator chooses to open them. There is no permission-policy field.
+  The wire's operator-only spawn `mode` is not exposed pre-spawn by this client; a mode is set
+  after spawn from the advertised values.
 - **SP3 — Backends are discovered, not assumed.** Use `backends.list`; unavailable backends are
   listed with the reason and cannot be submitted. When the spawn cwd changes, refresh
   `backends.list` with that cwd so project-config backends and availability are current. If the
@@ -624,9 +647,10 @@ The numbering is stable so implementation and review can refer to it.
   backend name or disable spawn; never invent a backend. The last-used backend may be
   remembered locally, but the effective choice is always visible before spawn.
 - **SP4 — Defaults are honest.** Show what the dashboard will send and label anything left to
-  the supervisor as a default. If the wire does not report the supervisor's cwd or the config's
-  effective policy, say "supervisor default" / "config default" rather than displaying a guessed
-  value as if it were effective.
+  the supervisor as a default. If the wire does not report the supervisor's cwd or the
+  backend's `defaultMode`, say "supervisor default" / "provider default" rather than displaying
+  a guessed value as if it were effective. The effective mode is resolved by the supervisor as
+  operator spawn `mode` → backend `defaultMode` → the provider's own default.
 - **SP5 — Retry is safe.** Generate an idempotency key per spawn attempt; a retry after a
   dropped response must not create a second session. If a duplicate is returned, select the
   existing session and say so.
@@ -736,14 +760,15 @@ The numbering is stable so implementation and review can refer to it.
   The choice is remembered locally. A wrong home is a wrong instance, not an empty fleet.
 - **IN3 — Starting a supervisor is explicit.** The dashboard may offer "Start supervisor", but
   it must not silently spawn or stop one. If it starts one, the connection state says so.
-- **IN4 — Handshake first.** Call `hello`, require major 2, and read capabilities. Minor
+- **IN4 — Handshake first.** Call `hello`, require major 3, and read capabilities. Minor
   versions and unknown capabilities are ignored; known missing capabilities degrade. Gate
   optional view fields on their capabilities (`session.usage`, `session.settled`,
   `session.lastEvent`, `session.compaction`, `session.plan`, `session.title`, `session.agent`,
-  `session.messages`). Gate optional methods/params on `read.before`, `read.filters`,
-  `send.messageId`, `send.idempotency`, `spawn.idempotency`, `backends.list`,
-  `supervisor.lastCrash`, and the stream capabilities. An absent field or method is not an
-  error.
+  `session.messages`, `session.pendingPermissions`). Gate optional methods/params on
+  `permit.request`, `read.before`, `read.filters`, `send.messageId`, `send.idempotency`,
+  `spawn.idempotency`, `backends.list`, `supervisor.lastCrash`, and the stream capabilities. An
+  absent field or method is not an error. `pendingPermissions` and the operator relay are core
+  to 3.0; `session.pendingPermissions` is advertised by a 3.0 supervisor.
 - **IN5 — Version mismatch is blocking and explained.** If the major differs, show both
   versions and the fact that the dashboard cannot speak to this supervisor. Do not attempt
   partial operations.
@@ -905,10 +930,12 @@ Every row is a required interaction, not an implementation suggestion.
 | No backends available | Spawn form lists them as unavailable with reasons. | Fix config/install; no dead spawn button. |
 | Spawn failure | No phantom row; adapter stderr tail; form preserved. | Correct and retry (idempotent). |
 | Adapter crash / `failed` | Session leaves attention only after local acknowledgment; transcript preserved; ended facts. | Export, inspect, spawn a replacement. |
-| `waiting_permission` | Attention rank 1; tool title and age; explicit options. | Allow/deny/option/always, or cancel. |
-| Second concurrent permission request | Only one pending request is representable; the other is cancelled with an `error` event. | Read the error; answer the remaining request; the provider limitation is stated. |
-| Permission resolved elsewhere | Attributed `permission.resolved`; gate closes; no local success flash. | Continue reading. |
-| Waiting permission for a long time | Age grows; `ask` consequence stated; no "stuck" verdict. | Answer, change policy, or cancel. |
+| `waiting_permission` | Attention rank 1; every queued request has a title, age, FIFO position, and the provider's options. | Answer each request with an option, or cancel the turn. |
+| Second concurrent permission request | Queued behind the first and visible with `queuePosition`; both are individually answerable. | Answer the requests in any order; the queue updates in place. |
+| Queue full | The new request is not enqueued; the supervisor records `by: "system"`, `reason: "queue_full"`, `optionId: null`. | The operator sees the queue is full and the request failed closed; free a slot by answering. |
+| Permission resolved elsewhere | Attributed `permission.resolved` for that `requestId`; the gate removes only that request; no local success flash. | Continue reading; answer any remaining requests. |
+| Waiting permission for a long time | Age grows; the one-shot timeout and `0 = park` rule are stated; no "stuck" verdict. | Answer, change the provider mode, or cancel. |
+| Permission timeout | Attributed `by: "timeout"`, `reason: "timeout"` and the rejected option; the request leaves the queue. | Read the resolution; the provider turn may continue or fail. |
 | Long-running turn | Elapsed time grows; status stays `busy`. | Wait, send (queues), or stop. |
 | Queue non-empty on cancel | Two actions, count and previews; discard is explicit. | Choose keep or discard. |
 | Close subtree | Descendants enumerated; deepest-first; per-target result. | Confirm or cancel. |
@@ -948,13 +975,14 @@ runnable against a scripted or real supervisor.
 Pass: without opening any session, the fleet shows the blocked session as attention rank 1 with
 the tool title and age; the other four are not in attention; the attention count is visible.
 
-**SC2 — Permission round-trip.** Answer the parked request with an explicit option. Pass: the
-gate shows "sending" until the server confirms; the transcript records the option and actor;
-the session resumes; a second answer attempt reports `no_pending_permission` and does not flip
-local state.
+**SC2 — Permission round-trip.** Answer the parked request with an explicit option and its
+`requestId`. Pass: the gate shows "sending" until the server confirms; the transcript records
+the option and actor; the session resumes; a second answer attempt reports
+`no_pending_permission` and does not flip local state.
 
 **SC3 — Permission resolved elsewhere.** Resolve the request from the CLI while the dashboard is
-open. Pass: the gate closes, the transcript shows the actor, and no error dialog appears.
+open. Pass: that request leaves the gate, the transcript shows the actor and reason, any other
+queued request remains answerable, and no error dialog appears.
 
 **SC4 — Cancel semantics.** With two queued prompts and an active turn, invoke both cancel
 forms. Pass: the UI shows the count and previews before discard; "keep queue" leaves the queue
@@ -1015,6 +1043,17 @@ resolves across instances; notifications name their instance if both exist.
 exist. Pass: all return; live views are replaced from the server; no draft is auto-sent; an
 evicted read marker clamps with an explanation.
 
+**SC18 — Parallel permission queue.** Drive two concurrent provider asks. Pass: both are
+visible in the gate with FIFO positions; both are answerable individually by `requestId`;
+answering one leaves the other in place and the session still `waiting_permission`; answering
+the last resumes the turn. The fleet attention anchor names the oldest request.
+
+**SC19 — Permission timeout and queue bound.** Let one request reach the configured
+`permissionTimeoutMs` deadline, and separately fill `maxPendingPermissions`. Pass: the timeout
+is recorded as `by: "timeout"`, `reason: "timeout"` with a reject option and never an allow
+option; the queue-full request is recorded as `by: "system"`, `reason: "queue_full"`,
+`optionId: null` and is not enqueued; neither is presented as a client decision.
+
 ---
 
 ## 10. Non-goals
@@ -1029,8 +1068,9 @@ semantics the wire does not have, or turn the dashboard into a different product
 - A global registry, cross-instance federation, or multi-user server.
 - Tags, projects, teams, assignments, or any taxonomy the agents do not share. Names and the
   root subtree are the available organization.
-- Per-tool permission rule builders, budgets, or spend enforcement. The wire has a tri-state
-  policy and provider modes; the dashboard reflects them.
+- Per-tool permission rule builders, budgets, or spend enforcement. The wire has provider
+  modes and an operator permission relay; the dashboard reflects them and never adds a second
+  rule layer.
 - Provider subagent trees or ACP `subagents`; HLAO deliberately does not surface them.
 - A terminal emulator, PTY fallback, or raw stdout viewer. HLAO is ACP-only.
 - File/image attachments or any payload channel. The prompt is text; context is verbatim or by
@@ -1081,12 +1121,12 @@ may offer in v1.
 
 | UI action | Wire method / assembly | Notes |
 |---|---|---|
-| Connect / identify | `hello` | Legacy hello first if the supervisor may be older; require major 2. |
+| Connect / identify | `hello` | Require major 3; no compatibility shim. |
 | Fleet views | `sessions.list` + `stream.subscribe { fleet: true }` | Include retained closed sessions for the Ended group. |
 | Session state | `sessions.get` / fleet view | Prefer the subscribed view; `get` for a one-off refresh. |
 | Session history | `sessions.read` (tail, `since`, `before`, filters, `raw` on demand) | Bounded pages; cursors preserved per session. |
 | Live session events | `stream.subscribe { sessionIds }` | Re-subscribe with the new id set and current cursors; no update method. |
-| Spawn | `sessions.spawn` | Idempotency key; optional prompt/wait; explicit policy/parent. |
+| Spawn | `sessions.spawn` | Idempotency key; optional prompt/wait; explicit parent. The form shows the backend `defaultMode`; an operator `mode` is wire-supported and operator-only. |
 | Send | `sessions.send` | Idempotency key; reconcile by `messageId`. |
 | Queue inspect | `sessions.queue` | Active + queued with previews/ids. |
 | Drop queued prompt | `sessions.queue_drop` | By message id, after preview. |
@@ -1096,9 +1136,9 @@ may offer in v1.
 | Close subtree | client assembly: list descendants + `sessions.close` | Deepest-first; per-target results. |
 | Forget | `sessions.forget` | Terminal only; history loss. |
 | Rename | `sessions.rename` | Empty clears; duplicate warning. |
-| Answer permission | `sessions.permit` | Option id, or allow/deny; `always` explicit. |
-| Change policy | `sessions.set_policy` | `ask` warning. |
-| Change provider mode | `sessions.set_mode` | Only advertised modes. |
+| Answer permission | `sessions.permit` | Operator only. `{ sessionId, requestId?, optionId }`; each request by id. "Always" is a CLI option selector for the provider's own option. |
+| Read pending queue | `SessionView.pendingPermissions` | FIFO with `queuePosition` on `permission.requested`; reads stay open to callers. |
+| Change provider mode | `sessions.set_mode` | Operator only; only advertised modes. The mode is the coarse policy. |
 | Change config option | `sessions.set_config_option` | Only advertised options. |
 | Backends | `backends.list` | Availability and source. |
 | Search in session | `sessions.read { grep }` | Literal; page loop; as-of. |
@@ -1129,13 +1169,13 @@ The treatment is an information hierarchy, not a visual spec.
 | `user.message` | Conversation. Provider-reported user-role content; render as a user block, but do not treat it as the authoritative record of what the operator sent (`prompt.sent` is). |
 | `session.message` | Inter-session conversation. Sender/recipient; link the sender if addressable. |
 | `tool.call`, `tool.update` | Work. One row per tool call; updates mutate in place; details/raw on demand. |
-| `permission.requested`, `permission.resolved` | Gate history. Actionable request + attributed resolution; one card, not repeated. |
+| `permission.requested`, `permission.resolved` | Gate history. Each request is actionable with its FIFO `queuePosition`; the resolution carries the option and `by`/`reason` (`operator`, `timeout`, `system`, provider withdrawal). One row per request, not repeated. |
 | `plan`, `plan.update` | Provider state. Header/plan strip plus compact deltas; read-only. |
 | `compaction` | Provider state. Header/status marker plus expandable summary; no raw needed. |
 | `notice` | Signal. Inline with severity/time; error severity may join attention. |
 | `usage` | Snapshot. Header/usage display; latest only; no cumulative claim. |
 | `session.info` | Provider title. Display fallback; one-line update. |
-| `policy.changed`, `mode`, `config` | State change. Header/control update plus a one-line attributed transcript event. |
+| `mode`, `config` | State change. Header/control update plus a one-line attributed transcript event. |
 | `commands` | Provider capability/availability update. Secondary; not presented as an operator action. |
 | `error` | Diagnostic. Inline; does not by itself mark the session failed. |
 | `stderr`, `subagent`, `raw` | Diagnostics. Available on demand; not the default reading surface. |
@@ -1152,6 +1192,10 @@ with an explicit "inspect data" affordance. Never dropped.
 | `starting` | "Starting" | Ready, idle. |
 | `busy` | "Running turn N" | Stuck after a threshold. |
 | `waiting_permission` | "Waiting for permission" | That the operator has seen it. |
+| `waiting_permission` with `pendingPermissions.length > 1` | "Waiting for permission · N queued" | That only one request exists, or that they are interchangeable. |
+| provider mode | Current provider mode name, plus the backend `defaultMode` when set | That the client invented or normalized the mode. |
+| `permission.resolved { by: "timeout", reason: "timeout" }` | "Timed out · rejected <option>" (or cancelled) | That the client answered it. |
+| `permission.resolved { by: "system", reason: "queue_full" }` | "Not queued · permission queue full" | That the request was answered by the operator. |
 | `idle` | "Idle" + queue count if any | Done. |
 | `idle` with `queued > 0` | "Idle · N queued" | Settled, complete. |
 | `settled: true` | "No active turn · queue empty" | Job complete. |

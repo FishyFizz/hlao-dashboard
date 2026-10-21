@@ -70,13 +70,22 @@ export function attentionFor(
   for (const session of sessions) {
     const key = sessionLocalKey(session);
 
-    if (session.status === "waiting_permission" && session.pendingPermission) {
-      const permission = session.pendingPermission;
+    if (
+      session.status === "waiting_permission" &&
+      session.pendingPermissions.length > 0
+    ) {
+      // One attention card per session, anchored on the oldest queued request.
+      // The lens gate lists every request; this is the fleet-level pointer.
+      const permission = session.pendingPermissions[0]!;
+      const queued =
+        session.pendingPermissions.length > 1
+          ? ` · ${session.pendingPermissions.length} queued`
+          : "";
       items.push({
         session,
         rank: 1,
         kind: "permission",
-        reason: `${permission.title} · ${permission.kind ?? "permission"}`,
+        reason: `${permission.title} · ${permission.kind ?? "permission"}${queued}`,
         sortAt: permission.requestedAt,
         permission,
       });

@@ -17,6 +17,7 @@ import type {
   ForgetResult,
   HelloResult,
   NotificationFrame,
+  PermissionView,
   PermitResult,
   QueueDropResult,
   QueueItemView,
@@ -142,13 +143,12 @@ function baseSession(
     settled: input.settled ?? input.status === "idle",
     lastSeq: input.lastSeq ?? 0,
     lastEvent: input.lastEvent ?? null,
-    pendingPermission: input.pendingPermission ?? null,
+    pendingPermissions: input.pendingPermissions ?? [],
     lastStopReason: input.lastStopReason ?? null,
     agentSessionId: input.agentSessionId ?? null,
     forkedFrom: input.forkedFrom ?? null,
     processId: input.processId ?? null,
     exit: input.exit ?? null,
-    permissionPolicy: input.permissionPolicy ?? "allow",
     modes: input.modes ?? null,
     configOptions: input.configOptions ?? null,
     usage: input.usage ?? null,
@@ -242,8 +242,8 @@ export class DemoSupervisor {
       case "sessions.permit":
         return this.permit(
           String(params.sessionId ?? ""),
+          typeof params.requestId === "string" ? params.requestId : undefined,
           typeof params.optionId === "string" ? params.optionId : undefined,
-          params.always === true,
         );
       case "sessions.cancel":
         return this.cancel(
@@ -258,11 +258,6 @@ export class DemoSupervisor {
         return this.rename(
           String(params.sessionId ?? ""),
           typeof params.name === "string" ? params.name : null,
-        );
-      case "sessions.set_policy":
-        return this.setPolicy(
-          String(params.sessionId ?? ""),
-          params.permissionPolicy as "ask" | "allow" | "deny",
         );
       case "sessions.set_mode":
         return this.setMode(String(params.sessionId ?? ""), String(params.modeId ?? ""));
@@ -456,7 +451,6 @@ export class DemoSupervisor {
           turn: 7,
           turnStartedAt: ago(now, 8 * MINUTE),
           settled: false,
-          permissionPolicy: "allow",
           modes: {
             currentModeId: "default",
             availableModes: [
@@ -597,6 +591,24 @@ export class DemoSupervisor {
             { optionId: "deny", name: "Deny", kind: "deny" },
           ],
           requestedAt: ago(now, 38_000),
+          queuePosition: 1,
+        },
+      },
+      {
+        ago: 34_000,
+        type: "permission.requested",
+        turn: 2,
+        data: {
+          requestId: "perm-92",
+          toolCallId: "call-read",
+          title: "Read .env.production",
+          kind: "read",
+          options: [
+            { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+            { optionId: "deny", name: "Deny", kind: "deny" },
+          ],
+          requestedAt: ago(now, 34_000),
+          queuePosition: 2,
         },
       },
       {
@@ -618,7 +630,6 @@ export class DemoSupervisor {
           turn: 2,
           turnStartedAt: ago(now, 10 * MINUTE),
           settled: false,
-          permissionPolicy: "ask",
           modes: {
             currentModeId: "agent",
             availableModes: [
@@ -633,18 +644,31 @@ export class DemoSupervisor {
             cost: { amount: 41, currency: "USD" },
             at: ago(now, 1 * MINUTE),
           },
-          pendingPermission: {
-            requestId: "perm-91",
-            toolCallId: "call-perm",
-            title: "Run shell command",
-            kind: "execute",
-            options: [
-              { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
-              { optionId: "allow_always", name: "Always allow", kind: "allow_always" },
-              { optionId: "deny", name: "Deny", kind: "deny" },
-            ],
-            requestedAt: ago(now, 38_000),
-          },
+          pendingPermissions: [
+            {
+              requestId: "perm-91",
+              toolCallId: "call-perm",
+              title: "Run shell command",
+              kind: "execute",
+              options: [
+                { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                { optionId: "allow_always", name: "Always allow", kind: "allow_always" },
+                { optionId: "deny", name: "Deny", kind: "deny" },
+              ],
+              requestedAt: ago(now, 38_000),
+            },
+            {
+              requestId: "perm-92",
+              toolCallId: "call-read",
+              title: "Read .env.production",
+              kind: "read",
+              options: [
+                { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                { optionId: "deny", name: "Deny", kind: "deny" },
+              ],
+              requestedAt: ago(now, 34_000),
+            },
+          ],
           agentName: "codex-acp",
           agentVersion: "2.2.2",
           processId: 8128,
@@ -710,7 +734,6 @@ export class DemoSupervisor {
           endedAt: ago(now, 9 * MINUTE),
           turn: 4,
           settled: false,
-          permissionPolicy: "allow",
           usage: {
             used: 186_000,
             size: 200_000,
@@ -793,7 +816,6 @@ export class DemoSupervisor {
           turn: 5,
           turnStartedAt: ago(now, 29 * MINUTE),
           settled: false,
-          permissionPolicy: "allow",
           usage: {
             used: 188_000,
             size: 200_000,
@@ -846,7 +868,6 @@ export class DemoSupervisor {
           createdAt: ago(now, 4 * HOUR),
           turn: 12,
           settled: true,
-          permissionPolicy: "allow",
           usage: {
             used: 82_000,
             size: 200_000,
@@ -916,7 +937,6 @@ export class DemoSupervisor {
           createdAt: ago(now, 3.5 * HOUR),
           turn: 5,
           settled: false,
-          permissionPolicy: "ask",
           usage: {
             used: 154_000,
             size: 200_000,
@@ -1001,7 +1021,6 @@ export class DemoSupervisor {
           endedAt: ago(now, 14 * MINUTE),
           turn: 3,
           settled: true,
-          permissionPolicy: "allow",
           lastStopReason: "end_turn",
           usage: {
             used: 110_000,
@@ -1058,7 +1077,6 @@ export class DemoSupervisor {
           createdAt: ago(now, 40 * MINUTE),
           turn: 3,
           settled: true,
-          permissionPolicy: "allow",
           usage: {
             used: 58_000,
             size: 200_000,
@@ -1110,7 +1128,6 @@ export class DemoSupervisor {
           createdAt: ago(now, 70 * MINUTE),
           turn: 2,
           settled: true,
-          permissionPolicy: "allow",
           title: "Investigate flaky retries",
           agentName: "gemini-cli",
           agentVersion: "0.18.2",
@@ -1135,9 +1152,11 @@ export class DemoSupervisor {
 
   private hello(): HelloResult {
     return {
-      protocolVersion: { major: 2, minor: 9 },
+      protocolVersion: { major: 3, minor: 0 },
       capabilities: [
         "backends.list",
+        "session.pendingPermissions",
+        "permit.request",
         "session.usage",
         "read.filters",
         "read.before",
@@ -1171,7 +1190,7 @@ export class DemoSupervisor {
       ],
       pid: 4242,
       startedAt: this.startedAt,
-      version: "0.13.0-demo",
+      version: "0.15.0-demo",
       sessions: this.sessions.size,
       configHash: "demo-config",
       stream: { persistent: true },
@@ -1188,6 +1207,7 @@ export class DemoSupervisor {
         envKeys: ["ANTHROPIC_API_KEY"],
         description: "Claude Agent ACP",
         available: true,
+        defaultMode: "default",
       },
       {
         name: "codex",
@@ -1197,6 +1217,7 @@ export class DemoSupervisor {
         envKeys: ["OPENAI_API_KEY"],
         description: "Codex ACP",
         available: true,
+        defaultMode: "agent",
       },
       {
         name: "gemini",
@@ -1207,6 +1228,7 @@ export class DemoSupervisor {
         description: "Gemini CLI",
         configPath: "~/.hlao/agents.json",
         available: true,
+        defaultMode: "default",
       },
       {
         name: "amp",
@@ -1218,6 +1240,7 @@ export class DemoSupervisor {
         configPath: "D:\\work\\.hlao\\agents.json",
         available: false,
         unavailableReason: "command not found: amp-acp",
+        defaultMode: "default",
       },
     ];
     return { backends };
@@ -1387,7 +1410,7 @@ export class DemoSupervisor {
   private conditionSatisfied(session: SessionView, until: string): boolean {
     if (until === "idle") return session.status === "idle";
     if (until === "settled") return session.settled || session.status === "waiting_permission" || this.isTerminal(session);
-    if (until === "permission") return session.status === "waiting_permission";
+    if (until === "permission") return session.pendingPermissions.length > 0;
     if (until === "exit") return this.isTerminal(session);
     return false;
   }
@@ -1540,7 +1563,14 @@ export class DemoSupervisor {
       depth: parent ? parent.depth + 1 : 0,
       createdAt: new Date(now).toISOString(),
       createdBy: "operator",
-      permissionPolicy: params.permissionPolicy ?? "allow",
+      ...(params.mode
+        ? {
+            modes: {
+              currentModeId: params.mode,
+              availableModes: [{ id: params.mode, name: params.mode }],
+            },
+          }
+        : {}),
       agentName: backend === "claude" ? "claude-agent-acp" : backend === "codex" ? "codex-acp" : "gemini-cli",
       agentVersion: "demo",
       agentSessionId,
@@ -1656,63 +1686,98 @@ export class DemoSupervisor {
 
   private async permit(
     sessionId: string,
+    requestId: string | undefined,
     optionId: string | undefined,
-    always: boolean,
   ): Promise<PermitResult> {
     const session = this.requireSession(sessionId);
-    const pending = session.pendingPermission;
-    if (!pending) throw wireError("no_pending_permission", "no permission is pending");
-    const option =
-      pending.options.find((candidate) => candidate.optionId === optionId) ??
-      (always
-        ? pending.options.find((candidate) => candidate.kind === "allow_always")
-        : pending.options.find((candidate) => candidate.kind === "allow_once")) ??
-      pending.options.find((candidate) => candidate.kind !== "deny");
-    if (!option) throw wireError("bad_option", "no matching permission option");
-    if (optionId && !pending.options.some((candidate) => candidate.optionId === optionId)) {
+    const pending = session.pendingPermissions;
+    if (pending.length === 0) {
+      throw wireError("no_pending_permission", "no permission is pending");
+    }
+
+    let target: PermissionView;
+    if (requestId !== undefined) {
+      const found = pending.find((item) => item.requestId === requestId);
+      if (!found) {
+        throw wireError(
+          "no_pending_permission",
+          `no pending permission ${requestId}`,
+          { pending: pending.map((item) => item.requestId) },
+        );
+      }
+      target = found;
+    } else if (pending.length === 1) {
+      target = pending[0]!;
+    } else {
+      throw wireError(
+        "bad_request",
+        `multiple permission requests are pending: ${pending
+          .map((item) => item.requestId)
+          .join(", ")}; pass requestId`,
+      );
+    }
+
+    if (!optionId) throw wireError("bad_option", "optionId is required");
+    const option = target.options.find(
+      (candidate) => candidate.optionId === optionId,
+    );
+    if (!option) {
       throw wireError("bad_option", `option ${optionId} is not offered`);
     }
 
-    this.clearTimers(sessionId);
+    const remaining = pending.filter(
+      (item) => item.requestId !== target.requestId,
+    );
     const next: SessionView = {
       ...session,
-      pendingPermission: null,
-      status: "busy",
+      pendingPermissions: remaining,
+      status: remaining.length > 0 ? "waiting_permission" : "busy",
       lastStopReason: null,
-      permissionPolicy: always ? "allow" : session.permissionPolicy,
     };
     this.sessions.set(sessionId, next);
     this.emit(sessionId, "permission.resolved", {
-      requestId: pending.requestId,
+      requestId: target.requestId,
       optionId: option.optionId,
+      optionName: option.name,
       by: "operator",
     });
-    if (always) {
-      this.emit(sessionId, "policy.changed", {
-        permissionPolicy: "allow",
-        by: "operator",
-      });
-    }
-    this.notifySession(this.requireSession(sessionId));
 
-    const timer = setTimeout(() => {
-      const current = this.sessions.get(sessionId);
-      if (!current || this.isTerminal(current)) return;
-      this.emit(sessionId, "agent.message", {
-        text: "The probe completed. The output is in the transcript.",
-        messageId: "msg-perm-out",
-        chunk: false,
-      });
-      this.finishTurn(sessionId, "end_turn");
-    }, 1200);
-    this.schedule(sessionId, timer);
+    if (remaining.length === 0) {
+      const timer = setTimeout(() => {
+        const current = this.sessions.get(sessionId);
+        if (!current || this.isTerminal(current)) return;
+        this.emit(sessionId, "agent.message", {
+          text: "The probe completed. The output is in the transcript.",
+          messageId: "msg-perm-out",
+          chunk: false,
+        });
+        this.finishTurn(sessionId, "end_turn");
+      }, 1200);
+      this.schedule(sessionId, timer);
+    }
 
     return {
       session: this.requireSession(sessionId),
-      requestId: pending.requestId,
+      requestId: target.requestId,
       optionId: option.optionId,
       by: "operator",
     };
+  }
+
+  /** A cancel or close resolves every request; the provider gets a cancellation. */
+  private clearPending(sessionId: string, reason: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.pendingPermissions.length === 0) return;
+    const pending = session.pendingPermissions;
+    this.sessions.set(sessionId, { ...session, pendingPermissions: [] });
+    for (const item of pending) {
+      this.emit(sessionId, "permission.resolved", {
+        requestId: item.requestId,
+        optionId: null,
+        by: "system",
+        reason,
+      });
+    }
   }
 
   private cancel(sessionId: string, keepQueue: boolean): CancelResult {
@@ -1727,6 +1792,7 @@ export class DemoSupervisor {
         keepQueue,
       });
     }
+    this.clearPending(sessionId, "cancelled");
     if (!keepQueue) discarded = this.discardQueue(sessionId, "cancel");
     this.finishTurn(sessionId, "cancelled", true);
     if (keepQueue) this.startNextQueued(sessionId);
@@ -1738,6 +1804,7 @@ export class DemoSupervisor {
     const wasTerminal = this.isTerminal(session);
     if (wasTerminal) return { session, killed: false, wasTerminal };
     this.clearTimers(sessionId);
+    this.clearPending(sessionId, "cancelled");
     this.discardQueue(sessionId, "close");
     this.active.delete(sessionId);
     const next: SessionView = {
@@ -1746,7 +1813,7 @@ export class DemoSupervisor {
       endedAt: new Date().toISOString(),
       turnStartedAt: null,
       settled: true,
-      pendingPermission: null,
+      pendingPermissions: [],
       queued: 0,
     };
     this.sessions.set(sessionId, next);
@@ -1777,21 +1844,6 @@ export class DemoSupervisor {
     const next = { ...session, name: name?.trim() ? name.trim() : null };
     this.sessions.set(sessionId, next);
     this.emit(sessionId, "session.renamed", { name: next.name, by: "operator" });
-    this.notifySession(this.requireSession(sessionId));
-    return { session: this.requireSession(sessionId) };
-  }
-
-  private setPolicy(
-    sessionId: string,
-    policy: "ask" | "allow" | "deny",
-  ): { session: SessionView } {
-    const session = this.requireSession(sessionId);
-    if (!["ask", "allow", "deny"].includes(policy)) {
-      throw wireError("bad_request", "permissionPolicy must be ask, allow, or deny");
-    }
-    const next = { ...session, permissionPolicy: policy };
-    this.sessions.set(sessionId, next);
-    this.emit(sessionId, "policy.changed", { permissionPolicy: policy, by: "operator" });
     this.notifySession(this.requireSession(sessionId));
     return { session: this.requireSession(sessionId) };
   }
@@ -1957,7 +2009,7 @@ export class DemoSupervisor {
       turnStartedAt: new Date().toISOString(),
       settled: false,
       lastStopReason: null,
-      pendingPermission: null,
+      pendingPermissions: [],
     };
     this.sessions.set(sessionId, next);
     this.emit(sessionId, "prompt.sent", {
@@ -2036,7 +2088,7 @@ export class DemoSupervisor {
       settled: queue.length === 0,
       queued: queue.length,
       lastStopReason: stopReason === "cancelled" ? "cancelled" : "end_turn",
-      pendingPermission: null,
+      pendingPermissions: [],
     };
     this.sessions.set(sessionId, next);
     this.active.delete(sessionId);

@@ -118,7 +118,8 @@ export function HelpDialog({
         <p className="help-text">
           Attention is derived from reported state only: waiting permission first,
           unacknowledged failure second, error notice third. Idle and settled are not
-          completion. The dashboard never answers a permission on your behalf.
+          completion. The dashboard is an operator client: it relays the provider’s
+          asks, never answers one on your behalf, and never sends an agent identity.
         </p>
       </section>
 
@@ -153,16 +154,17 @@ export function HelpDialog({
           <dd>No active turn. The queue may still hold prompts.</dd>
           <dt>settled</dt>
           <dd>No active turn and an empty queue. Not completion.</dd>
-          <dt>ask</dt>
+          <dt>provider mode</dt>
           <dd>
-            The HLAO permission policy parks a request until a client answers. An
-            unattended session can wait indefinitely.
+            The provider’s native mode and the coarse permission policy. It is
+            operator-only: the dashboard sets it with sessions.set_mode, and an
+            agent cannot choose one. A backend manifest may set a default mode.
           </dd>
-          <dt>policy vs provider mode</dt>
+          <dt>pending permission</dt>
           <dd>
-            HLAO policy decides how permission requests are answered. Provider mode
-            can stop the provider from asking at the source. Changing one does not
-            silently change the other.
+            A provider ask parked for the operator. Every ask is relayed; parallel
+            asks queue FIFO and each is answered with the provider’s own options.
+            The supervisor bounds the wait and fails closed at its deadline.
           </dd>
           <dt>plan</dt>
           <dd>Provider-reported state. Read-only here; never a task board or rollup.</dd>

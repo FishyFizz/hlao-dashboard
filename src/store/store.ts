@@ -40,6 +40,7 @@ import type {
   HelloResult,
   LastCrash,
   NotificationFrame,
+  PermitParams,
   PermitResult,
   QueueDropResult,
   QueueResult,
@@ -53,7 +54,12 @@ import type {
   SubscribeResult,
   WireError,
 } from "../wire/protocol";
-import { asWireError, CAPABILITIES, hasCapability } from "../wire/protocol";
+import {
+  asWireError,
+  CAPABILITIES,
+  hasCapability,
+  WIRE_MAJOR,
+} from "../wire/protocol";
 import { newId } from "../lib/id";
 
 export type Phase = "boot" | "connecting" | "setup" | "live";
@@ -475,7 +481,7 @@ export class DashboardStore {
     mode: Mode,
     connectToken: number,
   ): Promise<void> {
-    if (hello.protocolVersion?.major !== 2) {
+    if (hello.protocolVersion?.major !== WIRE_MAJOR) {
       this.setState({
         phase: "setup",
         connection: "offline",
@@ -484,7 +490,7 @@ export class DashboardStore {
         instance: hello,
         connectError: {
           code: "version_mismatch",
-          message: `This dashboard speaks wire major 2; the supervisor at ${home} speaks major ${hello.protocolVersion?.major ?? "unknown"}.`,
+          message: `This dashboard speaks wire major ${WIRE_MAJOR}; the supervisor at ${home} speaks major ${hello.protocolVersion?.major ?? "unknown"}. Stop it with the matching client before starting 3.0.`,
         },
       });
       return;
@@ -1431,33 +1437,46 @@ export class DashboardStore {
     }
   }
 
-  async permit(optionId: string | undefined, always: boolean): Promise<void> {
+  /**
+   * Answer one pending provider request as the operator. The dashboard is an
+   * operator client: it never sends a caller session id, and the answer is
+   * always one of the provider's own options for that request.
+   */
+  async permit(requestId: string | undefined, optionId: string): Promise<void> {
     const session = selectedSession(this.state);
     const transport = this.transport;
     if (!session || !transport) return;
-    const permission = session.pendingPermission;
+    const permission =
+      requestId !== undefined
+        ? session.pendingPermissions.find((item) => item.requestId === requestId)
+        : session.pendingPermissions.length === 1
+          ? session.pendingPermissions[0]
+          : undefined;
     if (!permission) return;
     const key = `permit:${permission.requestId}`;
     if (this.state.pending[key]) return;
     this.setPending(key, true);
-    const optionName = always
-      ? "Always allow"
-      : permission.options.find((option) => option.optionId === optionId)?.name ??
-        optionId ??
-        "Allow";
+    const optionName =
+      permission.options.find((option) => option.optionId === optionId)?.name ??
+      optionId;
     try {
-      const result = await transport.request<PermitResult>("sessions.permit", {
-        sessionId: session.id,
-        ...(optionId ? { optionId } : {}),
-        ...(always ? { always: true } : {}),
-      });
+      const result = await transport.request<PermitResult>(
+        "sessions.permit",
+        {
+          sessionId: session.id,
+          requestId: permission.requestId,
+          optionId,
+        } satisfies PermitParams,
+      );
       this.applySession(result.session);
+      const remaining = result.session.pendingPermissions.length;
       this.addToast({
         tone: "ok",
         title: `Permission answered · ${optionName}`,
-        text: always
-          ? "The session policy is now allow; future requests will not ask."
-          : "The supervisor confirmed the answer.",
+        text:
+          remaining > 0
+            ? `${remaining} request${remaining === 1 ? "" : "s"} still queued.`
+            : "The supervisor confirmed the answer.",
       });
     } catch (error) {
       const wire = asWireError(error);
@@ -1641,40 +1660,6 @@ export class DashboardStore {
       return false;
     } finally {
       this.setPending("rename", false);
-    }
-  }
-
-  async setPolicy(policy: "ask" | "allow" | "deny"): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending.policy) return;
-    this.setPending("policy", true);
-    try {
-      const result = await transport.request<SessionResult>(
-        "sessions.set_policy",
-        { sessionId: session.id, permissionPolicy: policy },
-      );
-      this.applySession(result.session);
-      this.addToast({
-        tone: policy === "ask" ? "info" : "ok",
-        title: `Policy set to ${policy}`,
-        text:
-          policy === "ask"
-            ? "An unattended session can wait indefinitely. This dashboard or another client must answer."
-            : policy === "deny"
-              ? "Requests will be denied without asking."
-              : "Requests will be allowed without asking.",
-      });
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Policy change failed",
-        text: asWireError(error).message,
-      });
-      await this.refreshSession(session.id);
-    } finally {
-      this.setPending("policy", false);
     }
   }
 

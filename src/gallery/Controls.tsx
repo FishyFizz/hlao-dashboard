@@ -317,38 +317,38 @@ export function Controls() {
         </div>
 
         <Specimen label="Radio cards" note="The selected card gets a cyan rule and a wash; the choice is readable without reading the dot.">
-          <RadioGroup className="radio-group" defaultValue="ask">
-            <Label className="radio-group__label">Permission policy</Label>
-            <Radio value="ask" className="radio-card">
+          <RadioGroup className="radio-group" defaultValue="agent">
+            <Label className="radio-group__label">Provider mode</Label>
+            <Radio value="agent" className="radio-card">
               <span className="radio-card__box">
                 <span className="radio-card__dot" />
               </span>
               <span className="radio-card__text">
-                <span className="radio-card__title">Ask</span>
+                <span className="radio-card__title">Agent</span>
                 <span className="radio-card__desc">
-                  Park the turn on a permission request until an operator answers.
+                  The provider may ask; every request is relayed to the operator.
                 </span>
               </span>
             </Radio>
-            <Radio value="allow" className="radio-card">
+            <Radio value="read-only" className="radio-card">
               <span className="radio-card__box">
                 <span className="radio-card__dot" />
               </span>
               <span className="radio-card__text">
-                <span className="radio-card__title">Allow</span>
+                <span className="radio-card__title">Read only</span>
                 <span className="radio-card__desc">
-                  Answer every request with its first allow option. Fast, and less visible.
+                  A provider mode that restricts writes at the source.
                 </span>
               </span>
             </Radio>
-            <Radio value="deny" className="radio-card">
+            <Radio value="plan" className="radio-card">
               <span className="radio-card__box">
                 <span className="radio-card__dot" />
               </span>
               <span className="radio-card__text">
-                <span className="radio-card__title">Deny</span>
+                <span className="radio-card__title">Plan</span>
                 <span className="radio-card__desc">
-                  Refuse every request. The session stays alive but cannot act.
+                  A provider mode for read-only planning and analysis.
                 </span>
               </span>
             </Radio>
@@ -489,7 +489,7 @@ export function Controls() {
                 <Tag>claude</Tag>
                 <Tag>codex</Tag>
                 <Tag>gemini</Tag>
-                <Tag tone="accent">wire 2.8</Tag>
+                <Tag tone="accent">wire 3.0</Tag>
                 <Tag tone="warn">manual</Tag>
                 <Tag tone="danger">failed</Tag>
                 <Tag tone="ok">settled</Tag>

@@ -25,8 +25,8 @@ like an instrument panel, not a product landing page:
   failure second, error notice third. Everything else stays quiet. The attention count stays
   visible in the session lens.
 - **Quiet by default.** Primary surfaces carry the facts needed to act. Secondary metadata
-  (cwd, provider mode, agent package, cost, timestamps, creator, instance, raw lineage) lives
-  behind a disclosure, never in the first read.
+  (cwd, agent package, cost, timestamps, creator, instance, raw lineage) lives behind a
+  disclosure, never in the first read.
 
 ## Palette
 
@@ -148,8 +148,15 @@ styled by class.
 - **Transcript** keeps seq + time in a 46px gutter. The left 2px bar marks actor/state:
   operator prompt (cyan), permission (amber), notice (amber), error (red), inter-session message
   (cyan with a wash).
-- **Permission gate** shows the provider's options with no visually preselected allow. "Always"
-  states that it also switches the session policy to `allow`; the dashboard never auto-answers.
+- **Permission gate** lists every queued provider request with its FIFO position and the
+  provider's options exactly as named. No option is visually preselected as allow. Each button
+  answers only the request it names by `requestId`/`optionId`; the provider's own
+  `allow_always`/`reject_always` option is a normal option, not an HLAO policy change. The
+  dashboard never auto-answers; queue-full and timeout resolutions are attributed events from
+  the supervisor.
+- **Provider mode is the coarse policy.** The inspector's mode control is operator-only and
+  shows the session's advertised values plus the backend's `defaultMode`. There is no separate
+  HLAO policy selector to style or explain.
 - **Usage** is the latest reported snapshot, not a cumulative bill or a total token count. Label
   it "reported".
 - **Provider-native state** (compaction, plan, title, agent identity, messages) gets a slot that
@@ -179,8 +186,9 @@ Do:
 - Keep the fleet a table and the transcript a list. The fleet is not a card wall.
 - Preserve identifier case and use tabular figures. Use `.ident` inside uppercase parents.
 - Hide a provider panel when its capability is absent.
-- Keep the permission gate's provider options visually equal; make the client's policy-changing
-  assembly a separate, explicitly labelled action.
+- Keep every queued permission request and its provider options visually equal; each option
+  answers only the request it names, and "always" is the provider's own option rather than a
+  hidden policy modifier.
 - Say "reported" for cost and usage; say "quiet" or "idle" for a session with no active turn.
 
 Don't:
@@ -189,7 +197,8 @@ Don't:
 - Use cyan for failure, warning, or decoration.
 - Wrap a status in a colored pill or use color as the only signal.
 - Uppercase a command, path, name, or identifier.
-- Make "Allow" the primary action on a permission card, or imply idle/settled is completion.
+- Make "Allow" the primary action on a permission card, collapse a multi-request queue into one
+  unexplained choice, or imply idle/settled is completion.
 - Label the latest cost snapshot as a session total or a bill.
 - Invent a second protocol, a session store, or a kanban ontology in the client.
 

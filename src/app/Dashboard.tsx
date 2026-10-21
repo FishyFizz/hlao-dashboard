@@ -11,7 +11,6 @@ import { displayLabel, nextAttentionSession } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
 import { WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
 import {
-  AlwaysDialog,
   ClearLocalDialog,
   CloseDialog,
   CloseSubtreeDialog,
@@ -47,7 +46,6 @@ type ActionDialog =
   | { kind: "close" }
   | { kind: "close-subtree" }
   | { kind: "forget" }
-  | { kind: "always" }
   | { kind: "shutdown" }
   | { kind: "clear" };
 
@@ -128,7 +126,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (selected || !state.selection) return;
-    if (["rename", "stop", "close", "close-subtree", "forget", "always"].includes(action?.kind ?? "")) {
+    if (["rename", "stop", "close", "close-subtree", "forget"].includes(action?.kind ?? "")) {
       setAction(null);
     }
   }, [selected, state.selection, action?.kind]);
@@ -275,7 +273,6 @@ export function Dashboard() {
   }
 
   const sessionForDialogs: SessionView | null = selected;
-  const permission = selected?.pendingPermission ?? null;
   const queue = state.queue;
 
   return (
@@ -315,7 +312,6 @@ export function Dashboard() {
               onClose={() => setAction({ kind: "close" })}
               onCloseSubtree={() => setAction({ kind: "close-subtree" })}
               onForget={() => setAction({ kind: "forget" })}
-              onAlways={() => setAction({ kind: "always" })}
               onDrop={(item) => {
                 setDropItem(item);
                 setAction({ kind: "stop" });
@@ -448,20 +444,6 @@ export function Dashboard() {
               void exportTranscript(sessionForDialogs);
             }}
           />
-          {permission ? (
-            <AlwaysDialog
-              open={action?.kind === "always"}
-              permission={permission}
-              onClose={() => setAction(null)}
-              onConfirm={() => {
-                setAction(null);
-                const allowAlways = permission.options.find(
-                  (option) => option.kind === "allow_always",
-                );
-                void store.permit(allowAlways?.optionId, true);
-              }}
-            />
-          ) : null}
           <DropDialog
             open={action?.kind === "stop" && dropItem !== null}
             session={sessionForDialogs}

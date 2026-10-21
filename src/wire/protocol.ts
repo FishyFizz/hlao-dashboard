@@ -1,9 +1,13 @@
 /**
- * Wire protocol 2.8 — the subset this client speaks.
+ * Wire protocol 3.0 — the subset this client speaks.
  *
  * This is a pinned projection of `contracts/protocol.md`, not a second
  * protocol. Method semantics live on the supervisor; these types only shape
  * the frames the bridge forwards and the demo supervisor emits.
+ *
+ * 3.0 removes the HLAO permission policy. The provider's mode is the policy
+ * layer, every provider ask is relayed to the operator through a bounded
+ * pending queue, and `sessions.permit` answers one request by id.
  */
 
 export type ProtocolVersion = { major: number; minor: number };
@@ -36,7 +40,6 @@ export type WireError = {
   details?: unknown;
 };
 
-export type PermissionPolicy = "ask" | "allow" | "deny";
 export type SessionStatus =
   | "starting"
   | "idle"
@@ -76,7 +79,6 @@ export const EVENT_TYPES = [
   "plan.update",
   "permission.requested",
   "permission.resolved",
-  "policy.changed",
   "notice",
   "usage",
   "mode",
@@ -100,6 +102,31 @@ export type PermissionView = {
   kind: string | null;
   options: { optionId: string; name: string; kind: string }[];
   requestedAt: string;
+};
+
+/**
+ * `permission.requested` event data (3.0). The view does not carry a queue
+ * position; the FIFO order of `pendingPermissions` is the position.
+ */
+export type PermissionRequestedData = {
+  requestId: string;
+  toolCallId: string | null;
+  title: string;
+  kind: string | null;
+  options: { optionId: string; name: string; kind: string }[];
+  outsideTurn: boolean;
+  /** 1-based FIFO position; present for a queued request. */
+  queuePosition?: number;
+};
+
+/** `permission.resolved` event data (3.0). */
+export type PermissionResolvedData = {
+  requestId: string;
+  optionId: string | null;
+  optionName?: string;
+  by: string;
+  reason?: string;
+  note?: string;
 };
 
 export type SessionModeOption = {
@@ -183,13 +210,13 @@ export type SessionView = {
     title: string | null;
     at: string;
   } | null;
-  pendingPermission: PermissionView | null;
+  /** FIFO queue keyed by requestId; bounded by the supervisor (wire 3.0). */
+  pendingPermissions: PermissionView[];
   lastStopReason: StopReason | null;
   agentSessionId: string | null;
   forkedFrom?: string | null;
   processId: number | null;
   exit: { code: number | null; signal: string | null } | null;
-  permissionPolicy: PermissionPolicy;
   modes: SessionModes | null;
   configOptions: SessionConfigOptionView[] | null;
   usage: SessionUsageView | null;
@@ -224,6 +251,8 @@ export type AgentView = {
   configPath?: string;
   available: boolean;
   unavailableReason?: string;
+  /** Operator default provider mode from the backend manifest (3.0). */
+  defaultMode?: string;
 };
 
 export type LastCrash = {
@@ -386,7 +415,6 @@ export type SpawnParams = {
   model?: string;
   config?: Record<string, string | boolean>;
   parentSessionId?: string;
-  permissionPolicy?: PermissionPolicy;
   env?: Record<string, string>;
   skill?: boolean;
   idempotencyKey?: string;
@@ -405,6 +433,12 @@ export type SpawnResult = {
   createdBy?: string;
 };
 
+export type PermitParams = {
+  sessionId: string;
+  /** Required when more than one request is pending. */
+  requestId?: string;
+  optionId: string;
+};
 export type CancelResult = { session: SessionView; discarded: number };
 export type CloseResult = {
   session: SessionView;
@@ -444,7 +478,6 @@ export type RpcMethod =
   | "sessions.close"
   | "sessions.permit"
   | "sessions.set_mode"
-  | "sessions.set_policy"
   | "sessions.set_config_option"
   | "sessions.queue"
   | "sessions.queue_drop"
@@ -456,16 +489,18 @@ export type RpcMethod =
   | "supervisor.shutdown"
   | "dashboard.fs.list";
 
-export const WIRE_MAJOR = 2;
-export const WIRE_MINOR = 9;
+export const WIRE_MAJOR = 3;
+export const WIRE_MINOR = 0;
 
-/** `2.8` for a live hello, or the version this client speaks when offline. */
+/** The live hello's version, or the version this client speaks when offline. */
 export function wireVersionLabel(version?: ProtocolVersion | null): string {
   return version ? `${version.major}.${version.minor}` : `${WIRE_MAJOR}.${WIRE_MINOR}`;
 }
 
 export const CAPABILITIES = {
   backendsList: "backends.list",
+  pendingPermissions: "session.pendingPermissions",
+  permitRequest: "permit.request",
   usage: "session.usage",
   readFilters: "read.filters",
   readBefore: "read.before",

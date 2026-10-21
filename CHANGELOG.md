@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Pinned wire projection updated to **3.0** (breaking). Removed
+  `PermissionPolicy`/`SessionView.permissionPolicy`,
+  `SessionView.pendingPermission`, `SpawnParams.permissionPolicy`,
+  `sessions.set_policy`, `policy.changed`, and `PermitParams.always`. Added
+  `SessionView.pendingPermissions`, `AgentView.defaultMode`,
+  `PermissionRequestedData.queuePosition` (1-based FIFO), and
+  `PermitParams.requestId`/`optionId`; capabilities
+  `session.pendingPermissions` and `permit.request` are advertised.
+  `contracts/protocol.md` is re-synced from the parent repo.
+- The dashboard is now an **operator relay** for provider permissions. Every
+  provider ask is parked by the supervisor; the gate renders all queued requests
+  with their FIFO position and answers each one by `requestId`/`optionId`.
+  Parallel asks queue instead of cancelling. "Always" is the provider's own
+  `allow_always`/`reject_always` option, not an HLAO state change. The bounded
+  queue and the one-shot `permissionTimeoutMs` deadline are explained where the
+  gate appears; timeout and queue-full resolutions are attributed events.
+- The **provider mode** is the coarse policy. The Inspector reads
+  `modes.currentModeId`/`availableModes`, sets the mode through
+  `sessions.set_mode`, and shows the backend's `defaultMode`; the spawn form
+  shows that default as well. The dashboard never sends `callerSessionId` and
+  offers no agent-side permit or mode action; the bridge no longer sends the
+  field at all.
+- The demo supervisor speaks 3.0: it advertises `session.pendingPermissions` and
+  `permit.request`, seeds two parallel pending requests with queue positions,
+  reports per-backend `defaultMode`, and rejects the removed policy method.
+- README, `contracts/protocol.md`, `docs/ux-interaction-model.md`,
+  `docs/architecture.md`, and `DESIGN.md` now describe the provider-owned
+  permission model, the operator relay, the pending queue, backend default
+  modes, and the permission timeout.
 - Tool-call rows keep a coherent header: the payload copy control is always
   present, including the initial collapsed state. When the live page redacted
   the payload it is read on demand at copy time instead of being loaded just

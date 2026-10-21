@@ -1357,32 +1357,6 @@
     white-space: nowrap;
   }
 
-  .state-policy {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    text-transform: uppercase;
-  }
-
-  .state-policy[data-policy="ask"] {
-    color: var(--warn);
-  }
-
-  .state-policy[data-policy="deny"] {
-    color: var(--danger);
-  }
-
-  .state-policy[data-policy="allow"] {
-    color: var(--ok);
-  }
-
-  .state-policy__warn {
-    width: 10px;
-    height: 10px;
-  }
-
   /* ------------------------------------------------------------------ */
   /* Permission gate                                                    */
   /* ------------------------------------------------------------------ */
@@ -1430,6 +1404,18 @@
     display: grid;
     gap: 6px;
     padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  }
+
+  .permission-gate__request {
+    display: grid;
+    gap: 6px;
+    padding: var(--sp-2) 0;
+    border-top: var(--bw) solid color-mix(in srgb, var(--warn) 22%, transparent);
+  }
+
+  .permission-gate__request:first-child {
+    padding-top: 0;
+    border-top: none;
   }
 
   .permission-gate__question {
@@ -2236,23 +2222,6 @@
     opacity: 0.55;
   }
 
-  .segmented--policy .segmented__item--allow[data-selected] {
-    border-color: var(--ok);
-    background: var(--ok);
-    color: var(--panel);
-  }
-
-  .segmented--policy .segmented__item--ask[data-selected] {
-    border-color: var(--warn);
-    background: var(--warn);
-    color: var(--panel);
-  }
-
-  .segmented--policy .segmented__item--deny[data-selected] {
-    border-color: var(--danger);
-    background: var(--danger);
-    color: var(--panel);
-  }
 
   .segmented--effort .segmented__item[data-selected] {
     border-color: var(--accent);

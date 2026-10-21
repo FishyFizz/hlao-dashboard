@@ -1,10 +1,10 @@
 # HLAO dashboard
 
 A local operations console for one HLAO instance. It is a **client**, not core:
-it speaks wire protocol 2.8 through the supervisor's local socket and adds no
+it speaks wire protocol 3.0 through the supervisor's local socket and adds no
 server semantics. It can be replaced or omitted without changing the supervisor.
 
-**Status: working client.** The fleet, session lens, permission gate,
+**Status: working client.** The fleet, session lens, operator permission relay,
 transcript, composer/queue, spawn, search, lifecycle actions, local persistence,
 and reconnect paths are implemented. A local Node bridge holds the supervisor
 token; the page never receives it. A clearly labelled demo supervisor can be
@@ -94,12 +94,17 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 ### Session lens
 
-- Identity plus summary facts: policy, turn, queue, context, last event, and
-  unread. Backend, cwd, provider mode, agent package, cost, creator, timestamps,
-  and instance live behind a local **More** disclosure.
-- **Permission gate**: provider options exactly as named, no preselected allow,
-  no auto-answer, explicit "Allow always & set policy..." confirmation, and a
-  collapsed explanation of the option consequences.
+- Identity plus summary facts: provider mode, pending permissions, turn, queue,
+  context, last event, and unread. Backend, cwd, agent package, cost, creator,
+  timestamps, instance, and the backend's operator default mode live behind a
+  local **More** disclosure.
+- **Permission relay**: the provider's options exactly as named, no preselected
+  allow, and no auto-answer. Every ask is parked by the supervisor and answered
+  one request at a time with `sessions.permit { requestId, optionId }`.
+  Parallel asks queue FIFO with their position shown; the queue is bounded and
+  a one-shot `permissionTimeoutMs` deadline fails closed (or parks when `0`).
+  "Always" is only the provider's own `allow_always`/`reject_always` option,
+  never a change to HLAO state.
 - **Transcript**: turn skeleton, coalesced message chunks, safe GitHub-flavored
   Markdown for agent, prompt, user, and inter-session messages, copyable code
   blocks, one tool row updated in place (click the header to inspect its
@@ -131,17 +136,21 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - **Actions**: rename, stop with keep/discard queue, close (with advanced force),
   close subtree as a labelled assembly, forget with history-loss warning and
   export, export as paged JSON, copy handle, and copy the read command as CLI.
-- **Provider panels**: policy, mode, and config are separate layers. Policy is a
-  color-coded segmented bar (allow green, ask amber, deny red); effort options
-  use a cyan-filled segmented bar. Plan and compaction are read-only. Usage is
-  labelled as the latest reported snapshot.
+- **Provider panels**: the provider mode and config options are separate
+  provider-native layers. The mode is the coarse permission policy and is
+  operator-only; the control shows `modes.currentModeId`, the advertised modes,
+  and the backend's `defaultMode` from `backends.list`. There is no HLAO policy
+  selector. Effort options use a cyan-filled segmented bar. Plan and compaction
+  are read-only. Usage is labelled as the latest reported snapshot.
 
 ### Spawn, search, keyboard
 
 - One truthful spawn form: prompt first, backend/name on one row, bridge-backed
-  cwd browsing, discovered backends, cwd-driven refresh, the same color-coded
-  policy selector as the inspector, lineage-only parent, skill toggle,
-  idempotency per attempt, preserved form and adapter stderr on failure.
+  cwd browsing, discovered backends, cwd-driven refresh, the selected backend's
+  `defaultMode` (or "provider default"), lineage-only parent, skill toggle,
+  idempotency per attempt, preserved form and adapter stderr on failure. The
+  form does not invent a pre-spawn mode; an operator mode can be set after
+  spawn from the advertised values.
 - Search has two explicit scopes (current session, instance), live/retained and
   raw-payload filters, visible caps and as-of time, cancellable scans, and
   provenance (session, handle, seq, time, type, snippet). Selecting a result
@@ -180,7 +189,9 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 - File/image attachments or any payload channel beyond orchestration text.
 - Provider subagent trees, a terminal emulator, or raw stdout UI.
 - A pre-spawn provider model/mode picker when the provider cannot enumerate
-  values before a session exists; set those after spawn from advertised values.
+  values before a session exists. The form shows the backend's `defaultMode`;
+  set a different mode after spawn from the advertised values. The wire's
+  operator-only `sessions.spawn.mode` is not exposed here.
 - Virtualized transcript rendering beyond the bounded page model. A session with
   a very large retained log auto-loads earlier pages as the view approaches the
   top (local cap 10,000 events); virtualization is the next scale seam if
@@ -191,7 +202,7 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 ## Layout
 
 ```
-contracts/protocol.md        pinned wire contract (protocol 2.8)
+contracts/protocol.md        pinned wire contract (protocol 3.0)
 docs/ux-interaction-model.md interaction contract
 docs/architecture.md         module map, invariants, liveness, action boundaries
 docs/adr/                    bridge and demo decisions
@@ -211,10 +222,13 @@ src/data/fleet.ts            static specimen data (gallery only)
 
 ## Rules this client is built against
 
-From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.13, wire 2.8):
+From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.15, wire 3.0):
 
-- Require wire **major 2** and feature-detect `hello.capabilities`. Do not key
+- Require wire **major 3** and feature-detect `hello.capabilities`. Do not key
   behavior off the HLAO package version or a minor number.
+- The dashboard is an operator client: it never sends `callerSessionId`, never
+  answers a permission automatically, and never offers an agent-side permit or
+  mode action.
 - Run as a local process that can open the named pipe / Unix socket and read the
   token from `<HLAO_HOME>/supervisor.json`. The browser talks to the local bridge
   and never receives the token.

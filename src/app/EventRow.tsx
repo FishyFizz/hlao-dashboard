@@ -357,7 +357,9 @@ function PermissionRow({
   const pending =
     !resolution &&
     item.requestId !== null &&
-    session.pendingPermission?.requestId === item.requestId;
+    session.pendingPermissions.some(
+      (permission) => permission.requestId === item.requestId,
+    );
   const optionId = resolution
     ? stringField(resolution.data, ["optionId"])
     : null;
@@ -585,7 +587,6 @@ function CompactionRow({
 const STRUCTURAL_EVENT_TYPES = new Set([
   "turn.ended",
   "cancel.requested",
-  "policy.changed",
   "mode",
   "config",
   "session.renamed",
@@ -603,8 +604,6 @@ function structuralDetail(
   switch (event.type) {
     case "turn.ended":
       return `Turn ended: ${String(event.data.reason ?? "unknown")}`;
-    case "policy.changed":
-      return `Policy changed to ${String(event.data.permissionPolicy ?? "?")} by ${actor ?? "unknown"}`;
     case "session.renamed":
       return `Renamed to ${String(event.data.name ?? "—")} by ${actor ?? "unknown"}`;
     case "session.info":

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
 import { canUse, type DashboardState } from "../store/store";
 import {
   contextPercent,
@@ -34,28 +33,29 @@ export function StateStrip({
     (session.status === "busy" || session.status === "waiting_permission")
       ? formatElapsed(session.turnStartedAt, now)
       : null;
+  const modeName = session.modes
+    ? session.modes.availableModes.find(
+        (mode) => mode.id === session.modes?.currentModeId,
+      )?.name ?? session.modes.currentModeId
+    : null;
 
   return (
     <div className="state-strip" aria-label="Session state">
       <div className="state-facts">
-        <Fact
-          label="Policy"
-          value={
-            <span className="state-policy" data-policy={session.permissionPolicy}>
-              {session.permissionPolicy}
-              {session.permissionPolicy === "ask" ? (
-                <TriangleAlert className="icon state-policy__warn" aria-hidden="true" />
-              ) : null}
-            </span>
-          }
-          title={
-            session.permissionPolicy === "ask"
-              ? "An unattended session can wait indefinitely; a client must answer."
-              : session.permissionPolicy === "deny"
-                ? "Requests are denied without asking."
-                : "Requests are allowed without asking."
-          }
-        />
+        {modeName ? (
+          <Fact
+            label="Mode"
+            value={modeName}
+            title="Provider mode. It is the coarse permission policy and is operator-only."
+          />
+        ) : null}
+        {session.pendingPermissions.length > 0 ? (
+          <Fact
+            label="Permissions"
+            value={`${session.pendingPermissions.length} pending`}
+            title="Provider requests parked for an operator answer, in FIFO order."
+          />
+        ) : null}
         {session.turn > 0 ? (
           <Fact
             label="Turn"

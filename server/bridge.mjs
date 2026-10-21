@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const ROOT = resolve(HERE, "..");
-const WIRE = { major: 2, minor: 8 };
+const WIRE = { major: 3, minor: 0 };
 
 function parseArgs(argv) {
   const options = {
@@ -252,7 +252,6 @@ class SupervisorConnection {
             stream: { persistent: true },
           },
           token: lock.token,
-          callerSessionId: null,
         };
         this.pending.set(helloId, {
           resolve: (result) => {
@@ -261,7 +260,7 @@ class SupervisorConnection {
               finish({
                 code: "version_mismatch",
                 message:
-                  "The supervisor accepted hello but did not advertise a persistent stream; this dashboard needs wire 2.1+.",
+                  "The supervisor accepted hello but did not advertise a persistent stream; this dashboard needs wire 3.0.",
               });
               this.teardown();
               return;
@@ -410,7 +409,6 @@ class SupervisorConnection {
           method,
           params: params ?? {},
           token: lock.token,
-          callerSessionId: null,
         })}\n`,
       );
     } catch (error) {

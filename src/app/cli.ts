@@ -1,4 +1,4 @@
-import type { PermissionPolicy, SessionView } from "../wire/protocol";
+import type { SessionView } from "../wire/protocol";
 
 function quote(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
@@ -22,14 +22,16 @@ export const cli = {
     name.trim()
       ? `hlao rename ${id(session)} ${quote(name.trim())}`
       : `hlao rename ${id(session)} --clear`,
-  policy: (session: SessionView, policy: PermissionPolicy) =>
-    `hlao policy ${id(session)} ${policy}`,
   mode: (session: SessionView, modeId: string) =>
     `hlao mode ${id(session)} ${quote(modeId)}`,
-  permit: (session: SessionView, optionId: string | undefined, always: boolean) =>
-    optionId
-      ? `hlao permit ${id(session)} --option ${quote(optionId)}${always ? " --always" : ""}`
-      : `hlao permit ${id(session)} --allow${always ? " --always" : ""}`,
+  permit: (
+    session: SessionView,
+    optionId: string,
+    options: { requestId?: string; always?: boolean } = {},
+  ) =>
+    `hlao permit ${id(session)} --option ${quote(optionId)}` +
+    `${options.requestId ? ` --request ${quote(options.requestId)}` : ""}` +
+    `${options.always ? " --always" : ""}`,
   drop: (session: SessionView, messageId: string) =>
     `hlao cancel ${id(session)} --keep-queue   # dashboard drop: ${messageId}`,
   reload: () => "hlao config validate",

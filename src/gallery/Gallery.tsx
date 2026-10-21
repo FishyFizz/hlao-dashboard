@@ -63,7 +63,7 @@ export function Gallery() {
             <span className="lamp lamp--accent" />
             <span className="conn__label">Instance default</span>
             <span className="conn__sep">/</span>
-            <span className="conn__dim">wire 2.8</span>
+            <span className="conn__dim">wire 3.0</span>
           </span>
           <IconButton
             className="theme-toggle"
@@ -105,7 +105,7 @@ export function Gallery() {
             </span>
             <span>Instance default</span>
             <span>Home ~/.hlao</span>
-            <span>Wire 2.8 / local IPC</span>
+            <span>Wire 3.0 / local IPC</span>
             <span>No business logic</span>
           </div>
         </aside>
@@ -153,7 +153,7 @@ export function Gallery() {
             <span>
               <span className="footer__accent">#6CD2FF</span> · flat · 0px radius · 1px rules
             </span>
-            <span>No business logic · wire major 2</span>
+            <span>No business logic · wire major 3</span>
           </footer>
         </main>
       </div>

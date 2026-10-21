@@ -144,7 +144,7 @@ export function CommandPalette({
     ];
 
     if (selected) {
-      const permission = selected.pendingPermission;
+      const permissions = selected.pendingPermissions;
       items.push(
         {
           id: "rename",
@@ -180,11 +180,14 @@ export function CommandPalette({
           },
         },
       );
-      if (permission) {
+      if (permissions.length > 0) {
         items.push({
           id: "permission",
           group: "Selected session",
-          label: "Answer the pending permission",
+          label:
+            permissions.length === 1
+              ? "Answer the pending permission"
+              : `Answer the ${permissions.length} pending permissions`,
           run: () => {
             document
               .querySelector(".permission-gate")

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ListTree, Shield, TriangleAlert } from "lucide-react";
 import {
   Radio,
@@ -5,7 +6,6 @@ import {
 } from "react-aria-components";
 import { Button } from "../components/Button";
 import { Handle } from "../components/Status";
-import { Notice } from "../components/Notice";
 import { cn } from "../lib/cn";
 import {
   canUse,
@@ -29,7 +29,6 @@ import {
 import type { SessionConfigOptionView, SessionView } from "../wire/protocol";
 import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { CopyButton, SelectField, ToggleRow } from "./ui";
-import { PolicySelector } from "./PolicySelector";
 
 export function Inspector({
   state,
@@ -59,9 +58,37 @@ export function Inspector({
   const canTitle = canUse(state, CAPABILITIES.title);
   const canFirstPrompt = canUse(state, CAPABILITIES.firstPrompt);
   const canAgent = canUse(state, CAPABILITIES.agent);
-  const pendingPolicy = Boolean(state.pending.policy);
+  const canBackends = canUse(state, CAPABILITIES.backendsList);
   const pendingMode = Boolean(state.pending.mode);
+  const [backendDefault, setBackendDefault] = useState<string | null>(null);
+  const [backendDefaultLoaded, setBackendDefaultLoaded] = useState(false);
   const terminal = state.removed || isTerminalStatus(session.status);
+
+  // AgentView.defaultMode is per backend, so resolve it from the manifest list
+  // for this session's backend. The effective mode stays on the session view.
+  useEffect(() => {
+    if (!canBackends) return;
+    let cancelled = false;
+    setBackendDefaultLoaded(false);
+    store
+      .listBackends(session.cwd)
+      .then((result) => {
+        if (cancelled) return;
+        const agent = result.backends.find(
+          (candidate) => candidate.name === session.backend,
+        );
+        setBackendDefault(agent?.defaultMode ?? null);
+        setBackendDefaultLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBackendDefault(null);
+        setBackendDefaultLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canBackends, session.backend, session.cwd]);
   const endedElapsed = session.endedAt
     ? formatElapsed(session.createdAt, Date.now(), session.endedAt)
     : null;
@@ -140,18 +167,7 @@ export function Inspector({
 
       <section className="inspector__section">
         <div className="inspector__head">
-          <span>Layers</span>
-        </div>
-        <div className="field">
-          <span className="field__label">HLAO permission policy</span>
-          <PolicySelector
-            value={session.permissionPolicy}
-            disabled={terminal || pendingPolicy}
-            onChange={(value) => {
-              if (value === session.permissionPolicy) return;
-              void store.setPolicy(value);
-            }}
-          />
+          <span>Provider</span>
         </div>
         {terminal ? (
           <p className="inspector__none">
@@ -159,15 +175,6 @@ export function Inspector({
               ? "Removed · controls disabled · transcript is a local snapshot"
               : "Ended · controls disabled"}
           </p>
-        ) : null}
-        {session.permissionPolicy === "ask" ? (
-          <Notice
-            tone="warn"
-            title="ask can park a session indefinitely"
-            className="inspector__warn"
-          >
-            Answering is an operator action, here or in another client.
-          </Notice>
         ) : null}
 
         {session.modes ? (
@@ -189,6 +196,28 @@ export function Inspector({
         ) : (
           <p className="inspector__none">No provider modes advertised.</p>
         )}
+        <p className="inspector__note">
+          The provider mode is the coarse permission policy and is operator-only.
+          Backend default:{" "}
+          <span className="mono">
+            {!canBackends
+              ? "not reported"
+              : backendDefaultLoaded
+                ? backendDefault ?? "not set"
+                : "loading…"}
+          </span>
+          . A spawn resolves the operator mode, then the backend default, then the
+          provider's own default. This control uses{" "}
+          <span className="mono">sessions.set_mode</span>.
+        </p>
+
+        {session.pendingPermissions.length > 0 ? (
+          <p className="inspector__note">
+            {session.pendingPermissions.length} provider request
+            {session.pendingPermissions.length === 1 ? " is" : "s are"} waiting for
+            an operator answer in the permission gate.
+          </p>
+        ) : null}
 
         {session.configOptions && session.configOptions.length > 0 ? (
           <div className="inspector__config">

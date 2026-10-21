@@ -56,7 +56,6 @@ export function SessionLens({
   onClose,
   onCloseSubtree,
   onForget,
-  onAlways,
   onDrop,
   onDetails,
   onSpawnReplacement,
@@ -72,7 +71,6 @@ export function SessionLens({
   onClose: () => void;
   onCloseSubtree: () => void;
   onForget: () => void;
-  onAlways: () => void;
   onDrop: (item: QueueItemView) => void;
   onDetails: () => void;
   onSpawnReplacement: () => void;
@@ -139,6 +137,11 @@ export function SessionLens({
               ) : null}
               <Tag className="ident">{session.backend}</Tag>
               {session.queued > 0 ? <Tag tone="warn">{session.queued} queued</Tag> : null}
+              {session.pendingPermissions.length > 1 ? (
+                <Tag tone="warn">
+                  {session.pendingPermissions.length} permissions pending
+                </Tag>
+              ) : null}
               {attention ? (
                 <Tag tone="warn">
                   needs you · {attention.kind === "permission" ? "permission" : attention.kind}
@@ -309,8 +312,8 @@ export function SessionLens({
         />
       ) : null}
 
-      {!state.removed && session.pendingPermission ? (
-        <PermissionGate session={session} onAlways={onAlways} />
+      {!state.removed && session.pendingPermissions.length > 0 ? (
+        <PermissionGate session={session} />
       ) : null}
 
       <Transcript

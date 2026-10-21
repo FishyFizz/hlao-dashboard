@@ -217,7 +217,7 @@ export function Compositions() {
                     </Button>
                   </div>
                   <span className="permission-card__consequence">
-                    Always also switches the session policy to allow.
+                    Each option answers only this request; the provider mode is unchanged.
                   </span>
                 </div>
               </div>

@@ -12,16 +12,13 @@ import {
   type DashboardState,
   type DirectoryListing,
 } from "../store/store";
-import type { AgentView, PermissionPolicy } from "../wire/protocol";
+import type { AgentView } from "../wire/protocol";
 import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { isTerminalStatus } from "../store/model";
 import { newId } from "../lib/id";
 import { DialogShell } from "./DialogShell";
 import { CwdBrowser } from "./CwdBrowser";
-import { PolicySelector } from "./PolicySelector";
 import { SelectField, ToggleRow } from "./ui";
-
-type PolicyChoice = PermissionPolicy;
 
 export function SpawnDialog({
   open,
@@ -36,7 +33,6 @@ export function SpawnDialog({
   const [cwd, setCwd] = useState("");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [policy, setPolicy] = useState<PolicyChoice>("allow");
   const [parent, setParent] = useState("");
   const [skill, setSkill] = useState(true);
   const [providerMode, setProviderMode] = useState<"new" | "resume" | "fork">("new");
@@ -89,7 +85,6 @@ export function SpawnDialog({
     setCwd(state.local.lastCwd ?? "");
     setName("");
     setPrompt("");
-    setPolicy("allow");
     setParent("");
     setSkill(true);
     setProviderMode("new");
@@ -140,7 +135,6 @@ export function SpawnDialog({
     cwd,
     name,
     prompt,
-    policy,
     parent,
     skill,
     providerMode,
@@ -185,7 +179,6 @@ export function SpawnDialog({
         ...(cwd.trim() ? { cwd: cwd.trim() } : {}),
         ...(name.trim() ? { name: name.trim() } : {}),
         ...(prompt.trim() ? { prompt, wait: false } : {}),
-        permissionPolicy: policy,
         ...(parent ? { parentSessionId: parent } : {}),
         skill,
         ...(idempotencyKey ? { idempotencyKey } : {}),
@@ -313,6 +306,13 @@ export function SpawnDialog({
               />
             </label>
           )}
+          {selectedBackend ? (
+            <span className="caption">
+              {selectedBackend.defaultMode
+                ? `Starts in the backend default mode “${selectedBackend.defaultMode}”; change it after spawn.`
+                : "No backend default mode is set; the provider chooses the start mode."}
+            </span>
+          ) : null}
         </div>
 
         <label className="field">
@@ -365,15 +365,6 @@ export function SpawnDialog({
               onClose={() => setBrowseOpen(false)}
             />
           ) : null}
-        </div>
-
-        <div className="field">
-          <span className="field__label">Permission policy</span>
-          <PolicySelector
-            value={policy}
-            onChange={setPolicy}
-            ariaLabel="Spawn permission policy"
-          />
         </div>
 
         <SelectField
@@ -451,8 +442,10 @@ export function SpawnDialog({
         <summary>Advanced</summary>
         <p>
           Provider modes, model, and config options are provider-native and may not be
-          enumerable before a session exists. Set them after spawn from the values the
-          session advertises. This form deliberately does not invent them.
+          enumerable before a session exists. A new session starts in the backend’s
+          operator default mode when the manifest sets one, then the provider’s own
+          default. Set a different mode after spawn from the values the session
+          advertises. This form deliberately does not invent them.
         </p>
         <div className="form-advanced__facts">
           <span>
@@ -460,8 +453,12 @@ export function SpawnDialog({
             <span className="mono">{cwd.trim() || "supervisor default"}</span>
           </span>
           <span>
-            <span className="caption">effective policy</span>{" "}
-            <span className="mono">{policy}</span>
+            <span className="caption">provider mode</span>{" "}
+            <span className="mono">
+              {selectedBackend?.defaultMode
+                ? `backend default · ${selectedBackend.defaultMode}`
+                : "provider default"}
+            </span>
           </span>
           <span>
             <span className="caption">parent</span>{" "}

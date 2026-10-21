@@ -15,7 +15,12 @@ import {
   unreadFor,
   type NoticeRecord,
 } from "./model";
-import type { EventView, SessionView } from "../wire/protocol";
+import type {
+  AgentView,
+  EventView,
+  HelloResult,
+  SessionView,
+} from "../wire/protocol";
 
 function session(overrides: Partial<SessionView> = {}): SessionView {
   return {
@@ -37,12 +42,11 @@ function session(overrides: Partial<SessionView> = {}): SessionView {
     settled: true,
     lastSeq: 0,
     lastEvent: null,
-    pendingPermission: null,
+    pendingPermissions: [],
     lastStopReason: null,
     agentSessionId: null,
     processId: null,
     exit: null,
-    permissionPolicy: "allow",
     modes: null,
     configOptions: null,
     usage: null,
@@ -71,14 +75,16 @@ describe("attention", () => {
       id: "perm01",
       name: "permission",
       status: "waiting_permission",
-      pendingPermission: {
-        requestId: "req-1",
-        toolCallId: null,
-        title: "Run shell command",
-        kind: "execute",
-        options: [],
-        requestedAt: "2026-10-20T10:05:00.000Z",
-      },
+      pendingPermissions: [
+        {
+          requestId: "req-1",
+          toolCallId: null,
+          title: "Run shell command",
+          kind: "execute",
+          options: [],
+          requestedAt: "2026-10-20T10:05:00.000Z",
+        },
+      ],
     });
     const failure = session({
       id: "fail01",
@@ -527,14 +533,16 @@ describe("attention navigation", () => {
     const permission = session({
       id: "perm01",
       status: "waiting_permission",
-      pendingPermission: {
-        requestId: "req-1",
-        toolCallId: null,
-        title: "Run shell command",
-        kind: "execute",
-        options: [],
-        requestedAt: "2026-10-20T10:05:00.000Z",
-      },
+      pendingPermissions: [
+        {
+          requestId: "req-1",
+          toolCallId: null,
+          title: "Run shell command",
+          kind: "execute",
+          options: [],
+          requestedAt: "2026-10-20T10:05:00.000Z",
+        },
+      ],
     });
     const failure = session({
       id: "fail01",
@@ -557,7 +565,35 @@ describe("attention navigation", () => {
 });
 
 describe("demo supervisor", () => {
-  it("serves a fleet, reads a page, and resolves a permission without changing provider mode", async () => {
+  it("reports protocol 3.0 capabilities and per-backend default modes", async () => {
+    const supervisor = new DemoSupervisor(() => {});
+    const hello = await supervisor.request<HelloResult>("hello", {});
+    expect(hello.protocolVersion).toEqual({ major: 3, minor: 0 });
+    expect(hello.capabilities).toContain("session.pendingPermissions");
+    expect(hello.capabilities).toContain("permit.request");
+
+    const backends = await supervisor.request<{ backends: AgentView[] }>(
+      "backends.list",
+      {},
+    );
+    expect(
+      backends.backends.find((item) => item.name === "claude")?.defaultMode,
+    ).toBe("default");
+    expect(
+      backends.backends.find((item) => item.name === "codex")?.defaultMode,
+    ).toBe("agent");
+
+    // The removed policy method is an unknown method in 3.0.
+    await expect(
+      supervisor.request("sessions.set_policy" as never, {
+        sessionId: "9c1e07",
+        permissionPolicy: "allow",
+      }),
+    ).rejects.toMatchObject({ code: "bad_request" });
+    supervisor.close();
+  });
+
+  it("serves a parallel permission queue and answers each request by id", async () => {
     const supervisor = new DemoSupervisor(() => {});
     const list = await supervisor.request<{ sessions: SessionView[] }>(
       "sessions.list",
@@ -566,6 +602,10 @@ describe("demo supervisor", () => {
     expect(list.sessions).toHaveLength(9);
     const gate = list.sessions.find((item) => item.id === "9c1e07")!;
     expect(gate.status).toBe("waiting_permission");
+    expect(gate.pendingPermissions.map((item) => item.requestId)).toEqual([
+      "perm-91",
+      "perm-92",
+    ]);
 
     const page = await supervisor.request<{
       events: EventView[];
@@ -573,13 +613,36 @@ describe("demo supervisor", () => {
     }>("sessions.read", { sessionId: "9c1e07", limit: 100 });
     expect(page.events.length).toBe(page.lastSeq);
 
-    const result = await supervisor.request<{ session: SessionView }>(
+    await expect(
+      supervisor.request("sessions.permit", {
+        sessionId: "9c1e07",
+        optionId: "allow_once",
+      }),
+    ).rejects.toMatchObject({ code: "bad_request" });
+
+    await expect(
+      supervisor.request("sessions.permit", {
+        sessionId: "9c1e07",
+        requestId: "missing",
+        optionId: "allow_once",
+      }),
+    ).rejects.toMatchObject({ code: "no_pending_permission" });
+
+    const first = await supervisor.request<{ session: SessionView }>(
       "sessions.permit",
-      { sessionId: "9c1e07", optionId: "allow_once" },
+      { sessionId: "9c1e07", requestId: "perm-91", optionId: "allow_once" },
     );
-    expect(result.session.pendingPermission).toBeNull();
-    expect(result.session.permissionPolicy).toBe("ask");
-    expect(result.session.status).toBe("busy");
+    expect(first.session.pendingPermissions.map((item) => item.requestId)).toEqual([
+      "perm-92",
+    ]);
+    expect(first.session.status).toBe("waiting_permission");
+
+    const second = await supervisor.request<{ session: SessionView }>(
+      "sessions.permit",
+      { sessionId: "9c1e07", optionId: "deny" },
+    );
+    expect(second.session.pendingPermissions).toEqual([]);
+    expect(second.session.status).toBe("busy");
     supervisor.close();
   });
 });

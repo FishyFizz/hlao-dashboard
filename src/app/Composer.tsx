@@ -117,7 +117,7 @@ export function Composer({
             terminal
               ? "This session has ended. The draft stays local and copyable."
               : waiting
-                ? "Write a prompt. It will queue until the permission request is answered."
+                ? "Write a prompt. It will queue until the pending permissions are answered."
                 : canSteer
                   ? "Write a prompt. Ctrl/Cmd+Enter steers the current turn."
                   : busy

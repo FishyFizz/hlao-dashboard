@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { Shield } from "lucide-react";
 import { Button } from "../components/Button";
 import { Notice } from "../components/Notice";
 import { Handle } from "../components/Status";
 import { store, type DashboardState } from "../store/store";
 import { descendantsOf, displayLabel, formatDateTime, isTerminalStatus } from "../store/model";
-import type { PermissionView, QueueItemView, QueueResult, SessionView } from "../wire/protocol";
+import type { QueueItemView, QueueResult, SessionView } from "../wire/protocol";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DialogShell } from "./DialogShell";
 import { ToggleRow } from "./ui";
@@ -57,7 +56,7 @@ export function StopDialog({
       }
     >
       <p className="dialog-lede">
-        Cancelling ends the active turn and resolves any pending permission as
+        Cancelling ends the active turn and resolves every pending permission as
         cancelled. The session stays alive and can run another turn.
       </p>
       {active ? (
@@ -253,58 +252,6 @@ export function ForgetDialog({
       <p className="dialog-note">
         The wire rejects forgetting a terminal session that still has retained
         descendants. Close the descendants first.
-      </p>
-    </ConfirmDialog>
-  );
-}
-
-export function AlwaysDialog({
-  open,
-  permission,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  permission: PermissionView;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const pending = Boolean(store.getSnapshot().pending[`permit:${permission.requestId}`]);
-  const option =
-    permission.options.find((candidate) => candidate.kind === "allow_always") ??
-    permission.options.find((candidate) => candidate.kind === "allow_once");
-  return (
-    <ConfirmDialog
-      open={open}
-      onCancel={onClose}
-      onConfirm={onConfirm}
-      title="Answer and switch policy to allow"
-      kicker="Permission request"
-      confirmLabel="Answer and set allow"
-      tone="danger"
-      busy={pending}
-    >
-      <p className="dialog-lede">
-        This answers the current request and changes the session’s HLAO policy to{" "}
-        <span className="mono">allow</span>. Future permission requests will be
-        answered automatically by that policy.
-      </p>
-      <div className="stop-target">
-        <span className="stop-target__label">
-          <Shield className="icon" /> {permission.title}
-        </span>
-        <span className="stop-target__meta">
-          {permission.kind ?? "permission"} · {permission.requestId}
-        </span>
-        <span className="stop-target__text">
-          {option
-            ? `Uses provider option “${option.name}” (${option.optionId}) when offered.`
-            : "No allow option is offered; the wire chooses its documented fallback."}
-        </span>
-      </div>
-      <p className="dialog-note">
-        The dashboard never chooses this for you. The provider mode is a separate
-        layer and is not changed by this action.
       </p>
     </ConfirmDialog>
   );

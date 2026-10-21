@@ -398,7 +398,7 @@ function AttentionCard({
       </div>
       <div className="attention-card__meta">
         {isPermission
-          ? `${item.permission?.kind ?? "permission"} · ${item.permission?.options.length ?? 0} options · policy ${session.permissionPolicy}`
+          ? `${item.permission?.kind ?? "permission"} · ${item.permission?.options.length ?? 0} options · ${session.pendingPermissions.length} pending`
           : item.kind === "failure"
             ? `exit ${session.exit?.code ?? "—"}${session.exit?.signal ? ` · ${session.exit.signal}` : ""} · ${session.backend}`
             : `${session.status} · ${session.turn > 0 ? `turn ${session.turn}` : "no turn"} · ${session.backend}`}
