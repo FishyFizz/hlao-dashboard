@@ -244,6 +244,12 @@
 - Reused the color-coded policy selector in spawn with three states and allow
   selected by default; removed the "config default" choice.
 - Fixed the spawn-dialog toggle thumb (vertically centered, full 14px travel).
+- **Internal: module boundaries.** Split the store's pure model, event-state
+  transitions, operator actions, history, and search; split the demo simulator
+  into fixtures, world, reads, writes, and simulation; split the app's
+  transcript, inspector, fleet, and spawn surfaces; split the bridge into
+  IPC/HTTP/static modules; and split the stylesheets by surface. Public
+  behavior, the wire contract, and the rendered UI are unchanged.
 
 ## 0.1.0 — 2026-10-20
 

@@ -1,0 +1,200 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* Queue and composer                                                 */
+  /* ------------------------------------------------------------------ */
+
+  .composer {
+    display: grid;
+    gap: 4px;
+    flex: none;
+    padding: 0;
+    border-top: 0;
+    background: transparent;
+  }
+
+  .composer > .queue-strip {
+    margin: 4px 8px 0;
+  }
+
+  .composer > .composer__error {
+    margin: 4px 8px;
+  }
+
+  .composer--removed {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    color: var(--text-3);
+    font-size: var(--fs-11);
+  }
+
+  .queue-strip {
+    border: var(--bw) solid var(--line);
+    background: var(--raise);
+  }
+
+  .queue-strip summary {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 26px;
+    padding: 0 var(--sp-2);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .queue-strip summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .queue-strip__title {
+    color: var(--text-2);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .queue-strip__count {
+    color: var(--warn);
+  }
+
+  .queue-strip__active {
+    min-width: 0;
+    overflow: hidden;
+    margin-left: auto;
+    color: var(--text-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .queue-strip__body {
+    border-top: var(--bw) solid var(--line);
+  }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 4px var(--sp-2);
+    border-top: var(--bw) solid var(--line);
+    color: var(--text-2);
+    font-size: var(--fs-11);
+  }
+
+  .queue-item:first-child {
+    border-top: 0;
+  }
+
+  .queue-item--active {
+    background: var(--accent-soft);
+  }
+
+  .queue-item__position {
+    flex: none;
+    min-width: 30px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-align: right;
+    text-transform: uppercase;
+  }
+
+  .queue-item__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .queue-item__meta {
+    flex: none;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .composer__box {
+    border: 0;
+    border-right: var(--bw) solid var(--line-2);
+    border-left: var(--bw) solid var(--line-2);
+    background: var(--raise);
+  }
+
+  .composer__box:focus-within {
+    border-color: var(--accent-text);
+  }
+
+  .composer__box[data-disabled] {
+    border-color: var(--line);
+  }
+
+  .composer__input {
+    display: block;
+    width: 100%;
+    min-height: 54px;
+    max-height: 180px;
+    resize: vertical;
+    padding: var(--sp-2) var(--sp-3);
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-13);
+    line-height: 1.5;
+    outline: none;
+    resize: vertical;
+  }
+
+  .composer__input::placeholder {
+    color: var(--text-3);
+  }
+
+  .composer__input:disabled {
+    cursor: not-allowed;
+  }
+
+  .composer__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 4px var(--sp-2);
+    border-top: var(--bw) solid var(--line);
+  }
+
+  .composer__hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-3);
+    font-size: 9px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer__count {
+    margin-left: auto;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .composer__error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding: 4px var(--sp-2);
+    border: var(--bw) solid var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--fs-11);
+  }
+}

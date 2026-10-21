@@ -1,0 +1,49 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* Boot                                                               */
+  /* ------------------------------------------------------------------ */
+
+  .boot {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: var(--sp-3);
+    height: 100vh;
+    background: var(--bg);
+  }
+
+  .boot__mark {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: var(--bw) solid var(--line-2);
+  }
+
+  .boot__mark span {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+  }
+
+  .boot__title {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .boot__text {
+    max-width: 560px;
+    color: var(--text-3);
+    font-size: var(--fs-11);
+    line-height: 1.55;
+    text-align: center;
+  }
+
+  .boot__text--error {
+    color: var(--danger);
+    font-family: var(--font-mono);
+  }
+}

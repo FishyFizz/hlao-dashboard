@@ -1,0 +1,152 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Table                                                               */
+  /* ------------------------------------------------------------------ */
+
+  .table-wrap {
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+    overflow: auto;
+  }
+
+  .table {
+    width: 100%;
+    min-width: 780px;
+  }
+
+  .table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--panel);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .table td {
+    height: 34px;
+    padding: 0 var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+    font-size: var(--fs-12);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .table tbody tr:hover {
+    background: var(--hover);
+  }
+
+  .table tbody tr[data-selected] {
+    background: var(--accent-soft);
+  }
+
+  .table tbody tr[data-selected] td:first-child {
+    box-shadow: inset 2px 0 0 var(--accent-text);
+  }
+
+  .table__session {
+    display: grid;
+    gap: 1px;
+    line-height: 1.25;
+  }
+
+  .table__name {
+    color: var(--text);
+    font-size: var(--fs-12);
+  }
+
+  .table__id {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  .table__num {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .table__last {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 230px;
+    color: var(--text-2);
+    font-size: var(--fs-11);
+  }
+
+  .table__last svg {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    color: var(--text-3);
+  }
+
+  .table__last span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .table__age {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .table__meter {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .table__meter-track {
+    width: 44px;
+    height: 4px;
+    border: var(--bw) solid var(--line);
+    background: var(--raise);
+  }
+
+  .table__meter-fill {
+    height: 100%;
+    background: var(--accent-text);
+  }
+
+  .table__meter-fill[data-warn] {
+    background: var(--warn);
+  }
+
+  .table__meter-fill[data-danger] {
+    background: var(--danger);
+  }
+
+  .table__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-top: var(--bw) solid var(--line);
+    background: var(--panel);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}

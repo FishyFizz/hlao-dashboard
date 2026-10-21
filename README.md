@@ -73,7 +73,7 @@ the interaction model. It is not a real process and no work executes.
 ```bash
 npm start -- --home DIR   # bridge + Vite together, Ctrl-C stops both
 npm run typecheck   # tsc --noEmit (TypeScript 7)
-npm test            # Vitest: attention, event merge, transcript coalescing, routing, demo supervisor
+npm test            # Vitest: attention, fleet grouping, event history, transcript coalescing, routing, spawn gates, demo engine
 npm run build       # typecheck + Vite production build
 npm run preview     # preview the built SPA without the bridge (setup screen)
 ```
@@ -238,15 +238,26 @@ docs/architecture.md         module map, invariants, liveness, action boundaries
 docs/adr/                    bridge and demo decisions
 STACK.md                     language/library decision and evidence
 DESIGN.md                    visual system and component inventory
-server/bridge.mjs            loopback HTTP + SSE + supervisor IPC
+server/bridge.mjs            loopback HTTP + SSE entry point
+server/supervisor-connection.mjs  supervisor IPC, hello, reconnect, token
+server/http-utils.mjs        JSON/static responses and bounded bodies
+server/directories.mjs       dashboard.fs.list (directory names only)
+server/wire.mjs              bridge hello version (keep in sync with protocol.ts)
 server/dev.mjs               one-command bridge + Vite launcher
 src/wire/protocol.ts         wire types and capabilities
 src/wire/transport.ts        browser bridge transport
-src/demo/demoSupervisor.ts   simulated supervisor for the demo instance
-src/store/                   model, persistence, external store
-src/app/                     dashboard, fleet, lens, transcript, composer, dialogs
+src/demo/                    demo dispatcher, fixtures, world, reads, writes, simulation
+src/store/model/             pure identity, attention, fleet, event, transcript, format rules
+src/store/store.ts           state machine; actions live in src/store/actions/
+src/store/eventState.ts      pure event-history transitions
+src/store/{types,selectors,search,persistence}.ts
+src/app/transcript/          event frame, row types, transcript view, banners
+src/app/inspector/           inspector shell and one section per projection
+src/app/fleet/               fleet home, table, rail, attention and recovery rows
+src/app/spawn/               spawn draft, resume picker, backend/provider catalogs
+src/app/                     shell, dialogs, routing, shortcuts, composer
 src/gallery/                 the design specimen at /design
-src/styles/                  tokens, primitives, gallery, application shell
+src/styles/                  tokens, base, primitives/, app/, gallery
 src/data/fleet.ts            static specimen data (gallery only)
 ```
 

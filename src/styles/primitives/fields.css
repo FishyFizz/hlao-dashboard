@@ -1,0 +1,248 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Fields                                                              */
+  /* ------------------------------------------------------------------ */
+
+  .field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .field__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-weight: 500;
+    letter-spacing: var(--track-label);
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .field__req {
+    color: var(--accent-text);
+  }
+
+  .field__control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .field__input,
+  .field__textarea,
+  .select__trigger {
+    width: 100%;
+    min-width: 0;
+    border: var(--bw) solid var(--line-2);
+    background: var(--raise);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-13);
+    transition:
+      border-color var(--dur-1) var(--ease),
+      background-color var(--dur-1) var(--ease);
+  }
+
+  .field__input {
+    height: 32px;
+    padding: 0 var(--sp-3);
+  }
+
+  .field__textarea {
+    min-height: 76px;
+    padding: var(--sp-2) var(--sp-3);
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .field__input::placeholder,
+  .field__textarea::placeholder {
+    color: var(--text-3);
+  }
+
+  .field__input:hover,
+  .field__textarea:hover,
+  .select__trigger:hover {
+    border-color: var(--text-3);
+  }
+
+  .field__input:focus,
+  .field__textarea:focus,
+  .field__input[data-focused],
+  .field__textarea[data-focused],
+  .field--focus .field__input {
+    outline: none;
+    border-color: var(--accent-text);
+  }
+
+  .field__input[data-invalid],
+  .field__textarea[data-invalid],
+  .field[data-invalid] .field__input,
+  .field[data-invalid] .field__textarea {
+    border-color: var(--danger);
+  }
+
+  .field__input[data-disabled],
+  .field__textarea[data-disabled] {
+    border-color: var(--line);
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .field__search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+
+  .field__search .field__input {
+    padding-left: 32px;
+  }
+
+  .field__search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    color: var(--text-3);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .field__suffix {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .field__hint {
+    color: var(--text-3);
+    font-size: var(--fs-11);
+    line-height: 1.4;
+  }
+
+  .field__error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--danger);
+    font-size: var(--fs-11);
+    line-height: 1.4;
+  }
+
+  .field__error-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* Select */
+
+  .select__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    height: 32px;
+    padding: 0 var(--sp-3);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .select__trigger[data-focus-visible] {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .select__trigger[data-open] {
+    border-color: var(--accent-text);
+  }
+
+  .select__trigger[data-disabled] {
+    border-color: var(--line);
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .select__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .select__value[data-placeholder] {
+    color: var(--text-3);
+  }
+
+  .select__chevron {
+    width: 13px;
+    height: 13px;
+    color: var(--text-3);
+  }
+
+  .select__popover {
+    --trigger-width: auto;
+    min-width: var(--trigger-width);
+    border: var(--bw) solid var(--line-2);
+    background: var(--panel);
+    padding: var(--sp-1);
+    outline: none;
+  }
+
+  .select__list {
+    max-height: 240px;
+    overflow: auto;
+    outline: none;
+  }
+
+  .select__option {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 28px;
+    padding: 0 var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-12);
+    cursor: pointer;
+    outline: none;
+  }
+
+  .select__option[data-focused] {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  .select__option[data-selected] {
+    background: var(--accent-soft);
+    color: var(--text);
+    box-shadow: inset 2px 0 0 var(--accent-text);
+  }
+
+  .select__option[data-disabled] {
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .select__option-check {
+    width: 12px;
+    height: 12px;
+    margin-left: auto;
+    color: var(--accent-text);
+    opacity: 0;
+  }
+
+  .select__option[data-selected] .select__option-check {
+    opacity: 1;
+  }
+}

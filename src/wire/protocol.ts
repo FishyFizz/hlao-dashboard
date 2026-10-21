@@ -1,5 +1,5 @@
 /**
- * Wire protocol 3.0 — the subset this client speaks.
+ * Wire protocol 3.1 — the subset this client speaks.
  *
  * This is a pinned projection of `contracts/protocol.md`, not a second
  * protocol. Method semantics live on the supervisor; these types only shape
@@ -8,6 +8,9 @@
  * 3.0 removes the HLAO permission policy. The provider's mode is the policy
  * layer, every provider ask is relayed to the operator through a bounded
  * pending queue, and `sessions.permit` answers one request by id.
+ *
+ * 3.1 adds provider session discovery (`backends.sessions`) and historical
+ * spawn receipts (`recovery.receipts`). Both are capability-gated reads.
  */
 
 export type ProtocolVersion = { major: number; minor: number };

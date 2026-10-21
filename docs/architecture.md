@@ -28,12 +28,62 @@ shapes against a simulated supervisor. Demo mode is always named in the UI.
 |---|---|---|
 | `src/wire/protocol.ts` | Wire 3.1 types, capabilities, permission-queue, mode, and provider-catalog shapes, status language | types + `hasCapability`, `statusLabel` |
 | `src/wire/transport.ts` | Browser bridge transport | `SupervisorTransport`, `BridgeTransport` |
-| `src/demo/demoSupervisor.ts` | Simulated supervisor and demo transport | `DemoTransport` (request/notification contract) |
-| `src/store/model.ts` | Pure rules: attention, grouping, event merge, formatting, target resolution, transcript coalescing | exported functions only |
+| `src/store/model/` | Pure rules, split by concern: `identity`, `attention`, `fleet`, `events`, `transcript`, `format`. `index.ts` is the stable barrel. | exported functions and types only; no store, transport, or DOM imports |
+| `src/store/types.ts` | `DashboardState`, event-history, toast, search, and directory shapes | types + `EMPTY_EVENTS` |
+| `src/store/selectors.ts` | Derived views over one state (selection, events, attention, counts, orphaned drafts, recoverable receipts) | functions; no mutation |
+| `src/store/eventState.ts` | Pure page/notification → event-history transitions | `appendedReadPage`, `appendedLiveEvents`, `mergedOlderPage`, `eventsStateFromRead`, `gapFor` |
+| `src/store/store.ts` | The state machine: lifecycle, fleet/subscription, notification batching, queue refresh, and public method delegation | `store`, `DashboardStore`, `DashboardState` re-exports |
+| `src/store/history.ts` | Selection, transcript paging, replay/read markers, focus | `HistoryController` |
+| `src/store/actionsHost.ts` | The narrow port every action module may use | `StoreActionsHost` |
+| `src/store/actions/session.ts` | Selected-session operator actions (send, permit, cancel, close, rename, mode/config, queue) | `SessionActions` |
+| `src/store/actions/spawn.ts` | Spawn, backend/provider discovery, recovery receipts, directory reads | `SpawnActions` |
+| `src/store/actions/admin.ts` | Reload/shutdown and purely local operator state | `AdminActions` |
+| `src/store/search.ts` | Client-assembled search and transcript export | `SearchActions` |
 | `src/store/persistence.ts` | Versioned localStorage projection | `loadPersistence`, `savePersistence`, `emptyInstanceState` |
-| `src/store/store.ts` | Live state, subscriptions, actions, search, export | `store`, `DashboardState`, selectors |
-| `src/app/` | Interaction surfaces and dialogs | React components |
-| `server/bridge.mjs` | Loopback HTTP + SSE + supervisor IPC; stable-per-home UI key, never the supervisor token | `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
+| `src/demo/demoSupervisor.ts` | Demo request dispatcher and transport | `DemoSupervisor`, `DemoTransport` |
+| `src/demo/{support,types,world,fixtures,reads,writes,simulation}.ts` | Demo fixtures, mutable world, read/write handlers, turn simulation | module functions only |
+| `src/app/transcript/` | Event frame, one file per row type, transcript view, boundary banners | React components |
+| `src/app/inspector/` | Inspector shell plus one section per provider projection | React components |
+| `src/app/fleet/` | Fleet home, table, rail, attention card, rail/recovery rows | React components |
+| `src/app/spawn/` | Draft, resume picker, backend/provider catalog hooks, idempotency and failure shapes | React components + hooks |
+| `src/app/` | Shell, dialogs, routing, shortcuts, and the remaining interaction surfaces | React components |
+| `server/bridge.mjs` | Loopback HTTP + SSE entry point; stable-per-home UI key, never the supervisor token | `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
+| `server/supervisor-connection.mjs` | Persistent NDJSON IPC, hello, reconnect/backoff, token | `SupervisorConnection`, `normalizeError` |
+| `server/http-utils.mjs` | JSON responses, bounded bodies, static SPA serving | `sendJson`, `readBody`, `serveStatic` |
+| `server/directories.mjs` | The bridge-only `dashboard.fs.list` helper | `listDirectories` |
+| `server/wire.mjs` | The bridge's hello version | `WIRE` (keep in sync with `src/wire/protocol.ts`) |
+
+### Dependency rules
+
+1. `store/model/` is pure: it may import only `wire/protocol` types and sibling
+   model modules. If a helper needs state, transport, or the DOM, it belongs in
+   the store or the app layer.
+2. `store/types.ts` and `store/selectors.ts` may import the model and persistence
+   shapes, but never a transport or a React module.
+3. Action and history modules import only their host (`StoreActionsHost` or
+   `HistoryHost`); they never read private store fields. New side effects need a
+   host method, not a reach-through.
+4. The demo implements the wire contract; it may import pure model helpers but
+   never the dashboard store, transport, or app components.
+5. `server/` is Node-only and never imports `src/`. The wire version is
+   deliberately duplicated in `server/wire.mjs`; update both when the contract's
+   major/minor changes.
+6. `src/app/` reads state through the store and rules through the model. A
+   component that needs a new derived value should add a selector or model
+   function rather than recomputing it locally.
+
+### Where a change belongs
+
+| Change | Touch |
+|---|---|
+| Add a wire field or method | `src/wire/protocol.ts`; then the demo dispatcher/parser and its read or write handler. The bridge forwards unknown methods without changes. |
+| Add an operator action | `src/store/actions/{session,spawn,admin}.ts`; add a host method if it has a new side effect, expose it on `DashboardStore`, then wire the surface. |
+| Add a fleet rule or projection | `src/store/model/fleet.ts`; add a selector only when the rule needs the whole `DashboardState`. |
+| Add a transcript row type | `src/store/model/transcript.ts` (`RenderItem` + `buildRenderItems`), a row component in `src/app/transcript/`, and one dispatch line in `EventRow`. |
+| Add an inspector projection | A new section in `src/app/inspector/` plus one line in `Inspector`. |
+| Add a spawn parameter | The spawn/resume surface and `SpawnParams`; the demo parser is `spawnParams` in `src/demo/demoSupervisor.ts`. |
+| Add a bridge endpoint | `server/bridge.mjs`; keep helpers in `http-utils`/`directories`. `server/` never imports `src/`. |
+| Add or change a style rule | `src/styles/primitives/<family>.css` or `src/styles/app/<surface>.css`; keep the import order in `index.css`. |
 
 ## Invariants
 
@@ -134,10 +184,17 @@ hello/default-mode projection, its recovery receipt projection (attached and
 provider-only rows), and its parallel permission queue (request-id answering,
 multi-pending errors, and the removed policy method).
 `src/store/store.test.ts` covers the notification coalescing window.
-`src/app/providerSessions.test.ts` covers provider-catalog search and the
+`src/store/eventState.test.ts` covers tail-page construction, dedupe/out-of-order
+append, forward-gap reporting, live cursor advancement, and older-page merge.
+`src/store/model/fleet.test.ts` covers fleet counts, query/ended filtering,
+attention-first grouping, and the rule that attention stays visible when ended
+sessions are hidden.
+`src/demo/demoEngine.test.ts` covers turn start/queue/next-turn, queue drop,
+spawn plus first prompt, and scoped session/event notifications.
+`src/app/spawn/providerSessions.test.ts` covers provider-catalog search and the
 loadable/forkable gates behind the two resume actions.
-`src/app/PermissionModeField.test.ts` covers merging the mode lists reported by
-live sessions into the override suggestions.
+`src/app/spawn/PermissionModeField.test.ts` covers merging the mode lists
+reported by live sessions into the override suggestions.
 `src/app/routing.test.ts` covers session-hash parsing and round trips.
 `src/app/MarkdownText.test.tsx` covers GFM
 blocks, soft breaks, code-copy controls, inert raw HTML, explicit external

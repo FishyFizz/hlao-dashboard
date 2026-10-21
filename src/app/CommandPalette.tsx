@@ -20,6 +20,7 @@ import {
 import type { SessionView } from "../wire/protocol";
 import { statusLabel } from "../wire/protocol";
 import { useNow } from "./hooks";
+import { cli } from "./cli";
 import { exportTranscript } from "./export";
 import { copyWithToast } from "./ui";
 
@@ -176,7 +177,7 @@ export function CommandPalette({
           id: "copy-cli",
           group: "Selected session",
           label: "Copy the read command as CLI",
-          run: () => void copyWithToast(`hlao read ${selected.id}`, "CLI command"),
+          run: () => void copyWithToast(cli.read(selected), "CLI command"),
         },
         {
           id: "export",

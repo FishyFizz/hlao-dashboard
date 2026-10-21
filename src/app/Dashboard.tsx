@@ -1,19 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
-import { Tag } from "../components/Status";
 import {
   attentionItems,
   selectedSession,
   store,
-  type DashboardState,
 } from "../store/store";
-import { displayLabel, nextAttentionSession } from "../store/model";
+import { displayLabel } from "../store/model";
 import type {
   QueueItemView,
   RecoveryReceiptView,
   SessionView,
 } from "../wire/protocol";
-import { asWireError, WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
+import { asWireError } from "../wire/protocol";
 import { newId } from "../lib/id";
 import {
   ClearLocalDialog,
@@ -27,24 +25,26 @@ import {
 import { Banners } from "./Banners";
 import { CommandPalette } from "./CommandPalette";
 import { DetailsDialog } from "./DetailsDialog";
-import { FleetHome } from "./FleetHome";
-import { FleetRail } from "./FleetRail";
+import { FleetHome } from "./fleet/FleetHome";
+import { FleetRail } from "./fleet/FleetRail";
 import { HelpDialog } from "./HelpDialog";
 import { IntroDialog } from "./IntroDialog";
 import { RenameDialog } from "./RenameDialog";
-import { ResumeDialog, type ResumePrefill } from "./ResumeDialog";
+import { ResumeDialog, type ResumePrefill } from "./spawn/ResumeDialog";
 import { SearchDialog } from "./SearchDialog";
 import { SessionLens } from "./SessionLens";
 import { SetupScreen } from "./SetupScreen";
-import { SpawnDraft } from "./SpawnDraft";
+import { SpawnDraft } from "./spawn/SpawnDraft";
 import { StatusBar } from "./StatusBar";
 import { ToastRegion } from "./ToastRegion";
 import { TopBar } from "./TopBar";
-import { isMod, isTypingTarget, useDashboard } from "./hooks";
-import { Inspector } from "./Inspector";
+import { useDashboard } from "./hooks";
+import { Inspector } from "./inspector/Inspector";
 import { exportTranscript } from "./export";
-import { parseSessionHash, replaceLocation, sessionHash } from "./routing";
 import { useAttentionAnnouncement, useAttentionNotifications } from "./attention";
+import { BootScreen } from "./BootScreen";
+import { useDashboardLocation } from "./useDashboardLocation";
+import { useDashboardShortcuts } from "./useDashboardShortcuts";
 
 type ActionDialog =
   | { kind: "rename" }
@@ -68,7 +68,6 @@ export function Dashboard() {
   const [railOpen, setRailOpen] = useState(false);
   const [action, setAction] = useState<ActionDialog | null>(null);
   const [dropItem, setDropItem] = useState<QueueItemView | null>(null);
-  const appliedHash = useRef(false);
   const attention = attentionItems(state);
   const selected = selectedSession(state);
   const removedSnapshot = state.removed ? state.removedSession : null;
@@ -101,36 +100,7 @@ export function Dashboard() {
     if (state.phase === "live" && !state.introSeen) setIntroOpen(true);
   }, [state.phase, state.introSeen]);
 
-  useEffect(() => {
-    appliedHash.current = false;
-  }, [state.home, state.mode]);
-
-  useEffect(() => {
-    if (state.phase !== "live" || appliedHash.current || !state.fleetLoaded) {
-      return;
-    }
-    appliedHash.current = true;
-    applySessionHash();
-  }, [state.phase, state.fleetLoaded]);
-
-  useEffect(() => {
-    if (!state.mode) return;
-    const params = new URLSearchParams(window.location.search);
-    if (state.mode === "demo") params.set("demo", "1");
-    else params.delete("demo");
-    const search = params.toString();
-    replaceLocation(search ? `?${search}` : "", window.location.hash);
-  }, [state.mode]);
-
-  useEffect(() => {
-    if (state.phase !== "live" || !state.fleetLoaded) return;
-    replaceLocation(window.location.search, sessionHash(state.selection));
-  }, [state.phase, state.fleetLoaded, state.selection]);
-
-  useEffect(() => {
-    window.addEventListener("hashchange", applySessionHash);
-    return () => window.removeEventListener("hashchange", applySessionHash);
-  }, []);
+  useDashboardLocation(state);
 
   useEffect(() => {
     if (selected || !state.selection) return;
@@ -210,110 +180,40 @@ export function Dashboard() {
       });
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const typing = isTypingTarget(event.target);
-      const inTransientWidget =
-        event.target instanceof Element &&
-        event.target.closest('[role="menu"], [role="listbox"], [role="dialog"]') !== null;
-      const overlayOpen =
-        paletteOpen ||
-        resumeOpen ||
-        searchOpen ||
-        helpOpen ||
-        detailsOpen ||
-        introOpen ||
-        action !== null;
+  const shortcutOverlays = useMemo(
+    () => ({
+      palette: paletteOpen,
+      resume: resumeOpen,
+      search: searchOpen,
+      help: helpOpen,
+      details: detailsOpen,
+      intro: introOpen,
+      action: action !== null,
+      rail: railOpen,
+      draft: spawnDraftOpen,
+    }),
+    [
+      paletteOpen,
+      resumeOpen,
+      searchOpen,
+      helpOpen,
+      detailsOpen,
+      introOpen,
+      action,
+      railOpen,
+      spawnDraftOpen,
+    ],
+  );
 
-      if (isMod(event)) {
-        const key = event.key.toLowerCase();
-        if (key === "k") {
-          event.preventDefault();
-          setPaletteOpen((value) => !value);
-          return;
-        }
-        if (key === "n") {
-          event.preventDefault();
-          openSpawnDraft();
-          return;
-        }
-        if (key === "f" && event.shiftKey) {
-          event.preventDefault();
-          setSearchOpen(true);
-          return;
-        }
-      }
-
-      if (overlayOpen || inTransientWidget) return;
-
-      if (event.key === "Escape" && railOpen) {
-        event.preventDefault();
-        setRailOpen(false);
-        return;
-      }
-
-      if (event.key === "?" && !typing) {
-        event.preventDefault();
-        setHelpOpen(true);
-        return;
-      }
-
-      if (event.key === "Escape") {
-        if (typing) {
-          (event.target as HTMLElement).blur();
-          return;
-        }
-        if (spawnDraftOpen) {
-          event.preventDefault();
-          setSpawnDraftOpen(false);
-          return;
-        }
-        if (store.getSnapshot().selection) {
-          event.preventDefault();
-          store.backToFleet();
-        }
-        return;
-      }
-
-      if (typing) return;
-
-      if (event.key === "j" || event.key === "J") {
-        event.preventDefault();
-        stepAttention(1);
-      } else if (event.key === "k" || event.key === "K") {
-        event.preventDefault();
-        stepAttention(-1);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    paletteOpen,
-    resumeOpen,
-    spawnDraftOpen,
-    searchOpen,
-    helpOpen,
-    detailsOpen,
-    introOpen,
-    action,
-    railOpen,
-    attention.map((item) => item.session.id).join("|"),
-  ]);
-
-  const stepAttention = (direction: 1 | -1) => {
-    const snapshot = store.getSnapshot();
-    const next = nextAttentionSession(
-      attentionItems(snapshot),
-      snapshot.selection?.id ?? null,
-      direction,
-    );
-    if (!next) {
-      store.addToast({ tone: "info", title: "Nothing needs you" });
-      return;
-    }
-    store.selectSession(next.id);
-  };
+  useDashboardShortcuts({
+    overlays: shortcutOverlays,
+    onTogglePalette: () => setPaletteOpen((value) => !value),
+    onSpawn: openSpawnDraft,
+    onSearch: () => setSearchOpen(true),
+    onHelp: () => setHelpOpen(true),
+    onCloseRail: () => setRailOpen(false),
+    onCloseDraft: () => setSpawnDraftOpen(false),
+  });
 
   const openSession = (sessionId: string) => {
     store.selectSession(sessionId);
@@ -334,7 +234,15 @@ export function Dashboard() {
   };
 
   if (state.phase === "boot" || state.phase === "connecting") {
-    return <BootScreen state={state} />;
+    return (
+      <BootScreen
+        text={
+          state.mode === "demo"
+            ? "Opening the demo instance…"
+            : "Connecting to the local bridge…"
+        }
+      />
+    );
   }
 
   if (state.phase === "setup" || !state.instance) {
@@ -512,6 +420,7 @@ export function Dashboard() {
             open={action?.kind === "stop" && dropItem === null}
             session={sessionForDialogs}
             queue={queue}
+            pending={Boolean(state.pending.cancel)}
             onClose={() => setAction(null)}
             onConfirm={(keepQueue) => {
               setAction(null);
@@ -521,6 +430,7 @@ export function Dashboard() {
           <CloseDialog
             open={action?.kind === "close"}
             session={sessionForDialogs}
+            pending={Boolean(state.pending.close)}
             onClose={() => setAction(null)}
             onConfirm={(force) => {
               setAction(null);
@@ -531,6 +441,7 @@ export function Dashboard() {
             open={action?.kind === "close-subtree"}
             state={state}
             session={sessionForDialogs}
+            pending={Boolean(state.pending.close)}
             onClose={() => setAction(null)}
             onConfirm={() => {
               setAction(null);
@@ -540,6 +451,7 @@ export function Dashboard() {
           <ForgetDialog
             open={action?.kind === "forget"}
             session={sessionForDialogs}
+            pending={Boolean(state.pending.forget)}
             onClose={() => setAction(null)}
             onConfirm={() => {
               setAction(null);
@@ -553,6 +465,7 @@ export function Dashboard() {
             open={action?.kind === "stop" && dropItem !== null}
             session={sessionForDialogs}
             item={dropItem}
+            pending={Boolean(state.pending["queue-drop"])}
             onClose={() => {
               setDropItem(null);
               setAction(null);
@@ -570,6 +483,7 @@ export function Dashboard() {
       <ShutdownDialog
         open={action?.kind === "shutdown"}
         state={state}
+        pending={Boolean(state.pending.shutdown)}
         onClose={() => setAction(null)}
         onConfirm={(force) => {
           setAction(null);
@@ -586,40 +500,4 @@ export function Dashboard() {
       />
     </div>
   );
-}
-
-function BootScreen({ state }: { state: DashboardState }) {
-  return (
-    <div className="boot">
-      <div className="boot__mark" aria-hidden="true">
-        <span />
-      </div>
-      <div className="boot__title">HLAO dashboard</div>
-      <div className="boot__text">
-        {state.mode === "demo" ? "Opening the demo instance…" : "Connecting to the local bridge…"}
-      </div>
-      <Tag>wire {WIRE_MAJOR}.{WIRE_MINOR}</Tag>
-    </div>
-  );
-}
-
-function applySessionHash(): void {
-  const snapshot = store.getSnapshot();
-  const target = parseSessionHash(window.location.hash);
-  if (!target) {
-    if (window.location.hash === "#/fleet" && snapshot.selection) store.backToFleet();
-    return;
-  }
-  const session = snapshot.sessions[target.id];
-  if (!session) return;
-  if (!target.createdAt || session.createdAt === target.createdAt) {
-    store.selectSession(session.id);
-    return;
-  }
-  store.addToast({
-    tone: "info",
-    title: "That handle now belongs to a different session",
-    text: "The dashboard did not retarget the link. The fleet is shown instead.",
-  });
-  store.backToFleet();
 }

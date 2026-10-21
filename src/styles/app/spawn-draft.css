@@ -1,0 +1,87 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* New-session draft                                                  */
+  /* ------------------------------------------------------------------ */
+
+  .spawn-draft__scroll {
+    display: grid;
+    flex: 1 1 auto;
+    align-content: start;
+    gap: var(--sp-4);
+    min-height: 0;
+    overflow: auto;
+    padding: var(--sp-4) 0;
+  }
+
+  .spawn-draft__lede {
+    display: grid;
+    gap: var(--sp-1);
+    max-width: 66ch;
+    margin: 0 var(--sp-4);
+  }
+
+  .spawn-draft__scroll > .notice {
+    margin: 0 var(--sp-4);
+  }
+
+  .spawn-draft__kicker {
+    color: var(--accent-text);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .spawn-draft__lede h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--fs-16);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  .spawn-draft__lede p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-12);
+    line-height: 1.6;
+  }
+
+  .spawn-draft__params {
+    display: grid;
+    gap: var(--sp-3);
+    width: 100%;
+    padding: var(--sp-3) var(--sp-4);
+    border-top: var(--bw) solid var(--line);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .spawn-draft__params-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding-bottom: var(--sp-2);
+    border-bottom: var(--bw) solid var(--line);
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .spawn-draft__params-head span:last-child {
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+
+  .spawn-draft__composer {
+    border-top: var(--bw) solid var(--line);
+  }
+
+  .spawn-draft__error {
+    margin: 4px 8px 0;
+  }
+}

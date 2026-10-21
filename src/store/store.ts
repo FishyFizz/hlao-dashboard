@@ -1,18 +1,9 @@
 import { DemoTransport } from "../demo/demoSupervisor";
 import {
-  appendEvents,
-  attentionFor,
-  descendantsOf,
-  eventText,
   isTerminalStatus,
   latestNotice,
-  mergeEvents,
   normalizeHome,
-  resolveTarget,
   sessionLocalKey,
-  toolPayloadFromEvents,
-  type AttentionItem,
-  type LocalReadingState,
   type NoticeRecord,
   type TargetResolution,
   type ToolPayload,
@@ -21,7 +12,6 @@ import {
   emptyInstanceState,
   loadPersistence,
   savePersistence,
-  saveTheme,
   type InstanceLocalState,
   type PersistedState,
   type Theme,
@@ -34,24 +24,13 @@ import {
 } from "../wire/transport";
 import type {
   BackendsListResult,
-  CancelResult,
-  CloseResult,
-  EventView,
   HelloResult,
-  LastCrash,
   NotificationFrame,
-  PermitParams,
-  PermitResult,
   ProviderSessionsResult,
-  RecoveryReceiptView,
-  RecoveryReceiptsResult,
-  QueueDropResult,
   QueueResult,
   ReadResult,
-  ReloadResult,
   SendResult,
   SessionView,
-  ShutdownResult,
   SpawnParams,
   SpawnResult,
   SubscribeResult,
@@ -64,179 +43,54 @@ import {
   WIRE_MAJOR,
 } from "../wire/protocol";
 import { newId } from "../lib/id";
+import { AdminActions } from "./actions/admin";
+import { SessionActions } from "./actions/session";
+import { SpawnActions } from "./actions/spawn";
+import type { StoreActionsHost } from "./actionsHost";
+import { appendedLiveEvents } from "./eventState";
+import { HistoryController, type HistoryHost } from "./history";
+import { SearchActions } from "./search";
+import { canUse, selectedSession } from "./selectors";
+import {
+  EMPTY_EVENTS,
+  type DashboardState,
+  type DirectoryListing,
+  type ExportResult,
+  type Mode,
+  type SearchOptions,
+  type SearchOutcome,
+  type Selection,
+  type SessionEventsState,
+  type Toast,
+} from "./types";
 
-export type Phase = "boot" | "connecting" | "setup" | "live";
-export type Mode = "bridge" | "demo";
-
-export type Selection = { id: string; createdAt: string };
-
-export type Gap = { from: number; to: number };
-
-export type SessionEventsState = {
-  events: EventView[];
-  earliestRetainedSeq: number;
-  lastSeq: number;
-  nextBefore: number | null;
-  hasMoreOlder: boolean;
-  truncated: boolean;
-  viewCapped: boolean;
-  loading: boolean;
-  loadingOlder: boolean;
-  loaded: boolean;
-  gap: Gap | null;
-};
-
-export type ToastTone = "info" | "ok" | "danger";
-
-export type Toast = {
-  id: string;
-  tone: ToastTone;
-  title: string;
-  text?: string;
-};
-
-export type RestartNotice = {
-  at: string;
-  previousPid: number;
-  previousStartedAt: string;
-  nextPid: number;
-  nextStartedAt: string;
-};
-
-export type DashboardState = {
-  phase: Phase;
-  mode: Mode | null;
-  connection: ConnectionStatus;
-  home: string;
-  instance: HelloResult | null;
-  connectError: WireError | null;
-  lastUpdatedAt: string | null;
-  fleetLoaded: boolean;
-  /** Historical spawn receipts, live-joined. Empty when unsupported. */
-  recovery: RecoveryReceiptView[];
-  recoveryLoading: boolean;
-  recoveryError: string | null;
-  recoveryLoadedAt: string | null;
-  sessions: Record<string, SessionView>;
-  removedIds: Record<string, true>;
-  events: Record<string, SessionEventsState>;
-  notices: Record<string, NoticeRecord>;
-  selection: Selection | null;
-  removed: boolean;
-  removedSession: SessionView | null;
-  subscription: number | null;
-  transportKind: "stream" | "poll" | null;
-  queue: QueueResult | null;
-  queueLoading: boolean;
-  followTail: Record<string, boolean>;
-  focus: { sessionId: string; seq: number } | null;
-  local: InstanceLocalState;
-  pending: Record<string, boolean>;
-  actionError: Record<string, string>;
-  toasts: Toast[];
-  crashNotice: LastCrash | null;
-  restartNotice: RestartNotice | null;
-  theme: Theme;
-  notifications: boolean;
-  introSeen: boolean;
-};
-
-export type SearchScope = "session" | "instance";
-export type SearchOptions = {
-  query: string;
-  scope: SearchScope;
-  includeClosed: boolean;
-  raw: boolean;
-  regex?: boolean;
-};
-export type SearchHit = {
-  session: SessionView;
-  event: EventView;
-  snippet: string;
-};
-export type SearchOutcome = {
-  hits: SearchHit[];
-  scannedSessions: number;
-  totalSessions: number;
-  capped: boolean;
-  truncated: boolean;
-  asOf: string;
-  cancelled: boolean;
-  errors: string[];
-};
-
-export type ExportResult = {
-  events: EventView[];
-  truncated: boolean;
-  capped: boolean;
-  pages: number;
-};
-
-export type DirectoryListing = {
-  path: string;
-  parent: string | null;
-  entries: Array<{ name: string; path: string }>;
-  roots: string[];
-};
+export type {
+  DashboardState,
+  DirectoryListing,
+  ExportResult,
+  Gap,
+  Mode,
+  Phase,
+  RestartNotice,
+  SearchHit,
+  SearchOptions,
+  SearchOutcome,
+  SearchScope,
+  Selection,
+  SessionEventsState,
+  Toast,
+  ToastTone,
+} from "./types";
+export { attentionItems, canUse, eventsFor, selectedSession } from "./selectors";
+export {
+  activeSessions,
+  orphanedDrafts,
+  recoverableReceipts,
+  type OrphanDraft,
+} from "./selectors";
 
 /** Most mutations echo the full session view; the client never merges a patch. */
 type SessionResult = { session: SessionView };
-
-const EMPTY_EVENTS: SessionEventsState = {
-  events: [],
-  earliestRetainedSeq: 1,
-  lastSeq: 0,
-  nextBefore: null,
-  hasMoreOlder: false,
-  truncated: false,
-  viewCapped: false,
-  loading: false,
-  loadingOlder: false,
-  loaded: false,
-  gap: null,
-};
-
-/** Draw a gap only where the server reports eviction; never infer one. */
-function gapFor(
-  current: SessionEventsState,
-  incoming: readonly EventView[],
-  truncated: boolean,
-): Gap | null {
-  const first = incoming[0];
-  return truncated && first && first.seq > current.lastSeq + 1
-    ? { from: current.lastSeq + 1, to: first.seq - 1 }
-    : current.gap;
-}
-
-export function selectedSession(state: DashboardState): SessionView | null {
-  if (!state.selection) return null;
-  const session = state.sessions[state.selection.id];
-  if (!session) return null;
-  return session.createdAt === state.selection.createdAt ? session : null;
-}
-
-export function eventsFor(
-  state: DashboardState,
-  sessionId: string | null,
-): SessionEventsState {
-  if (!sessionId) return EMPTY_EVENTS;
-  return state.events[sessionId] ?? EMPTY_EVENTS;
-}
-
-export function attentionItems(state: DashboardState): AttentionItem[] {
-  const local: LocalReadingState = {
-    acknowledged: state.local.acknowledged,
-    dismissedNotices: state.local.dismissedNotices,
-  };
-  return attentionFor(Object.values(state.sessions), state.notices, local);
-}
-
-export function canUse(
-  state: DashboardState,
-  capability: string,
-): boolean {
-  return state.instance ? hasCapability(state.instance.capabilities, capability) : false;
-}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -251,7 +105,6 @@ export class DashboardStore {
   private connectToken = 0;
   private subscribeGeneration = 0;
   private resyncing = false;
-  private recoveryAgain = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollBusy = false;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -262,12 +115,47 @@ export class DashboardStore {
   private toastTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private queueTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private noticeProbes = new Map<string, number>();
-  private sendAttempts = new Map<
-    string,
-    { key: string; messageId: string; text: string }
-  >();
-  private searchToken = 0;
-  private loadTokens = new Map<string, number>();
+
+  /**
+   * The only surface actions get. Keeping it an explicit object means action
+   * modules cannot reach private fields, and each side effect has one name.
+   */
+  private readonly actionsHost: StoreActionsHost = {
+    getState: () => this.state,
+    getTransport: () => this.transport,
+    setState: (patch) => this.setState(patch),
+    setPending: (key, value) => this.setPending(key, value),
+    setActionError: (key, message) => this.setActionError(key, message),
+    setLocal: (local, immediate) => this.setLocal(local, immediate),
+    schedulePersist: () => this.schedulePersist(),
+    addToast: (toast) => this.addToast(toast),
+    applySession: (view) => this.applySession(view),
+    applySessions: (views) => this.applySessions(views),
+    refreshQueue: (sessionId) => this.refreshQueue(sessionId),
+    refreshRecovery: () => this.spawnActions.refreshRecovery(),
+    refreshSession: (sessionId) => this.refreshSession(sessionId),
+    afterSelection: (session) => this.history.afterSelection(session),
+    subscribeToFleet: () => this.subscribeToFleet(),
+    stopPolling: () => this.stopPolling(),
+    disposeTransport: () => this.disposeTransport(),
+  };
+  private readonly sessionActions = new SessionActions(this.actionsHost);
+  private readonly spawnActions = new SpawnActions(this.actionsHost);
+  private readonly adminActions = new AdminActions(this.actionsHost);
+  private readonly searchActions = new SearchActions(this.actionsHost);
+  private readonly historyHost: HistoryHost = {
+    getState: () => this.state,
+    getTransport: () => this.transport,
+    setState: (patch) => this.setState(patch),
+    setLocal: (local, immediate) => this.setLocal(local, immediate),
+    addToast: (toast) => this.addToast(toast),
+    patchSessionEvents: (sessionId, patch) => this.patchSessionEvents(sessionId, patch),
+    applySession: (view) => this.applySession(view),
+    setNotice: (session, notice) => this.setNotice(session, notice),
+    refreshQueue: (sessionId) => this.refreshQueue(sessionId),
+    subscribeToFleet: () => this.subscribeToFleet(),
+  };
+  private readonly history = new HistoryController(this.historyHost);
 
   constructor() {
     this.persisted = loadPersistence();
@@ -503,7 +391,7 @@ export class DashboardStore {
         instance: hello,
         connectError: {
           code: "version_mismatch",
-          message: `This dashboard speaks wire major ${WIRE_MAJOR}; the supervisor at ${home} speaks major ${hello.protocolVersion?.major ?? "unknown"}. Stop it with the matching client before starting 3.0.`,
+          message: `This dashboard requires wire major ${WIRE_MAJOR}; the supervisor at ${home} speaks major ${hello.protocolVersion?.major ?? "unknown"}. Start a supervisor for wire major ${WIRE_MAJOR} and retry.`,
         },
       });
       return;
@@ -593,7 +481,7 @@ export class DashboardStore {
     if (selection) {
       this.setState({ selection, removed: false, removedSession: null });
       if (!this.state.events[selection.id]?.loaded) {
-        await this.loadSession(selection.id);
+        await this.history.loadSession(selection.id);
       }
     } else if (localSelected) {
       this.setLocal({ ...local, selected: null });
@@ -782,7 +670,7 @@ export class DashboardStore {
         // notification and a response may arrive in either order; appending by
         // seq makes the second copy a no-op.
         const latest = this.state.events[followedId];
-        void this.fillGap(followedId, latest?.loaded ? latest.lastSeq : 0);
+        void this.history.fillGap(followedId, latest?.loaded ? latest.lastSeq : 0);
       }
     } catch (error) {
       this.addToast({
@@ -823,7 +711,7 @@ export class DashboardStore {
           limit: 100,
         });
         this.applySession(result.session);
-        this.applyReadAppend(selection.id, result);
+        this.history.applyRead(selection.id, result);
       }
       this.setState({ connection: "open", connectError: null });
     } catch (error) {
@@ -856,9 +744,9 @@ export class DashboardStore {
         } else {
           const loaded = this.state.events[selection.id];
           if (!loaded?.loaded) {
-            await this.loadSession(selection.id);
+            await this.history.loadSession(selection.id);
           } else {
-            await this.fillGap(selection.id, loaded.lastSeq);
+            await this.history.fillGap(selection.id, loaded.lastSeq);
           }
           await this.refreshQueue(selection.id);
         }
@@ -872,235 +760,52 @@ export class DashboardStore {
   }
 
   /* ---------------------------------------------------------------- */
-  /* Selection and history                                             */
+  /* Selection and history (implementation in ./history)               */
   /* ---------------------------------------------------------------- */
 
   selectSession(sessionId: string): void {
-    const session = this.state.sessions[sessionId];
-    if (!session) return;
-    if (
-      this.state.selection?.id === session.id &&
-      this.state.selection.createdAt === session.createdAt
-    ) {
-      if (!this.state.events[sessionId]?.loaded) void this.loadSession(sessionId);
-      return;
-    }
-    const selection = { id: session.id, createdAt: session.createdAt };
-    const seen = this.state.local.lastSeen[sessionLocalKey(session)] ?? 0;
-    this.setState({
-      selection,
-      removed: false,
-      removedSession: null,
-      focus: null,
-      queue: this.state.queue?.session.id === session.id ? this.state.queue : null,
-      ...(seen === 0
-        ? { followTail: { ...this.state.followTail, [session.id]: true } }
-        : {}),
-    });
-    this.setLocal({ ...this.state.local, selected: selection }, true);
-    void this.afterSelection(session);
-  }
-
-  private async afterSelection(session: SessionView): Promise<void> {
-    const loaded = this.state.events[session.id];
-    if (!loaded?.loaded) {
-      await this.loadSession(session.id);
-    } else if (loaded.lastSeq < session.lastSeq) {
-      await this.fillGap(session.id, loaded.lastSeq);
-    }
-    await this.refreshQueue(session.id);
-    await this.subscribeToFleet();
+    this.history.selectSession(sessionId);
   }
 
   backToFleet(): void {
-    this.setState({
-      selection: null,
-      removed: false,
-      removedSession: null,
-      queue: null,
-      focus: null,
-    });
-    this.setLocal({ ...this.state.local, selected: null }, true);
-    void this.subscribeToFleet();
+    this.history.backToFleet();
   }
 
   async loadSession(sessionId: string): Promise<void> {
-    const transport = this.transport;
-    const session = this.state.sessions[sessionId];
-    if (!transport || !session) return;
-    const current = this.state.events[sessionId];
-    if (current?.loading) return;
-    const token = (this.loadTokens.get(sessionId) ?? 0) + 1;
-    this.loadTokens.set(sessionId, token);
-    this.patchSessionEvents(sessionId, { loading: true });
-
-    try {
-      const result = await transport.request<ReadResult>("sessions.read", {
-        sessionId,
-        limit: 100,
-      });
-      if (this.loadTokens.get(sessionId) !== token) return;
-      this.applySession(result.session);
-      const notice = latestNotice(result.events);
-      const next: SessionEventsState = {
-        events: result.events,
-        earliestRetainedSeq: result.earliestRetainedSeq,
-        lastSeq: result.lastSeq,
-        nextBefore: result.nextBefore,
-        hasMoreOlder: result.nextBefore !== null,
-        truncated: result.truncated,
-        viewCapped: false,
-        loading: false,
-        loadingOlder: false,
-        loaded: true,
-        gap: null,
-      };
-      this.patchSessionEvents(sessionId, next);
-      this.markReplayBoundary(sessionId, result.events);
-      if (notice) this.setNotice(result.session, notice);
-      if (this.state.selection?.id === sessionId) await this.refreshQueue(sessionId);
-    } catch (error) {
-      this.patchSessionEvents(sessionId, { loading: false });
-      this.addToast({
-        tone: "danger",
-        title: "Could not load the transcript",
-        text: asWireError(error).message,
-      });
-    }
+    return this.history.loadSession(sessionId);
   }
 
   async loadOlder(sessionId: string): Promise<void> {
-    const transport = this.transport;
-    const current = this.state.events[sessionId];
-    if (!transport || !current?.loaded || current.loadingOlder || !current.nextBefore) {
-      return;
-    }
-    this.patchSessionEvents(sessionId, { loadingOlder: true });
-    try {
-      const result = await transport.request<ReadResult>("sessions.read", {
-        sessionId,
-        before: current.nextBefore,
-        limit: 100,
-      });
-      const merged = mergeEvents(current.events, result.events, 10_000);
-      const viewCapped = current.viewCapped || merged.dropped > 0;
-      this.patchSessionEvents(sessionId, {
-        events: merged.events,
-        earliestRetainedSeq:
-          merged.dropped > 0 && merged.events[0]
-            ? merged.events[0].seq
-            : Math.min(current.earliestRetainedSeq, result.earliestRetainedSeq),
-        nextBefore: result.nextBefore,
-        hasMoreOlder: viewCapped ? false : result.nextBefore !== null,
-        truncated: current.truncated || result.truncated,
-        viewCapped,
-        loadingOlder: false,
-      });
-    } catch (error) {
-      this.patchSessionEvents(sessionId, { loadingOlder: false });
-      this.addToast({
-        tone: "danger",
-        title: "Could not load older events",
-        text: asWireError(error).message,
-      });
-    }
+    return this.history.loadOlder(sessionId);
   }
 
-  /**
-   * Live events and ordinary pages carry no private ACP payloads, so the
-   * transcript cannot render a tool's parameters until it asks for them.
-   * Fetch the raw events for one call when the operator opens its row.
-   */
   async loadToolPayload(
     sessionId: string,
     toolCallId: string,
     fromSeq: number,
     toSeq: number,
   ): Promise<ToolPayload> {
-    const transport = this.transport;
-    if (!transport) {
-      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
-    }
-    const events: EventView[] = [];
-    let since = Math.max(0, fromSeq - 1);
-    for (let page = 0; page < 10; page += 1) {
-      const result = await transport.request<ReadResult>("sessions.read", {
-        sessionId,
-        since,
-        limit: 200,
-        raw: true,
-        types: ["tool.call", "tool.update"],
-        grep: toolCallId,
-      });
-      events.push(...result.events);
-      if (!result.hasMore || result.nextSeq <= since || result.nextSeq >= toSeq) break;
-      since = result.nextSeq;
-    }
-    return toolPayloadFromEvents(events, toolCallId);
+    return this.history.loadToolPayload(sessionId, toolCallId, fromSeq, toSeq);
   }
 
-  private async fillGap(sessionId: string, since: number): Promise<void> {
-    const transport = this.transport;
-    if (!transport) return;
-    let cursor = since;
-    try {
-      for (let page = 0; page < 10; page += 1) {
-        const result = await transport.request<ReadResult>("sessions.read", {
-          sessionId,
-          since: cursor,
-          limit: 200,
-        });
-        this.applySession(result.session);
-        this.applyReadAppend(sessionId, result);
-        if (!result.hasMore) return;
-        const next = result.nextSeq;
-        if (next <= cursor) return;
-        cursor = next;
-      }
-    } catch {
-      // The subscription will retry; do not replace history with a guess.
-    }
+  async catchUp(sessionId: string): Promise<void> {
+    return this.history.catchUp(sessionId);
   }
 
-  private applyReadAppend(sessionId: string, result: ReadResult): void {
-    const current = this.state.events[sessionId];
-    const nextCursor = result.hasMore ? result.nextSeq : result.lastSeq;
-    if (!current?.loaded) {
-      this.patchSessionEvents(sessionId, {
-        events: result.events,
-        earliestRetainedSeq: result.earliestRetainedSeq,
-        lastSeq: nextCursor,
-        nextBefore: result.nextBefore,
-        hasMoreOlder: result.nextBefore !== null,
-        truncated: result.truncated,
-        loaded: true,
-        loading: false,
-        gap: null,
-      });
-    } else {
-      const appended = appendEvents(current.events, result.events, current.lastSeq);
-      const gap = gapFor(current, result.events, result.truncated);
-      const nextLastSeq = Math.max(current.lastSeq, nextCursor);
-      this.patchSessionEvents(sessionId, {
-        events: appended.events,
-        lastSeq: nextLastSeq,
-        earliestRetainedSeq: result.truncated
-          ? result.earliestRetainedSeq
-          : current.earliestRetainedSeq,
-        truncated: current.truncated || result.truncated,
-        gap,
-      });
-      if (
-        appended.added > 0 &&
-        this.state.selection?.id === sessionId &&
-        this.state.followTail[sessionId]
-      ) {
-        this.markSeen(sessionId, nextLastSeq);
-      }
-    }
-    this.markReplayBoundary(sessionId, result.events);
-    const notice = latestNotice(result.events);
-    if (notice) this.setNotice(result.session, notice);
+  async openAtSeq(sessionId: string, seq: number): Promise<void> {
+    return this.history.openAtSeq(sessionId, seq);
+  }
+
+  clearFocus(): void {
+    this.history.clearFocus();
+  }
+
+  markSeen(sessionId: string, seq: number): void {
+    this.history.markSeen(sessionId, seq);
+  }
+
+  setFollowTail(sessionId: string, value: boolean): void {
+    this.history.setFollowTail(sessionId, value);
   }
 
   private patchSessionEvents(
@@ -1114,99 +819,6 @@ export class DashboardStore {
         [sessionId]: { ...current, ...patch },
       },
     });
-  }
-
-  async catchUp(sessionId: string): Promise<void> {
-    const current = this.state.events[sessionId];
-    const session = this.state.sessions[sessionId];
-    if (!current?.loaded) {
-      await this.loadSession(sessionId);
-      return;
-    }
-    if (session && current.lastSeq < session.lastSeq) {
-      await this.fillGap(sessionId, current.lastSeq);
-    }
-  }
-
-  async openAtSeq(sessionId: string, seq: number): Promise<void> {
-    this.selectSession(sessionId);
-    const current = this.state.events[sessionId];
-    if (!current?.loaded) await this.loadSession(sessionId);
-    const loaded = this.state.events[sessionId];
-    if (loaded?.loaded && !loaded.events.some((event) => event.seq === seq)) {
-      const transport = this.transport;
-      if (transport) {
-        try {
-          const result = await transport.request<ReadResult>("sessions.read", {
-            sessionId,
-            before: seq + 1,
-            limit: 50,
-          });
-          const merged = mergeEvents(loaded.events, result.events);
-          this.patchSessionEvents(sessionId, {
-            events: merged.events,
-            nextBefore: result.nextBefore ?? loaded.nextBefore,
-            hasMoreOlder: true,
-          });
-        } catch {
-          // The event may have been evicted; the transcript will show the gap.
-        }
-      }
-    }
-    this.setState({ focus: { sessionId, seq } });
-  }
-
-  clearFocus(): void {
-    this.setState({ focus: null });
-  }
-
-  /**
-   * Restored history is not new activity. A `session.resumed`/`session.forked`
-   * event closes the replay block, so moving the read marker to it keeps the
-   * fleet badge honest without hiding later live events.
-   */
-  private markReplayBoundary(
-    sessionId: string,
-    events: readonly EventView[],
-  ): void {
-    let boundary = 0;
-    for (const event of events) {
-      if (
-        event.type === "session.resumed" ||
-        event.type === "session.forked"
-      ) {
-        boundary = Math.max(boundary, event.seq);
-      }
-    }
-    if (boundary > 0) this.markSeen(sessionId, boundary);
-  }
-
-  markSeen(sessionId: string, seq: number): void {
-    const session = this.state.sessions[sessionId];
-    if (!session || !Number.isFinite(seq)) return;
-    const key = sessionLocalKey(session);
-    const current = this.state.local.lastSeen[key] ?? 0;
-    if (seq <= current) return;
-    this.setLocal({
-      ...this.state.local,
-      lastSeen: { ...this.state.local.lastSeen, [key]: seq },
-    });
-  }
-
-  setFollowTail(sessionId: string, value: boolean): void {
-    if ((this.state.followTail[sessionId] ?? false) === value) {
-      if (value) {
-        const session = this.state.sessions[sessionId];
-        if (session) this.markSeen(sessionId, session.lastSeq);
-      }
-      return;
-    }
-    const followTail = { ...this.state.followTail, [sessionId]: value };
-    this.setState({ followTail });
-    if (value) {
-      const session = this.state.sessions[sessionId];
-      if (session) this.markSeen(sessionId, session.lastSeq);
-    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -1257,32 +869,16 @@ export class DashboardStore {
     if (this.state.removedIds[frame.sessionId]) return;
 
     const current = this.state.events[frame.sessionId] ?? EMPTY_EVENTS;
-    const first = frame.events[0];
-    const gap = gapFor(current, frame.events, frame.truncated);
-    const appended = appendEvents(current.events, frame.events, current.lastSeq);
-    const lastSeq = Math.max(
-      current.lastSeq,
-      frame.cursor,
-      frame.events[frame.events.length - 1]?.seq ?? 0,
-    );
-    this.patchSessionEvents(frame.sessionId, {
-      events: appended.events,
-      lastSeq,
-      earliestRetainedSeq: frame.truncated
-        ? (first?.seq ?? current.earliestRetainedSeq)
-        : current.earliestRetainedSeq,
-      truncated: current.truncated || frame.truncated,
-      gap,
-      loaded: current.loaded,
-    });
+    const outcome = appendedLiveEvents(current, frame);
+    this.patchSessionEvents(frame.sessionId, outcome.state);
     if (
-      appended.added > 0 &&
+      outcome.added > 0 &&
       this.state.selection?.id === frame.sessionId &&
       this.state.followTail[frame.sessionId]
     ) {
-      this.markSeen(frame.sessionId, lastSeq);
+      this.history.markSeen(frame.sessionId, outcome.lastSeq);
     }
-    this.markReplayBoundary(frame.sessionId, frame.events);
+    this.history.markReplayBoundary(frame.sessionId, frame.events);
     const notice = latestNotice(frame.events);
     const session = this.state.sessions[frame.sessionId];
     if (notice && session) this.setNotice(session, notice);
@@ -1382,624 +978,150 @@ export class DashboardStore {
   }
 
   /* ---------------------------------------------------------------- */
-  /* Operator actions                                                  */
+  /* Operator actions (implementations live in ./actions)              */
   /* ---------------------------------------------------------------- */
 
   setDraft(text: string): void {
-    const session = selectedSession(this.state);
-    if (!session) return;
-    const key = sessionLocalKey(session);
-    const drafts = { ...this.state.local.drafts };
-    if (text.length === 0) delete drafts[key];
-    else drafts[key] = { text, updatedAt: Date.now() };
-    this.setLocal({ ...this.state.local, drafts });
+    this.sessionActions.setDraft(text);
   }
 
   async sendPrompt(
     text: string,
     options: { steer?: boolean } = {},
   ): Promise<SendResult | null> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return null;
-    if (!text.trim()) return null;
-    const key = "send";
-    if (this.state.pending[key]) return null;
-    this.setPending(key, true);
-    this.setActionError(`send:${session.id}`, null);
-
-    const capabilities = this.state.instance?.capabilities ?? [];
-    const attempt = this.sendAttempts.get(session.id);
-    const reuse = attempt && attempt.text === text ? attempt : null;
-    const idempotencyKey = hasCapability(capabilities, CAPABILITIES.sendIdempotency)
-      ? reuse?.key || newId("send")
-      : undefined;
-    const messageId = hasCapability(capabilities, CAPABILITIES.sendMessageId)
-      ? reuse?.messageId || newId("msg")
-      : undefined;
-
-    this.sendAttempts.set(session.id, {
-      key: idempotencyKey ?? "",
-      messageId: messageId ?? "",
-      text,
-    });
-
-    try {
-      const result = await transport.request<SendResult>("sessions.send", {
-        sessionId: session.id,
-        text,
-        ...(options.steer ? { steer: true } : {}),
-        ...(messageId ? { messageId } : {}),
-        ...(idempotencyKey ? { idempotencyKey } : {}),
-      });
-      this.applySession(result.session);
-      this.sendAttempts.delete(session.id);
-      const drafts = { ...this.state.local.drafts };
-      delete drafts[sessionLocalKey(session)];
-      this.setLocal({ ...this.state.local, drafts });
-      this.addToast({
-        tone: "ok",
-        title: sendOutcomeTitle(result, session),
-        text: result.steered
-          ? "It was injected into the running turn."
-          : result.queued
-            ? "It runs after the current turn. The queue snapshot shows its position."
-            : undefined,
-      });
-      void this.refreshQueue(session.id);
-      return result;
-    } catch (error) {
-      const wire = asWireError(error);
-      this.setActionError(`send:${session.id}`, wire.message);
-      this.addToast({
-        tone: "danger",
-        title: "Prompt not accepted",
-        text: `${wire.message} The draft is preserved; retry uses the same key.`,
-      });
-      if (wire.code === "session_closed" || wire.code === "not_found") {
-        void this.refreshSession(session.id);
-      }
-      return null;
-    } finally {
-      this.setPending(key, false);
-    }
+    return this.sessionActions.sendPrompt(text, options);
   }
 
-  /**
-   * Answer one pending provider request as the operator. The dashboard is an
-   * operator client: it never sends a caller session id, and the answer is
-   * always one of the provider's own options for that request.
-   */
   async permit(requestId: string | undefined, optionId: string): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    const permission =
-      requestId !== undefined
-        ? session.pendingPermissions.find((item) => item.requestId === requestId)
-        : session.pendingPermissions.length === 1
-          ? session.pendingPermissions[0]
-          : undefined;
-    if (!permission) return;
-    const key = `permit:${permission.requestId}`;
-    if (this.state.pending[key]) return;
-    this.setPending(key, true);
-    const optionName =
-      permission.options.find((option) => option.optionId === optionId)?.name ??
-      optionId;
-    try {
-      const result = await transport.request<PermitResult>(
-        "sessions.permit",
-        {
-          sessionId: session.id,
-          requestId: permission.requestId,
-          optionId,
-        } satisfies PermitParams,
-      );
-      this.applySession(result.session);
-      const remaining = result.session.pendingPermissions.length;
-      this.addToast({
-        tone: "ok",
-        title: `Permission answered · ${optionName}`,
-        text:
-          remaining > 0
-            ? `${remaining} request${remaining === 1 ? "" : "s"} still queued.`
-            : "The supervisor confirmed the answer.",
-      });
-    } catch (error) {
-      const wire = asWireError(error);
-      this.addToast({
-        tone: "danger",
-        title: "Permission was not answered",
-        text: wire.message,
-      });
-      if (wire.code === "no_pending_permission" || wire.code === "session_closed") {
-        await this.refreshSession(session.id);
-      }
-    } finally {
-      this.setPending(key, false);
-    }
+    return this.sessionActions.permit(requestId, optionId);
   }
 
   async cancel(keepQueue: boolean): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending.cancel) return;
-    this.setPending("cancel", true);
-    try {
-      const result = await transport.request<CancelResult>(
-        "sessions.cancel",
-        { sessionId: session.id, keepQueue },
-      );
-      this.applySession(result.session);
-      this.addToast({
-        tone: "ok",
-        title: keepQueue ? "Turn stopped · queue kept" : "Turn stopped",
-        text:
-          result.discarded > 0
-            ? `${result.discarded} queued prompt${result.discarded === 1 ? "" : "s"} discarded.`
-            : keepQueue
-              ? "The queued prompts will run after this turn ends."
-              : "The session remains alive and can run another turn.",
-      });
-      void this.refreshQueue(session.id);
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Stop failed",
-        text: asWireError(error).message,
-      });
-    } finally {
-      this.setPending("cancel", false);
-    }
+    return this.sessionActions.cancel(keepQueue);
   }
 
   async close(force: boolean): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending.close) return;
-    this.setPending("close", true);
-    try {
-      const result = await transport.request<CloseResult>(
-        "sessions.close",
-        { sessionId: session.id, force },
-      );
-      this.applySession(result.session);
-      this.addToast({
-        tone: "ok",
-        title: result.wasTerminal
-          ? "Session was already terminal"
-          : `Closed #${result.session.id}`,
-        text: result.wasTerminal
-          ? "No change was made by this action."
-          : "It remains readable for the retention period. The event log is not permanent.",
-      });
-      void this.refreshQueue(session.id);
-      void this.refreshRecovery();
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Close failed",
-        text: asWireError(error).message,
-      });
-    } finally {
-      this.setPending("close", false);
-    }
+    return this.sessionActions.close(force);
   }
 
   async closeSubtree(): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport || this.state.pending.close) return;
-    const descendants = descendantsOf(session.id, Object.values(this.state.sessions));
-    const targets = [...descendants, session].sort((a, b) => b.depth - a.depth);
-    this.setPending("close", true);
-    let closed = 0;
-    const errors: string[] = [];
-    for (const target of targets) {
-      try {
-        const result = await transport.request<CloseResult>(
-          "sessions.close",
-          { sessionId: target.id },
-        );
-        this.applySession(result.session);
-        if (!result.wasTerminal) closed += 1;
-      } catch (error) {
-        errors.push(`${target.id}: ${asWireError(error).message}`);
-      }
-    }
-    this.setPending("close", false);
-    this.addToast({
-      tone: errors.length > 0 ? "danger" : "ok",
-      title: `Closed ${closed} of ${targets.length} sessions`,
-      text:
-        errors.length > 0
-          ? `${errors.length} failed. ${errors[0]}`
-          : "Descendants were closed deepest-first.",
-    });
-    void this.refreshQueue(session.id);
-    void this.refreshRecovery();
+    return this.sessionActions.closeSubtree();
   }
 
   async forget(): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending.forget) return;
-    this.setPending("forget", true);
-    try {
-      await transport.request("sessions.forget", { sessionId: session.id });
-      const sessions = { ...this.state.sessions };
-      delete sessions[session.id];
-      const events = { ...this.state.events };
-      delete events[session.id];
-      this.setState({
-        sessions,
-        events,
-        selection: null,
-        removed: false,
-        removedSession: null,
-        queue: null,
-      });
-      this.setLocal({ ...this.state.local, selected: null });
-      this.addToast({
-        tone: "ok",
-        title: "Session forgotten",
-        text: "The retained event log was discarded. Drafts stay local and copyable.",
-      });
-      void this.refreshRecovery();
-      void this.subscribeToFleet();
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Forget failed",
-        text: asWireError(error).message,
-      });
-    } finally {
-      this.setPending("forget", false);
-    }
+    return this.sessionActions.forget();
   }
 
   async rename(name: string): Promise<boolean> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return false;
-    if (this.state.pending.rename) return false;
-    this.setPending("rename", true);
-    try {
-      const result = await transport.request<SessionResult>(
-        "sessions.rename",
-        { sessionId: session.id, name: name.trim() ? name.trim() : null },
-      );
-      this.applySession(result.session);
-      this.addToast({
-        tone: "ok",
-        title: result.session.name
-          ? `Renamed to ${result.session.name}`
-          : "Name cleared",
-        text: `The handle #${result.session.id} did not change.`,
-      });
-      return true;
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Rename failed",
-        text: asWireError(error).message,
-      });
-      return false;
-    } finally {
-      this.setPending("rename", false);
-    }
+    return this.sessionActions.rename(name);
   }
 
   async setMode(modeId: string): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending.mode) return;
-    this.setPending("mode", true);
-    try {
-      const result = await transport.request<SessionResult>(
-        "sessions.set_mode",
-        { sessionId: session.id, modeId },
-      );
-      this.applySession(result.session);
-      const mode = result.session.modes?.availableModes.find((item) => item.id === modeId);
-      this.addToast({
-        tone: "ok",
-        title: `Provider mode · ${mode?.name ?? modeId}`,
-      });
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Mode change failed",
-        text: asWireError(error).message,
-      });
-      await this.refreshSession(session.id);
-    } finally {
-      this.setPending("mode", false);
-    }
+    return this.sessionActions.setMode(modeId);
   }
 
   async setConfigOption(configId: string, value: string | boolean): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    const key = `config:${configId}`;
-    if (this.state.pending[key]) return;
-    this.setPending(key, true);
-    try {
-      const result = await transport.request<SessionResult>(
-        "sessions.set_config_option",
-        { sessionId: session.id, configId, value },
-      );
-      this.applySession(result.session);
-      const option = result.session.configOptions?.find((item) => item.id === configId);
-      this.addToast({
-        tone: "ok",
-        title: `Set ${option?.name ?? configId}`,
-        text: String(option?.currentValue ?? value),
-      });
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Option change failed",
-        text: asWireError(error).message,
-      });
-      await this.refreshSession(session.id);
-    } finally {
-      this.setPending(key, false);
-    }
+    return this.sessionActions.setConfigOption(configId, value);
   }
 
   async dropQueued(messageId: string): Promise<void> {
-    const session = selectedSession(this.state);
-    const transport = this.transport;
-    if (!session || !transport) return;
-    if (this.state.pending["queue-drop"]) return;
-    this.setPending("queue-drop", true);
-    try {
-      const result = await transport.request<QueueDropResult>("sessions.queue_drop", {
-        sessionId: session.id,
-        messageId,
-      });
-      this.applySession(result.session);
-      this.addToast({
-        tone: "info",
-        title: "Queued prompt dropped",
-        text: `${result.dropped.textPreview} · it will not run.`,
-      });
-      await this.refreshQueue(session.id);
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Drop failed",
-        text: asWireError(error).message,
-      });
-      await this.refreshQueue(session.id);
-    } finally {
-      this.setPending("queue-drop", false);
-    }
+    return this.sessionActions.dropQueued(messageId);
   }
 
   async spawnSession(params: SpawnParams): Promise<SpawnResult> {
-    const transport = this.transport;
-    if (!transport) {
-      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
-    }
-    if (this.state.pending.spawn) {
-      throw {
-        code: "bad_request",
-        message: "A spawn is already in progress.",
-      } satisfies WireError;
-    }
-    this.setPending("spawn", true);
-    try {
-      const result = await transport.request<SpawnResult>("sessions.spawn", params);
-      this.applySession(result.session);
-      if (params.backend) {
-        this.setLocal({ ...this.state.local, lastBackend: params.backend });
-      }
-      if (params.cwd) {
-        this.setLocal({ ...this.state.local, lastCwd: params.cwd });
-      }
-      const session = result.session;
-      const title = result.duplicate
-        ? result.resumed
-          ? "Provider session already attached"
-          : "Existing session reused"
-        : result.resumed
-          ? "Provider session resumed"
-          : result.forked
-            ? "Provider session forked"
-            : "Session spawned";
-      this.addToast({
-        tone: result.duplicate ? "info" : "ok",
-        title,
-        text: `${session.id} · ${session.backend}${session.name ? ` · ${session.name}` : ""}`,
-      });
-      this.setState({
-        sessions: { ...this.state.sessions, [session.id]: session },
-        selection: { id: session.id, createdAt: session.createdAt },
-        removed: false,
-        removedSession: null,
-        queue: null,
-        followTail: { ...this.state.followTail, [session.id]: true },
-      });
-      this.setLocal({
-        ...this.state.local,
-        selected: { id: session.id, createdAt: session.createdAt },
-      });
-      await this.afterSelection(session);
-      void this.refreshRecovery();
-      return result;
-    } finally {
-      this.setPending("spawn", false);
-    }
+    return this.spawnActions.spawnSession(params);
   }
 
   async listBackends(cwd?: string): Promise<BackendsListResult> {
-    const transport = this.transport;
-    if (!transport) {
-      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
-    }
-    return transport.request<BackendsListResult>(
-      "backends.list",
-      cwd ? { cwd } : {},
-    );
+    return this.spawnActions.listBackends(cwd);
   }
 
-  /**
-   * Read the provider's own session catalog. This is an on-demand read: it
-   * starts an adapter and creates no HLAO session. Call it when the operator
-   * opens the provider-session surface, not on every render.
-   */
   async listProviderSessions(
     backend: string,
     cwd?: string,
     cursor?: string,
   ): Promise<ProviderSessionsResult> {
-    const transport = this.transport;
-    if (!transport) {
-      throw {
-        code: "bridge_unavailable",
-        message: "Not connected.",
-      } satisfies WireError;
-    }
-    return transport.request<ProviderSessionsResult>("backends.sessions", {
-      backend,
-      ...(cwd ? { cwd } : {}),
-      ...(cursor ? { cursor } : {}),
-    });
+    return this.spawnActions.listProviderSessions(backend, cwd, cursor);
   }
 
-  /**
-   * Read historical spawn receipts for the "Recoverable" rail group. This is a
-   * local ledger read in the supervisor; it starts no adapter and never claims
-   * liveness. Unsupported supervisors yield an empty list rather than an error.
-   */
   async refreshRecovery(): Promise<void> {
-    const transport = this.transport;
-    if (!transport || !canUse(this.state, CAPABILITIES.recoveryReceipts)) {
-      this.setState({
-        recovery: [],
-        recoveryLoading: false,
-        recoveryError: null,
-        recoveryLoadedAt: null,
-      });
-      return;
-    }
-    if (this.state.recoveryLoading) {
-      this.recoveryAgain = true;
-      return;
-    }
-    this.setState({ recoveryLoading: true, recoveryError: null });
-    try {
-      const result = await transport.request<RecoveryReceiptsResult>(
-        "recovery.receipts",
-        {},
-      );
-      if (this.transport !== transport) return;
-      this.setState({
-        recovery: result.receipts,
-        recoveryLoading: false,
-        recoveryLoadedAt: nowIso(),
-      });
-    } catch (error) {
-      if (this.transport !== transport) return;
-      this.setState({
-        recoveryLoading: false,
-        recoveryError: asWireError(error).message,
-      });
-    } finally {
-      if (this.recoveryAgain) {
-        this.recoveryAgain = false;
-        void this.refreshRecovery();
-      }
-    }
+    return this.spawnActions.refreshRecovery();
   }
 
   async listDirectories(path?: string): Promise<DirectoryListing> {
-    const transport = this.transport;
-    if (!transport) {
-      throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
-    }
-    return transport.request<DirectoryListing>("dashboard.fs.list", {
-      path: path ?? null,
-    });
+    return this.spawnActions.listDirectories(path);
   }
 
   async reloadConfig(): Promise<void> {
-    const transport = this.transport;
-    if (!transport || this.state.pending.reload) return;
-    this.setPending("reload", true);
-    try {
-      const result = await transport.request<ReloadResult>("supervisor.reload", {});
-      if (this.state.instance) {
-        this.setState({
-          instance: {
-            ...this.state.instance,
-            configHash: result.configHash,
-            configError: result.configError ?? undefined,
-          },
-        });
-      }
-      this.addToast({
-        tone: result.configError ? "danger" : "ok",
-        title: result.configError ? "Config reload failed" : "Config reloaded",
-        text: result.configError ?? "Future spawns use the new file.",
-      });
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Reload failed",
-        text: asWireError(error).message,
-      });
-    } finally {
-      this.setPending("reload", false);
-    }
+    return this.adminActions.reloadConfig();
   }
 
   async shutdownSupervisor(force: boolean): Promise<void> {
-    const transport = this.transport;
-    if (!transport) return;
-    if (this.state.pending.shutdown) return;
-    this.setPending("shutdown", true);
-    try {
-      const result = await transport.request<ShutdownResult>("supervisor.shutdown", { force });
-      this.stopPolling();
-      this.disposeTransport();
-      this.setState({
-        phase: "setup",
-        connection: "offline",
-        instance: null,
-        sessions: {},
-        events: {},
-        notices: {},
-        selection: null,
-        queue: null,
-        removed: false,
-        connectError: {
-          code: "supervisor_unavailable",
-          message: `The supervisor shut down: ${result.sessionsClosed} sessions closed, ${result.retainedDiscarded} retained histories discarded.`,
-        },
-      });
-      this.addToast({
-        tone: "info",
-        title: "Supervisor shut down",
-        text: `${result.sessionsClosed} sessions closed · ${result.retainedDiscarded} retained histories discarded.`,
-      });
-    } catch (error) {
-      this.addToast({
-        tone: "danger",
-        title: "Shutdown failed",
-        text: asWireError(error).message,
-      });
-    } finally {
-      this.setPending("shutdown", false);
-    }
+    return this.adminActions.shutdownSupervisor(force);
+  }
+
+  acknowledgeFailure(sessionId: string): void {
+    this.adminActions.acknowledgeFailure(sessionId);
+  }
+
+  dismissNotice(sessionId: string): void {
+    this.adminActions.dismissNotice(sessionId);
+  }
+
+  dismissEviction(sessionId: string): void {
+    this.adminActions.dismissEviction(sessionId);
+  }
+
+  setFilters(patch: Partial<InstanceLocalState["filters"]>): void {
+    this.adminActions.setFilters(patch);
+  }
+
+  setTheme(theme: Theme): void {
+    this.adminActions.setTheme(theme);
+  }
+
+  setNotifications(value: boolean): void {
+    this.adminActions.setNotifications(value);
+  }
+
+  markIntroSeen(): void {
+    this.adminActions.markIntroSeen();
+  }
+
+  dismissCrashNotice(): void {
+    this.adminActions.dismissCrashNotice();
+  }
+
+  dismissRestartNotice(): void {
+    this.adminActions.dismissRestartNotice();
+  }
+
+  clearLocalState(): void {
+    this.adminActions.clearLocalState();
+  }
+
+  async search(options: SearchOptions): Promise<SearchOutcome> {
+    return this.searchActions.search(options);
+  }
+
+  cancelSearch(): void {
+    this.searchActions.cancelSearch();
+  }
+
+  async collectTranscript(
+    sessionId: string,
+    maxPages = 20,
+    pageSize = 1000,
+  ): Promise<ExportResult> {
+    return this.searchActions.collectTranscript(sessionId, maxPages, pageSize);
+  }
+
+  resolveTarget(token: string): TargetResolution {
+    return this.searchActions.resolveTarget(token);
+  }
+
+  capability(capability: string): boolean {
+    return canUse(this.state, capability);
   }
 
   private async refreshSession(sessionId: string): Promise<void> {
@@ -2015,238 +1137,6 @@ export class DashboardStore {
       // The next notification or refresh will settle it.
     }
   }
-
-  acknowledgeFailure(sessionId: string): void {
-    const session = this.state.sessions[sessionId];
-    if (!session || session.status !== "failed") return;
-    const key = sessionLocalKey(session);
-    this.setLocal({
-      ...this.state.local,
-      acknowledged: {
-        ...this.state.local.acknowledged,
-        [key]: session.endedAt ?? session.lastActivityAt,
-      },
-    });
-    this.addToast({
-      tone: "info",
-      title: "Failure acknowledged locally",
-      text: "The session state is unchanged; only this dashboard's attention list is affected.",
-    });
-  }
-
-  dismissNotice(sessionId: string): void {
-    const session = this.state.sessions[sessionId];
-    if (!session) return;
-    const key = sessionLocalKey(session);
-    const notice = this.state.notices[key];
-    if (!notice) return;
-    this.setLocal({
-      ...this.state.local,
-      dismissedNotices: { ...this.state.local.dismissedNotices, [key]: notice.seq },
-    });
-    this.addToast({
-      tone: "info",
-      title: "Notice dismissed locally",
-      text: "It remains in the transcript; no server state changed.",
-    });
-  }
-
-  /**
-   * Hide the eviction banner for the boundary currently shown. A later read
-   * that evicts more history gets a new boundary, so the banner returns.
-   */
-  dismissEviction(sessionId: string): void {
-    const session = this.state.sessions[sessionId];
-    const boundary = this.state.events[sessionId]?.earliestRetainedSeq;
-    if (!session || !boundary) return;
-    const key = sessionLocalKey(session);
-    this.setLocal({
-      ...this.state.local,
-      dismissedEvictions: {
-        ...this.state.local.dismissedEvictions,
-        [key]: boundary,
-      },
-    });
-  }
-
-  setFilters(patch: Partial<InstanceLocalState["filters"]>): void {
-    this.setLocal({
-      ...this.state.local,
-      filters: { ...this.state.local.filters, ...patch },
-    });
-  }
-
-  setTheme(theme: Theme): void {
-    this.setState({ theme });
-    saveTheme(theme);
-    this.schedulePersist();
-  }
-
-  setNotifications(value: boolean): void {
-    this.setState({ notifications: value });
-    this.schedulePersist();
-  }
-
-  markIntroSeen(): void {
-    this.setState({ introSeen: true });
-    this.schedulePersist();
-  }
-
-  dismissCrashNotice(): void {
-    this.setState({ crashNotice: null });
-  }
-
-  dismissRestartNotice(): void {
-    this.setState({ restartNotice: null });
-  }
-
-  clearLocalState(): void {
-    const fresh = emptyInstanceState();
-    this.setLocal(fresh, true);
-    this.setState({
-      selection: null,
-      removed: false,
-      removedSession: null,
-      queue: null,
-      focus: null,
-      followTail: {},
-    });
-    this.addToast({
-      tone: "info",
-      title: "Local dashboard state cleared",
-      text: "Drafts, read markers, acknowledgements, filters, and selection were removed. The supervisor was not changed.",
-    });
-    void this.subscribeToFleet();
-  }
-
-  /* ---------------------------------------------------------------- */
-  /* Search and export                                                 */
-  /* ---------------------------------------------------------------- */
-
-  async search(options: SearchOptions): Promise<SearchOutcome> {
-    const transport = this.transport;
-    const asOf = nowIso();
-    const token = ++this.searchToken;
-    const outcome: SearchOutcome = {
-      hits: [],
-      scannedSessions: 0,
-      totalSessions: 0,
-      capped: false,
-      truncated: false,
-      asOf,
-      cancelled: false,
-      errors: [],
-    };
-    if (!transport || !options.query.trim()) return outcome;
-
-    let sessions: SessionView[];
-    if (options.scope === "session") {
-      const session = selectedSession(this.state);
-      sessions = session ? [session] : [];
-    } else {
-      try {
-        const list = await transport.request<{ sessions: SessionView[] }>(
-          "sessions.list",
-          { includeClosed: options.includeClosed },
-        );
-        sessions = list.sessions;
-      } catch (error) {
-        outcome.errors.push(asWireError(error).message);
-        sessions = Object.values(this.state.sessions).filter(
-          (session) => options.includeClosed || !isTerminalStatus(session.status),
-        );
-      }
-    }
-
-    const maxSessions = 20;
-    outcome.totalSessions = sessions.length;
-    if (sessions.length > maxSessions) outcome.capped = true;
-    const limit = options.scope === "session" ? 200 : 50;
-
-    for (const session of sessions.slice(0, maxSessions)) {
-      if (token !== this.searchToken) {
-        outcome.cancelled = true;
-        return outcome;
-      }
-      try {
-        const result = await transport.request<ReadResult>("sessions.read", {
-          sessionId: session.id,
-          since: 0,
-          limit,
-          grep: options.query,
-          ...(options.raw ? { raw: true } : {}),
-          ...(options.regex ? { regex: true } : {}),
-        });
-        outcome.scannedSessions += 1;
-        if (result.truncated) outcome.truncated = true;
-        if (result.hasMore) outcome.capped = true;
-        for (const event of result.events) {
-          const readable = eventText(event)
-            .replace(/[\u0000-\u001F\u007F]+/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-          const fallback = JSON.stringify(event.data).replace(/\s+/g, " ");
-          outcome.hits.push({
-            session: result.session,
-            event,
-            snippet: (readable || `${event.type} · ${fallback}`).slice(0, 220),
-          });
-        }
-      } catch (error) {
-        outcome.errors.push(`${session.id}: ${asWireError(error).message}`);
-      }
-    }
-    if (token !== this.searchToken) outcome.cancelled = true;
-    return outcome;
-  }
-
-  cancelSearch(): void {
-    this.searchToken += 1;
-  }
-
-  async collectTranscript(
-    sessionId: string,
-    maxPages = 20,
-    pageSize = 1000,
-  ): Promise<ExportResult> {
-    const transport = this.transport;
-    if (!transport) throw { code: "bridge_unavailable", message: "Not connected." } satisfies WireError;
-    let events: EventView[] = [];
-    let truncated = false;
-    let capped = false;
-    let pages = 0;
-    let since = 0;
-    while (pages < maxPages) {
-      const result = await transport.request<ReadResult>("sessions.read", {
-        sessionId,
-        since,
-        limit: pageSize,
-        raw: true,
-      });
-      pages += 1;
-      truncated = truncated || result.truncated;
-      events = mergeEvents(events, result.events, 100_000).events;
-      if (!result.hasMore || result.nextSeq <= since) break;
-      since = result.nextSeq;
-      if (pages >= maxPages) capped = true;
-    }
-    return { events, truncated, capped, pages };
-  }
-
-  resolveTarget(token: string): TargetResolution {
-    return resolveTarget(token, Object.values(this.state.sessions));
-  }
-
-  capability(capability: string): boolean {
-    return canUse(this.state, capability);
-  }
-}
-
-function sendOutcomeTitle(result: SendResult, session: SessionView): string {
-  if (result.duplicate) return "Prompt was already accepted";
-  if (result.steered) return `Prompt steered into turn ${result.turn ?? session.turn}`;
-  if (result.queued) return "Prompt queued";
-  return `Prompt sent to turn ${result.turn ?? session.turn + 1}`;
 }
 
 export const store = new DashboardStore();

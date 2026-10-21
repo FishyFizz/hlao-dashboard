@@ -18,6 +18,17 @@ export function shortStatusLabel(status: SessionStatus): string {
   return SHORT_STATUS_LABELS[status];
 }
 
+/** The fleet table's status column is tighter than a rail row but keeps the
+ * permission phrase explicit; this is the only status label with a variant. */
+const TABLE_STATUS_LABELS: Record<SessionStatus, string> = {
+  ...SHORT_STATUS_LABELS,
+  waiting_permission: "Waiting permission",
+};
+
+export function tableStatusLabel(status: SessionStatus): string {
+  return TABLE_STATUS_LABELS[status];
+}
+
 /** Lamp classes for a status; a lamp is shape and color, never the only signal. */
 export function statusLampClass(status: SessionStatus): string {
   switch (status) {

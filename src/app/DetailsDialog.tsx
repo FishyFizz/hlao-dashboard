@@ -2,7 +2,7 @@ import { Button } from "../components/Button";
 import { store, type DashboardState } from "../store/store";
 import type { SessionView } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
-import { Inspector } from "./Inspector";
+import { Inspector } from "./inspector/Inspector";
 
 export function DetailsDialog({
   open,

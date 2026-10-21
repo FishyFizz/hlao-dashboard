@@ -1,7 +1,7 @@
 # Design system — HLAO dashboard
 
 There are two living surfaces. The **dashboard** at `/` is the product: fleet, session lens,
-transcript, permission gate, composer, and inspector composed in `src/styles/app.css`. The
+transcript, permission gate, composer, and inspector composed in `src/styles/app/`. The
 **specimen** at `/design` is the primitive inventory with numbered sections. This file records
 the rules both are built on, so the next screen does not have to reverse engineer them. The
 interaction contract is `docs/ux-interaction-model.md`; this file is the visual system that
@@ -93,24 +93,24 @@ Rules:
 
 | Family | Classes / components | File |
 |---|---|---|
-| Buttons | `.btn`, `.btn--primary/ghost/danger`, `.btn--sm/lg/icon`, `.btn-group` | `styles/primitives.css` |
-| Fields | `.field`, `.field__input`, `.field__textarea`, `.select__*` | `styles/primitives.css` |
-| Selection | `.check`, `.radio-card`, `.switch`, `.slider` | `styles/primitives.css` |
-| Navigation | `.tabs`, `.segmented`, `.breadcrumbs`, `.pagination` | `styles/primitives.css` |
-| Status | `.status`, `.lamp`, `.tag`, `.kbd`, `.handle` | `styles/primitives.css` |
-| Fleet | `.table-wrap`, `.table`, `.table__*` | `styles/primitives.css` |
-| Transcript | `.transcript`, `.event`, `.tool`, `.permission-card`, `.plan`, `.notice`, `.compaction`, `.message-route` | `styles/primitives.css` |
-| Meters | `.meter`, `.stat`, `.spark` | `styles/primitives.css` |
-| Lineage | `.tree`, `.tree__*` | `styles/primitives.css` |
-| Overlays | `.modal-overlay`, `.dialog`, `.popover`, `.menu`, `.tooltip` | `styles/primitives.css` |
-| Feedback | `.toast`, `.banner`, `.empty` | `styles/primitives.css` |
-| Palette | `.palette`, `.palette__*` | `styles/primitives.css` |
-| Console | `.console`, `.console__*` | `styles/primitives.css` |
-| Application shell | `.dash`, `.dash-top`, `.dash-body`, `.dash-rail`, `.dash-main`, `.dash-inspector`, `.dash-status` | `styles/app.css` |
-| Fleet rail | `.rail-*`, attention cards, fleet home table, orphaned drafts | `styles/app.css` |
-| Session lens | `.session-*`, `.permission-gate`, `.state-strip`, `.transcript-*`, `.composer`, `.queue-*` | `styles/app.css` |
-| Inspector | `.inspector__*`, config toggles, lineage counts | `styles/app.css` |
-| Setup | `.setup__*`, `.boot`, error boundary | `styles/app.css` |
+| Buttons | `.btn`, `.btn--primary/ghost/danger`, `.btn--sm/lg/icon`, `.btn-group` | `styles/primitives/buttons.css` |
+| Fields | `.field`, `.field__input`, `.field__textarea`, `.select__*` | `styles/primitives/fields.css` |
+| Selection | `.check`, `.radio-card`, `.switch`, `.slider` | `styles/primitives/selection.css` |
+| Navigation | `.tabs`, `.segmented`, `.breadcrumbs`, `.pagination` | `styles/primitives/navigation.css` |
+| Status | `.status`, `.lamp`, `.tag`, `.kbd`, `.handle` | `styles/primitives/status.css` |
+| Fleet | `.table-wrap`, `.table`, `.table__*` | `styles/primitives/table.css` |
+| Transcript | `.transcript`, `.event`, `.tool`, `.permission-card`, `.plan`, `.notice`, `.compaction`, `.message-route` | `styles/primitives/transcript.css`, `markdown.css` |
+| Meters | `.meter`, `.stat`, `.spark` | `styles/primitives/meters.css` |
+| Lineage | `.tree`, `.tree__*` | `styles/primitives/lineage.css` |
+| Overlays | `.modal-overlay`, `.dialog`, `.popover`, `.menu`, `.tooltip` | `styles/primitives/overlays.css` |
+| Feedback | `.toast`, `.banner`, `.empty` | `styles/primitives/overlays.css` |
+| Palette | `.palette`, `.palette__*` | `styles/primitives/palette.css` |
+| Console | `.console`, `.console__*` | `styles/primitives/composition.css` |
+| Application shell | `.dash`, `.dash-top`, `.dash-body`, `.dash-rail`, `.dash-main`, `.dash-inspector`, `.dash-status` | `styles/app/shell.css` |
+| Fleet rail | `.rail-*`, attention cards, fleet home table, orphaned drafts | `styles/app/fleet-rail.css`, `fleet-home.css` |
+| Session lens | `.session-*`, `.permission-gate`, `.state-strip`, `.transcript-*`, `.composer`, `.queue-*` | `styles/app/session-lens.css`, `permission-gate.css`, `transcript.css`, `composer.css` |
+| Inspector | `.inspector__*`, config toggles, lineage counts | `styles/app/inspector.css` |
+| Setup | `.setup__*`, `.boot`, error boundary | `styles/app/setup.css`, `boot.css` |
 | Gallery chrome | topbar, sidebar, hero, section, specimen, swatches, type rows | `styles/gallery.css` |
 
 Thin React wrappers live in `src/components/` (`Button`, `IconButton`, `Status`, `Tag`, `Kbd`,

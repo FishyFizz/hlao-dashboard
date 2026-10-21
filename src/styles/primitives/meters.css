@@ -1,0 +1,139 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Meters and stats                                                    */
+  /* ------------------------------------------------------------------ */
+
+  .meter {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .meter__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+
+  .meter__label {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .meter__value {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meter__track {
+    height: 6px;
+    border: var(--bw) solid var(--line);
+    background: var(--raise);
+  }
+
+  .meter__fill {
+    height: 100%;
+    background: var(--accent-text);
+  }
+
+  .meter--warn .meter__fill {
+    background: var(--warn);
+  }
+
+  .meter--danger .meter__fill {
+    background: var(--danger);
+  }
+
+  .meter--ok .meter__fill {
+    background: var(--ok);
+  }
+
+  .stat {
+    display: grid;
+    gap: 2px;
+  }
+
+  .stat__label {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stat__value {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-20);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .stat__sub {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .spark {
+    display: grid;
+    gap: var(--sp-2);
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+    padding: var(--sp-3);
+  }
+
+  .spark__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+
+  .spark__label {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .spark__value {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .spark__svg {
+    width: 100%;
+    height: 44px;
+    overflow: visible;
+  }
+
+  .spark__grid {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+
+  .spark__line {
+    fill: none;
+    stroke: var(--accent-text);
+    stroke-width: 1.25;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .spark__axis {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 8px;
+  }
+}

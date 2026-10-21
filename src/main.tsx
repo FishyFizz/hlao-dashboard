@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import "@fontsource-variable/geist-mono/wght.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
-import "./styles/primitives.css";
+import "./styles/primitives/index.css";
 import "./styles/gallery.css";
-import "./styles/app.css";
+import "./styles/app/index.css";
 import { App } from "./App";
 import { loadTheme } from "./store/persistence";
 

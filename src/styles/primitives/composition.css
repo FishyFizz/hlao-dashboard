@@ -1,0 +1,191 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Console composition                                                 */
+  /* ------------------------------------------------------------------ */
+
+  .console {
+    border: var(--bw) solid var(--line-2);
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  .console__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: 42px;
+    padding: 0 var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .console__session {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    min-width: 0;
+  }
+
+  .console__name {
+    color: var(--text);
+    font-size: var(--fs-13);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+
+  .console__handle {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .console__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    margin-left: auto;
+  }
+
+  .console__body {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr) 280px;
+    min-height: 440px;
+  }
+
+  .console__fleet {
+    border-right: var(--bw) solid var(--line);
+    background: var(--bg);
+    overflow: auto;
+  }
+
+  .console__fleet-head {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 30px;
+    padding: 0 var(--sp-2);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--bg);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .console__fleet-row {
+    display: grid;
+    grid-template-columns: 7px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 var(--sp-2);
+    border-bottom: var(--bw) solid var(--line);
+    color: var(--text-2);
+    font-size: var(--fs-11);
+    cursor: pointer;
+  }
+
+  .console__fleet-row:hover {
+    background: var(--hover);
+  }
+
+  .console__fleet-row[data-active] {
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent-text);
+    color: var(--text);
+  }
+
+  .console__fleet-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .console__fleet-id {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .console__transcript {
+    min-width: 0;
+    overflow: auto;
+    background: var(--panel);
+  }
+
+  .console__transcript .transcript {
+    border: 0;
+  }
+
+  .console__inspector {
+    display: grid;
+    align-content: start;
+    gap: var(--sp-3);
+    border-left: var(--bw) solid var(--line);
+    background: var(--bg);
+    padding: var(--sp-3);
+    overflow: auto;
+  }
+
+  .console__section {
+    display: grid;
+    gap: var(--sp-2);
+  }
+
+  .console__section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .console__section-title::after {
+    content: "";
+    flex: 1;
+    border-top: var(--bw) solid var(--line);
+  }
+
+  .console__provider-title {
+    color: var(--text-2);
+    font-size: var(--fs-11);
+    line-height: 1.4;
+    text-align: right;
+  }
+
+  .transcript--compact .event {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .transcript--compact .event__gutter {
+    padding: var(--sp-1) 4px;
+    font-size: 8px;
+  }
+
+  .transcript--compact .event__time {
+    display: none;
+  }
+
+  .transcript--compact .event__body {
+    padding: var(--sp-2) var(--sp-2) 10px;
+  }
+
+  .transcript--compact .event__text {
+    font-size: var(--fs-12);
+  }
+
+  .transcript--compact .tool__body {
+    font-size: var(--fs-10);
+  }
+
+  .transcript--compact .plan__row {
+    min-height: 26px;
+    font-size: var(--fs-10);
+  }
+}

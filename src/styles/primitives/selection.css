@@ -1,0 +1,291 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Selection                                                           */
+  /* ------------------------------------------------------------------ */
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-13);
+    line-height: 1.3;
+    cursor: pointer;
+  }
+
+  .check__box {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    border: var(--bw) solid var(--line-2);
+    background: var(--raise);
+    color: var(--accent-ink);
+    transition:
+      background-color var(--dur-1) var(--ease),
+      border-color var(--dur-1) var(--ease);
+  }
+
+  .check:hover .check__box {
+    border-color: var(--text-3);
+  }
+
+  .check[data-selected] .check__box,
+  .check[data-indeterminate] .check__box {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .check[data-focus-visible] .check__box {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .check[data-disabled] {
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .check[data-disabled] .check__box {
+    border-color: var(--line);
+    background: var(--panel);
+  }
+
+  .check[data-disabled] .check__icon {
+    opacity: 0.45;
+  }
+
+  .check__icon {
+    width: 10px;
+    height: 10px;
+    opacity: 0;
+  }
+
+  .check[data-selected] .check__icon {
+    opacity: 1;
+  }
+
+  .radio-group {
+    display: grid;
+    gap: var(--sp-2);
+  }
+
+  .radio-group__label {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-weight: 500;
+    letter-spacing: var(--track-label);
+    text-transform: uppercase;
+  }
+
+  .radio-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    border: var(--bw) solid var(--line);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      border-color var(--dur-1) var(--ease),
+      background-color var(--dur-1) var(--ease);
+  }
+
+  .radio-card:hover {
+    border-color: var(--line-2);
+    background: var(--hover);
+  }
+
+  .radio-card[data-selected] {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent-text);
+  }
+
+  .radio-card[data-focus-visible] {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .radio-card__box {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    border: var(--bw) solid var(--line-2);
+    background: var(--raise);
+  }
+
+  .radio-card[data-selected] .radio-card__box {
+    border-color: var(--accent);
+  }
+
+  .radio-card__dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    opacity: 0;
+  }
+
+  .radio-card[data-selected] .radio-card__dot {
+    opacity: 1;
+  }
+
+  .radio-card__text {
+    display: grid;
+    gap: 2px;
+  }
+
+  .radio-card__title {
+    color: var(--text);
+    font-size: var(--fs-12);
+    line-height: 1.3;
+  }
+
+  .radio-card__desc {
+    color: var(--text-3);
+    font-size: var(--fs-11);
+    line-height: 1.4;
+  }
+
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-13);
+    line-height: 1.3;
+    cursor: pointer;
+  }
+
+  .switch__track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 30px;
+    height: 16px;
+    padding: 0 2px;
+    border: var(--bw) solid var(--line-2);
+    background: var(--raise);
+    transition:
+      background-color var(--dur-1) var(--ease),
+      border-color var(--dur-1) var(--ease);
+  }
+
+  .switch__thumb {
+    width: 10px;
+    height: 10px;
+    background: var(--text-3);
+    transition:
+      transform var(--dur-2) var(--ease),
+      background-color var(--dur-1) var(--ease);
+  }
+
+  .switch[data-selected] .switch__track {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .switch[data-selected] .switch__thumb {
+    background: var(--accent);
+    transform: translateX(14px);
+  }
+
+  .switch[data-focus-visible] .switch__track {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .switch[data-disabled] {
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .switch[data-disabled] .switch__track {
+    border-color: var(--line);
+    background: var(--panel);
+  }
+
+  .slider {
+    display: grid;
+    gap: var(--sp-2);
+    width: 100%;
+  }
+
+  .slider__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+
+  .slider__label {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-weight: 500;
+    letter-spacing: var(--track-label);
+    text-transform: uppercase;
+  }
+
+  .slider__output {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slider__output::after {
+    content: "%";
+    color: var(--text-3);
+  }
+
+  .slider__track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 20px;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  .slider__track::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 2px;
+    background: var(--line-2);
+    transform: translateY(-50%);
+  }
+
+  .slider__fill {
+    position: absolute;
+    top: 50%;
+    height: 2px;
+    background: var(--accent-text);
+    transform: translateY(-50%);
+  }
+
+  .slider__thumb {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    background: var(--accent);
+    border: var(--bw) solid var(--accent-ink);
+  }
+
+  .slider__thumb[data-focus-visible] {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .slider[data-disabled] {
+    opacity: 0.5;
+  }
+}

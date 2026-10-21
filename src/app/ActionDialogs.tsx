@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { Notice } from "../components/Notice";
 import { Handle } from "../components/Status";
-import { store, type DashboardState } from "../store/store";
+import type { DashboardState } from "../store/store";
 import { descendantsOf, displayLabel, formatDateTime, isTerminalStatus } from "../store/model";
 import type { QueueItemView, QueueResult, SessionView } from "../wire/protocol";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -13,16 +13,17 @@ export function StopDialog({
   open,
   session,
   queue,
+  pending,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   session: SessionView;
   queue: QueueResult | null;
+  pending: boolean;
   onClose: () => void;
   onConfirm: (keepQueue: boolean) => void;
 }) {
-  const pending = Boolean(store.getSnapshot().pending.cancel);
   const active = queue?.active ?? null;
   const queued = queue?.queue ?? [];
   const count = Math.max(queued.length, session.queued);
@@ -103,16 +104,17 @@ export function StopDialog({
 export function CloseDialog({
   open,
   session,
+  pending,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   session: SessionView;
+  pending: boolean;
   onClose: () => void;
   onConfirm: (force: boolean) => void;
 }) {
   const [force, setForce] = useState(false);
-  const pending = Boolean(store.getSnapshot().pending.close);
   useEffect(() => {
     if (open) setForce(false);
   }, [open]);
@@ -158,18 +160,19 @@ export function CloseSubtreeDialog({
   open,
   state,
   session,
+  pending,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   state: DashboardState;
   session: SessionView;
+  pending: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const targets = [...descendants, session].sort((a, b) => b.depth - a.depth);
-  const pending = Boolean(store.getSnapshot().pending.close);
   return (
     <DialogShell
       open={open}
@@ -213,17 +216,18 @@ export function CloseSubtreeDialog({
 export function ForgetDialog({
   open,
   session,
+  pending,
   onClose,
   onConfirm,
   onExport,
 }: {
   open: boolean;
   session: SessionView;
+  pending: boolean;
   onClose: () => void;
   onConfirm: () => void;
   onExport: () => void;
 }) {
-  const pending = Boolean(store.getSnapshot().pending.forget);
   return (
     <ConfirmDialog
       open={open}
@@ -261,16 +265,17 @@ export function DropDialog({
   open,
   session,
   item,
+  pending,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   session: SessionView;
   item: QueueItemView | null;
+  pending: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const pending = Boolean(store.getSnapshot().pending["queue-drop"]);
   if (!item) return null;
   return (
     <ConfirmDialog
@@ -301,11 +306,13 @@ export function DropDialog({
 export function ShutdownDialog({
   open,
   state,
+  pending,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   state: DashboardState;
+  pending: boolean;
   onClose: () => void;
   onConfirm: (force: boolean) => void;
 }) {
@@ -316,7 +323,6 @@ export function ShutdownDialog({
   const sessions = Object.values(state.sessions);
   const live = sessions.filter((session) => !isTerminalStatus(session.status));
   const retained = sessions.length - live.length;
-  const pending = Boolean(store.getSnapshot().pending.shutdown);
   return (
     <DialogShell
       open={open}

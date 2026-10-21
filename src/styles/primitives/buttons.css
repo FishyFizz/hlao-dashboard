@@ -1,0 +1,127 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Buttons                                                             */
+  /* ------------------------------------------------------------------ */
+
+  .btn {
+    --btn-h: var(--control-h);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    height: var(--btn-h);
+    padding: 0 var(--sp-3);
+    border: var(--bw) solid var(--line-2);
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--dur-1) var(--ease),
+      border-color var(--dur-1) var(--ease),
+      color var(--dur-1) var(--ease);
+  }
+
+  .btn:hover,
+  .btn[data-hovered] {
+    background: var(--hover);
+  }
+
+  .btn[data-pressed] {
+    background: var(--raise);
+  }
+
+  .btn[data-focus-visible] {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .btn[data-disabled] {
+    border-color: var(--line);
+    color: var(--text-3);
+    cursor: not-allowed;
+  }
+
+  .btn[data-disabled]:hover {
+    background: transparent;
+  }
+
+  .btn--primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .btn--primary:hover,
+  .btn--primary[data-hovered] {
+    border-color: var(--accent-2);
+    background: var(--accent-2);
+  }
+
+  .btn--primary[data-pressed] {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .btn--ghost {
+    border-color: transparent;
+    color: var(--text-2);
+  }
+
+  .btn--ghost:hover,
+  .btn--ghost[data-hovered] {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  .btn--danger {
+    border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+    color: var(--danger);
+  }
+
+  .btn--danger:hover,
+  .btn--danger[data-hovered] {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+  }
+
+  .btn--sm {
+    --btn-h: var(--control-h-sm);
+    padding: 0 var(--sp-2);
+    font-size: 9px;
+  }
+
+  .btn--lg {
+    --btn-h: var(--control-h-lg);
+    padding: 0 var(--sp-4);
+    font-size: var(--fs-11);
+  }
+
+  .btn--icon {
+    width: var(--btn-h);
+    padding: 0;
+  }
+
+  .btn--icon.btn--sm {
+    width: var(--control-h-sm);
+  }
+
+  .btn__icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .btn-group {
+    display: inline-flex;
+  }
+
+  .btn-group > .btn + .btn {
+    border-left: 0;
+  }
+}

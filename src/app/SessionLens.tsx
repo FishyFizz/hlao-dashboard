@@ -35,13 +35,14 @@ import {
   isTerminalStatus,
 } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
-import { asWireError, CAPABILITIES } from "../wire/protocol";
+import { CAPABILITIES } from "../wire/protocol";
 import { cli } from "./cli";
 import { exportTranscript } from "./export";
 import { Composer } from "./Composer";
 import { PermissionGate } from "./PermissionGate";
 import { StateStrip } from "./StateStrip";
-import { Transcript } from "./Transcript";
+import { Transcript } from "./transcript/Transcript";
+import { forkProviderSession } from "./providerActions";
 import { copyWithToast } from "./ui";
 
 export function SessionLens({
@@ -84,23 +85,6 @@ export function SessionLens({
   const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const active = session.status === "busy" || session.status === "waiting_permission";
   const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
-  const forkProvider = () => {
-    const providerId = session.agentSessionId;
-    if (providerId === null) return;
-    void store
-      .spawnSession({
-        backend: session.backend,
-        cwd: session.cwd,
-        forkSessionId: providerId,
-      })
-      .catch((cause: unknown) => {
-        store.addToast({
-          tone: "danger",
-          title: "Fork failed",
-          text: asWireError(cause).message,
-        });
-      });
-  };
 
   return (
     <div className="session-lens" ref={lensRef}>
@@ -195,7 +179,7 @@ export function SessionLens({
                         onDetails();
                         break;
                       case "fork-provider":
-                        forkProvider();
+                        forkProviderSession(session);
                         break;
                       case "close-subtree":
                         onCloseSubtree();

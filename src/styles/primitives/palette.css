@@ -1,0 +1,133 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Command palette                                                     */
+  /* ------------------------------------------------------------------ */
+
+  .palette {
+    border: var(--bw) solid var(--line-2);
+    background: var(--panel);
+  }
+
+  .palette__search {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+  }
+
+  .palette__search svg {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    color: var(--text-3);
+  }
+
+  .palette__input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: var(--fs-13);
+    outline: none;
+  }
+
+  .palette__input::placeholder {
+    color: var(--text-3);
+  }
+
+  .palette__hint {
+    flex: none;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .palette__group {
+    padding: var(--sp-1) 0;
+    border-bottom: var(--bw) solid var(--line);
+  }
+
+  .palette__group:last-of-type {
+    border-bottom: 0;
+  }
+
+  .palette__group-label {
+    padding: 4px var(--sp-3);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .palette__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 30px;
+    padding: 0 var(--sp-3);
+    color: var(--text-2);
+    font-size: var(--fs-12);
+    cursor: pointer;
+  }
+
+  .palette__item svg {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    color: var(--text-3);
+  }
+
+  .palette__item[data-active] {
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent-text);
+    color: var(--text);
+  }
+
+  .palette__item[data-active] svg {
+    color: var(--accent-text);
+  }
+
+  .palette__item-meta {
+    margin-left: auto;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .palette__shortcut {
+    margin-left: auto;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .palette__foot {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: 6px var(--sp-3);
+    border-top: var(--bw) solid var(--line);
+    background: var(--raise);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .palette__foot-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .palette__foot .kbd {
+    height: 16px;
+    min-width: 16px;
+    font-size: 8px;
+    padding: 0 4px;
+  }
+}

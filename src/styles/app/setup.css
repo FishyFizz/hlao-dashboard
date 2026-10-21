@@ -1,0 +1,316 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* Setup                                                              */
+  /* ------------------------------------------------------------------ */
+
+  .setup {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  .setup__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    height: 46px;
+    padding: 0 var(--sp-4);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .setup__top-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .setup__theme {
+    height: 24px;
+    padding: 0 var(--sp-2);
+    border: var(--bw) solid var(--line-2);
+    background: transparent;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .setup__theme:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+
+  .setup__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+    gap: var(--sp-5);
+    align-content: start;
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    padding: var(--sp-10) var(--sp-6) var(--sp-6);
+  }
+
+  .setup__intro {
+    grid-column: 1 / -1;
+    max-width: 860px;
+  }
+
+  .setup__kicker {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .setup__title {
+    margin-top: var(--sp-3);
+    color: var(--text);
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+  }
+
+  .setup__lede {
+    max-width: 760px;
+    margin-top: var(--sp-3);
+    color: var(--text-2);
+    font-size: var(--fs-14);
+    line-height: 1.6;
+  }
+
+  .setup__home {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .setup__home-label {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .setup__home-path {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text);
+    font-size: var(--fs-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setup__home .btn {
+    margin-left: auto;
+  }
+
+  .setup__error {
+    display: grid;
+    gap: 4px;
+    margin-top: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border: var(--bw) solid var(--danger);
+    border-left-width: 2px;
+    background: var(--danger-soft);
+    color: var(--text-2);
+    font-size: var(--fs-11);
+    line-height: 1.5;
+  }
+
+  .setup__error-code {
+    color: var(--danger);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .setup__details {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .setup__details pre {
+    max-height: 180px;
+    margin: 4px 0 0;
+    padding: var(--sp-2);
+    overflow: auto;
+    border: var(--bw) solid var(--line);
+    background: var(--bg);
+    white-space: pre-wrap;
+  }
+
+  .setup__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+  }
+
+  .setup__demo-note {
+    max-width: 580px;
+    margin-top: var(--sp-2);
+    color: var(--text-3);
+    font-size: var(--fs-10);
+    line-height: 1.5;
+  }
+
+  .setup__card {
+    display: grid;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .setup__card-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .setup__card-head svg {
+    width: 13px;
+    height: 13px;
+    color: var(--text-3);
+  }
+
+  .setup__card-text {
+    color: var(--text-2);
+    font-size: var(--fs-11);
+    line-height: 1.55;
+  }
+
+  .setup__command {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 6px var(--sp-2);
+    border: var(--bw) solid var(--line);
+    background: var(--raise);
+  }
+
+  .setup__command code {
+    min-width: 0;
+    overflow: auto;
+    color: var(--accent-text);
+    font-size: var(--fs-10);
+    white-space: nowrap;
+  }
+
+  .setup__command .btn {
+    margin-left: auto;
+    flex: none;
+  }
+
+  .setup__properties {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-3);
+    grid-column: 1 / -1;
+    margin-top: var(--sp-3);
+  }
+
+  .setup__property {
+    display: flex;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .setup__property svg {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-top: 1px;
+    color: var(--accent-text);
+  }
+
+  .setup__property div {
+    display: grid;
+    gap: 3px;
+  }
+
+  .setup__property-title {
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .setup__property-text {
+    color: var(--text-3);
+    font-size: var(--fs-10);
+    line-height: 1.5;
+  }
+
+  .setup__help {
+    grid-column: 1 / -1;
+    padding: var(--sp-3);
+    border: var(--bw) solid var(--line);
+    background: var(--panel);
+  }
+
+  .setup__help-title {
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .setup__help ul {
+    display: grid;
+    gap: 3px;
+    margin-top: var(--sp-2);
+    color: var(--text-3);
+    font-size: var(--fs-11);
+    line-height: 1.5;
+  }
+
+  .setup__help li::before {
+    content: "—";
+    margin-right: 6px;
+    color: var(--line-2);
+  }
+
+  .setup__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-top: auto;
+    padding: var(--sp-2) var(--sp-4);
+    border-top: var(--bw) solid var(--line);
+    background: var(--panel);
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .setup__foot svg {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    vertical-align: -1px;
+  }
+}

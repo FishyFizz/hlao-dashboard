@@ -1,0 +1,526 @@
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
+import { ArrowDown, Search, WifiOff } from "lucide-react";
+import { Button } from "../../components/Button";
+import {
+  buildRenderItems,
+  buildTranscriptRows,
+  countNewAgentMessages,
+  formatAge,
+  formatDateTime,
+  isSystemItem,
+  renderItemAt,
+  renderItemSeq,
+  renderItemTurn,
+  sessionLocalKey,
+  type TranscriptRow,
+} from "../../store/model";
+import {
+  canUse,
+  eventsFor,
+  store,
+  type DashboardState,
+} from "../../store/store";
+import type { SessionView } from "../../wire/protocol";
+import { CAPABILITIES } from "../../wire/protocol";
+import { forkProviderSession } from "../providerActions";
+import { ActivityGroupRow, EventRow } from "./EventRow";
+import { TranscriptBanners } from "./TranscriptBanners";
+
+type TranscriptMode = "default" | "system" | "minimal";
+
+const TRANSCRIPT_MODES: Array<{
+  id: TranscriptMode;
+  label: string;
+  title: string;
+}> = [
+  {
+    id: "default",
+    label: "Default",
+    title: "Conversation and activity; system events are hidden.",
+  },
+  {
+    id: "system",
+    label: "System",
+    title:
+      "Show usage, plan, compaction, commands, stderr, and session metadata.",
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    title:
+      "Agent and operator messages only; tool calls, MCP calls, and thoughts collapse into one line.",
+  },
+];
+
+export function Transcript({
+  state,
+  session,
+  onSearch,
+  onOpenSession,
+}: {
+  state: DashboardState;
+  session: SessionView;
+  onSearch: () => void;
+  onOpenSession: (sessionId: string) => void;
+}) {
+  const eventsState = eventsFor(state, session.id);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const olderRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef<string | null>(null);
+  const atBottomRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const key = sessionLocalKey(session);
+  const lastSeen = state.local.lastSeen[key] ?? 0;
+  const [mode, setMode] = useState<TranscriptMode>("default");
+  const renderItems = useMemo(
+    () =>
+      buildRenderItems(eventsState.events).filter(
+        (item) => !(item.kind === "event" && item.event.type === "turn.started"),
+      ),
+    [eventsState.events],
+  );
+  const hiddenSystemCount = useMemo(
+    () => renderItems.filter(isSystemItem).length,
+    [renderItems],
+  );
+  const visibleItems = useMemo(
+    () =>
+      mode === "system"
+        ? renderItems
+        : renderItems.filter((item) => !isSystemItem(item)),
+    [renderItems, mode],
+  );
+  const rows = useMemo(
+    () => buildTranscriptRows(visibleItems, mode === "minimal"),
+    [visibleItems, mode],
+  );
+  const count = eventsState.events.length;
+  const live = state.connection === "open" && !state.removed;
+  const canPageBack = canUse(state, CAPABILITIES.readBefore);
+  // Count unread agent messages, not the event-sequence delta: streaming tool
+  // updates and thoughts can run into the thousands without a single message.
+  const unseen = countNewAgentMessages(eventsState.events, lastSeen);
+  const lastReadVisible =
+    lastSeen > 0 && lastSeen < eventsState.lastSeq && lastSeen >= eventsState.earliestRetainedSeq;
+  const lastReadEvicted = lastSeen > 0 && lastSeen < eventsState.earliestRetainedSeq;
+  const evictionDismissed =
+    state.local.dismissedEvictions[key] === eventsState.earliestRetainedSeq;
+  const gap = eventsState.gap;
+  const showFoot = lastReadVisible || !atBottom || unseen > 0;
+  const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
+
+  const scrollToBottom = (markSeen = true) => {
+    const element = scrollRef.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    atBottomRef.current = true;
+    setAtBottom(true);
+    store.setFollowTail(session.id, true);
+    if (markSeen) store.markSeen(session.id, eventsState.lastSeq);
+  };
+
+  const scrollToEvent = (seq: number) => {
+    const element = document.getElementById(`event-${seq}`);
+    if (!element) return false;
+    element.scrollIntoView({ block: "center" });
+    return true;
+  };
+
+  useEffect(() => {
+    if (!eventsState.loaded) return;
+    if (initialized.current === session.id) return;
+    initialized.current = session.id;
+    const focus = state.focus;
+    requestAnimationFrame(() => {
+      if (focus?.sessionId === session.id && scrollToEvent(focus.seq)) return;
+      if (lastReadVisible) {
+        const divider = document.getElementById("last-read");
+        if (divider) {
+          divider.scrollIntoView({ block: "center" });
+          atBottomRef.current = false;
+          setAtBottom(false);
+          store.setFollowTail(session.id, false);
+          return;
+        }
+      }
+      scrollToBottom(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id, eventsState.loaded, lastReadVisible]);
+
+  useEffect(() => {
+    if (!state.focus || state.focus.sessionId !== session.id) return;
+    let timer: number | null = null;
+    const frame = requestAnimationFrame(() => {
+      scrollToEvent(state.focus!.seq);
+      timer = window.setTimeout(() => store.clearFocus(), 2_500);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [state.focus, session.id]);
+
+  useEffect(() => {
+    if (atBottomRef.current) {
+      const element = scrollRef.current;
+      if (element) element.scrollTop = element.scrollHeight;
+    }
+  }, [count]);
+
+  const pauseFollow = () => {
+    if (!atBottomRef.current) return;
+    atBottomRef.current = false;
+    setAtBottom(false);
+    store.setFollowTail(session.id, false);
+  };
+
+  const loadOlderPage = (force = false) => {
+    if (
+      (!force && atBottomRef.current) ||
+      !canPageBack ||
+      !eventsState.hasMoreOlder ||
+      eventsState.loadingOlder
+    ) {
+      return;
+    }
+    const element = scrollRef.current;
+    const anchor = element ? { height: element.scrollHeight } : null;
+    void store.loadOlder(session.id).then(() => {
+      requestAnimationFrame(() => {
+        const current = scrollRef.current;
+        if (!current || !anchor) return;
+        const delta = current.scrollHeight - anchor.height;
+        if (delta > 0) current.scrollTop += delta;
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!canPageBack || !eventsState.hasMoreOlder) return;
+    const root = scrollRef.current;
+    const target = olderRef.current;
+    if (!root || !target || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadOlderPage();
+      },
+      { root, rootMargin: "160px 0px 0px 0px", threshold: 0 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+    // The observer should be rebuilt when the page or loading state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPageBack, eventsState.hasMoreOlder, eventsState.loadingOlder, session.id]);
+
+  useEffect(() => {
+    if (!canPageBack || !eventsState.hasMoreOlder || eventsState.loadingOlder) {
+      return;
+    }
+    const element = scrollRef.current;
+    if (!element) return;
+    if (element.scrollHeight <= element.clientHeight + 80) {
+      loadOlderPage(true);
+    }
+    // Fill a short tail page so the first screen is not a dead end.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canPageBack,
+    eventsState.events.length,
+    eventsState.hasMoreOlder,
+    session.id,
+  ]);
+
+  const onScroll = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const bottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight < 36;
+    if (bottom !== atBottomRef.current) {
+      atBottomRef.current = bottom;
+      setAtBottom(bottom);
+      store.setFollowTail(session.id, bottom);
+      if (bottom) store.markSeen(session.id, eventsState.lastSeq);
+    }
+    if (element.scrollTop < 80) loadOlderPage();
+  };
+
+  const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) pauseFollow();
+  };
+
+  const onTouchMove = () => {
+    pauseFollow();
+  };
+
+  const jumpToLatest = () => {
+    scrollToBottom(true);
+    void store.catchUp(session.id);
+    store.clearFocus();
+  };
+
+  const jumpToLastRead = () => {
+    const divider = document.getElementById("last-read");
+    if (divider) {
+      divider.scrollIntoView({ block: "center" });
+      atBottomRef.current = false;
+      setAtBottom(false);
+      store.setFollowTail(session.id, false);
+    }
+  };
+
+  if (!eventsState.loaded && eventsState.loading) {
+    return (
+      <div className="transcript-loading">Loading the latest bounded page…</div>
+    );
+  }
+
+  return (
+    <div className="transcript">
+      <div className="transcript__bar">
+        <span className="transcript__title">
+          <span>
+            {eventsState.loaded
+              ? `${eventsState.earliestRetainedSeq} - ${eventsState.lastSeq} / ${count} loaded`
+              : "not loaded"}
+          </span>
+          {state.removed ? (
+            <span className="transcript__stale">
+              <WifiOff className="icon" /> not live
+            </span>
+          ) : null}
+        </span>
+        <span className="transcript__actions">
+          {!live ? (
+            <span className="caption" title="Live events stop when the connection or session stops">
+              events paused
+            </span>
+          ) : null}
+          <span
+            className="segmented transcript__modes"
+            role="group"
+            aria-label="Transcript view mode"
+          >
+            {TRANSCRIPT_MODES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="segmented__item"
+                data-selected={mode === option.id ? "true" : undefined}
+                aria-pressed={mode === option.id}
+                title={option.title}
+                onClick={() => setMode(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </span>
+          <Button size="sm" variant="ghost" onPress={onSearch}>
+            <Search className="btn__icon icon" />
+            Find
+          </Button>
+          <span className="caption" title="Follow the live edge">
+            {atBottom ? "following" : "paused"}
+          </span>
+        </span>
+      </div>
+
+      <TranscriptBanners
+        session={session}
+        eventsState={eventsState}
+        evictionDismissed={evictionDismissed}
+        canForkProvider={canForkProvider}
+        onFork={() => forkProviderSession(session)}
+        onDismissEviction={() => store.dismissEviction(session.id)}
+        lastSeen={lastSeen}
+        lastReadEvicted={lastReadEvicted}
+      />
+
+      <div
+        className="transcript__scroll"
+        ref={scrollRef}
+        onScroll={onScroll}
+        onWheel={onWheel}
+        onTouchMove={onTouchMove}
+        role="log"
+        aria-label={`Transcript for ${session.name ?? session.id}`}
+        aria-live="off"
+      >
+        {eventsState.viewCapped ? (
+          <div className="transcript__older">
+            <span className="caption">
+              Local transcript limit reached; earlier events remain on the
+              supervisor.
+            </span>
+          </div>
+        ) : eventsState.hasMoreOlder && canPageBack ? (
+          <div className="transcript__older" ref={olderRef} role="status">
+            <span className="caption">
+              {eventsState.loadingOlder
+                ? "Loading earlier events..."
+                : "Earlier events load automatically"}
+            </span>
+          </div>
+        ) : null}
+        {rows.length === 0 ? (
+          <div className="transcript-empty">
+            {mode === "minimal" ? (
+              <>
+                <span className="transcript-empty__title">
+                  Nothing to show in minimal mode.
+                </span>
+                <span className="transcript-empty__text">
+                  {hiddenSystemCount > 0
+                    ? "The loaded events are system-only. System mode shows them."
+                    : "The loaded page has no messages, tool calls, MCP calls, or thoughts."}
+                </span>
+                {hiddenSystemCount > 0 ? (
+                  <Button size="sm" onPress={() => setMode("system")}>
+                    Show system events
+                  </Button>
+                ) : null}
+              </>
+            ) : hiddenSystemCount > 0 ? (
+              <>
+                <span className="transcript-empty__title">
+                  System events are hidden.
+                </span>
+                <span className="transcript-empty__text">
+                  Usage, plan, compaction, commands, stderr, and session
+                  metadata are available via System. This session has no other
+                  loaded events.
+                </span>
+                <Button size="sm" onPress={() => setMode("system")}>
+                  Show system events
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="transcript-empty__title">No events yet.</span>
+                <span className="transcript-empty__text">
+                  {canUse(state, CAPABILITIES.lastEvent)
+                    ? "The supervisor reports no events for this session."
+                    : "This supervisor does not report the last event."}
+                </span>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="transcript__list">
+            {rows.map((row, index) => {
+              const turn = rowTurn(row);
+              const previous = index > 0 ? rowTurn(rows[index - 1]!) : null;
+              const showTurn = turn !== null && turn !== previous;
+              const seq = rowSeq(row);
+              const showRead =
+                lastReadVisible &&
+                lastSeen < seq &&
+                (index === 0 || lastSeen >= previousSeq(rows, index));
+              const showGap =
+                gap !== null &&
+                seq > gap.to &&
+                (index === 0 || previousSeq(rows, index) <= gap.to);
+              return (
+                <div key={rowKey(row)}>
+                  {showTurn ? (
+                    <div className="event event--divider transcript-turn">
+                      <span>Turn {turn}</span>
+                      <span>{formatDateTime(rowAt(row))}</span>
+                    </div>
+                  ) : null}
+                  {showGap && gap ? (
+                    <div className="event event--divider event--gap">
+                      <span>
+                        History gap · seq {gap.from}–{gap.to} not retained
+                      </span>
+                      <span>{formatDateTime(rowAt(row))}</span>
+                    </div>
+                  ) : null}
+                  {showRead ? (
+                    <div className="event event--divider" id="last-read">
+                      <span>
+                        Last read · seq {lastSeen}
+                        {atBottom ? null : (
+                          <button type="button" className="transcript__link" onClick={jumpToLatest}>
+                            jump to latest
+                          </button>
+                        )}
+                      </span>
+                      <span>{formatAge(rowAt(row), Date.now())} after</span>
+                    </div>
+                  ) : null}
+                  {row.kind === "item" ? (
+                    <EventRow
+                      item={row.item}
+                      session={session}
+                      focused={
+                        state.focus?.sessionId === session.id &&
+                        state.focus.seq === seq
+                      }
+                      onOpenSession={onOpenSession}
+                    />
+                  ) : (
+                    <ActivityGroupRow
+                      row={row}
+                      session={session}
+                      focusSeq={
+                        state.focus?.sessionId === session.id
+                          ? state.focus.seq
+                          : null
+                      }
+                      onOpenSession={onOpenSession}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showFoot ? (
+        <div className="transcript__foot">
+          <span className="transcript__foot-actions">
+            {lastReadVisible ? (
+              <Button size="sm" variant="ghost" onPress={jumpToLastRead}>
+                Last read
+              </Button>
+            ) : null}
+            {!atBottom ? (
+              <Button size="sm" onPress={jumpToLatest}>
+                <ArrowDown className="btn__icon icon" />
+                Jump to latest
+              </Button>
+            ) : null}
+            {unseen > 0 ? (
+              <Button size="sm" variant="primary" onPress={jumpToLatest}>
+                {unseen} new message{unseen === 1 ? "" : "s"}
+              </Button>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function rowTurn(row: TranscriptRow): number | null {
+  return row.kind === "item" ? renderItemTurn(row.item) : row.turn;
+}
+
+function rowSeq(row: TranscriptRow): number {
+  return row.kind === "item" ? renderItemSeq(row.item) : row.seq;
+}
+
+function rowAt(row: TranscriptRow): string {
+  return row.kind === "item" ? renderItemAt(row.item) : row.at;
+}
+
+function rowKey(row: TranscriptRow): string {
+  return row.kind === "item" ? row.item.id : row.id;
+}
+
+function previousSeq(rows: TranscriptRow[], index: number): number {
+  const previous = rows[index - 1];
+  return previous ? rowSeq(previous) : 0;
+}

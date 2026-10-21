@@ -1,0 +1,55 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Lineage                                                             */
+  /* ------------------------------------------------------------------ */
+
+  .tree {
+    color: var(--text-2);
+  }
+
+  .tree__children {
+    margin-left: 9px;
+    padding-left: 14px;
+    border-left: var(--bw) solid var(--line-2);
+  }
+
+  .tree__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 28px;
+    padding: 2px 0;
+    font-size: var(--fs-12);
+  }
+
+  .tree__children > .tree__row::before {
+    content: "";
+    position: absolute;
+    left: -15px;
+    top: 14px;
+    width: 10px;
+    border-top: var(--bw) solid var(--line-2);
+  }
+
+  .tree__handle {
+    color: var(--accent-text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  .tree__name {
+    color: var(--text);
+    font-size: var(--fs-12);
+  }
+
+  .tree__meta {
+    margin-left: auto;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+}

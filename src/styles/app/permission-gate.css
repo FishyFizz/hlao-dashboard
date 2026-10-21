@@ -1,0 +1,120 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* Permission gate                                                    */
+  /* ------------------------------------------------------------------ */
+
+  .permission-gate {
+    margin: var(--sp-2) var(--sp-3) 0;
+    border: var(--bw) solid var(--warn);
+    background: var(--panel);
+  }
+
+  .permission-gate__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    padding: 5px var(--sp-2);
+    border-bottom: var(--bw) solid color-mix(in srgb, var(--warn) 35%, transparent);
+    background: var(--warn-soft);
+  }
+
+  .permission-gate__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--warn);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .permission-gate__badge svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .permission-gate__age {
+    color: var(--warn);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .permission-gate__body {
+    display: grid;
+    gap: 6px;
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  }
+
+  .permission-gate__request {
+    display: grid;
+    gap: 6px;
+    padding: var(--sp-2) 0;
+    border-top: var(--bw) solid color-mix(in srgb, var(--warn) 22%, transparent);
+  }
+
+  .permission-gate__request:first-child {
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .permission-gate__question {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+
+  .permission-gate__title {
+    color: var(--text);
+    font-size: var(--fs-13);
+    font-weight: 500;
+  }
+
+  .permission-gate__meta {
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .permission-gate__explain {
+    max-width: 760px;
+    color: var(--text-3);
+    font-size: var(--fs-11);
+    line-height: 1.5;
+  }
+
+  .permission-gate__explain--warn {
+    color: var(--warn);
+  }
+
+  .permission-gate__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px 0;
+  }
+
+  .permission-gate__sending {
+    color: var(--warn);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .permission-gate__more > summary {
+    cursor: pointer;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+
+  .permission-gate__more p {
+    margin-top: 4px;
+  }
+}

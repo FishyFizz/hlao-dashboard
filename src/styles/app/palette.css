@@ -1,0 +1,105 @@
+@layer app {
+  /* ------------------------------------------------------------------ */
+  /* Palette and overlays                                               */
+  /* ------------------------------------------------------------------ */
+
+  .palette-dialog {
+    width: min(660px, calc(100vw - 32px));
+    max-height: min(640px, calc(100vh - 48px));
+    outline: none;
+  }
+
+  .palette-dialog .palette {
+    display: flex;
+    flex-direction: column;
+    max-height: min(640px, calc(100vh - 48px));
+  }
+
+  .palette__scroll {
+    flex: 1;
+    min-height: 120px;
+    max-height: 440px;
+    overflow: auto;
+  }
+
+  .palette__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    width: 100%;
+    min-height: 32px;
+    padding: 4px var(--sp-3);
+    background: transparent;
+    color: var(--text-2);
+    font-size: var(--fs-12);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .palette__item[data-active] {
+    background: var(--accent-soft);
+    color: var(--text);
+    box-shadow: inset 2px 0 0 var(--accent-text);
+  }
+
+  .palette__item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .palette__item-meta {
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .palette__target-hint {
+    display: grid;
+    gap: 2px;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: var(--bw) solid var(--line);
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: var(--fs-10);
+  }
+
+  .palette__target-hint .mono {
+    color: var(--text-2);
+    font-size: 9px;
+  }
+
+  .palette__empty {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-4);
+    color: var(--text-3);
+    font-size: var(--fs-11);
+  }
+
+  .palette__empty svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .toast-region {
+    position: fixed;
+    right: var(--sp-3);
+    bottom: 34px;
+    z-index: var(--z-toast);
+    display: grid;
+    gap: 4px;
+    width: min(360px, calc(100vw - 24px));
+    pointer-events: none;
+  }
+
+  .toast-region .toast {
+    pointer-events: auto;
+  }
+}

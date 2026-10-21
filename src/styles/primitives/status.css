@@ -1,0 +1,165 @@
+@layer primitives {
+  /* ------------------------------------------------------------------ */
+  /* Status, tags, keys, handles                                         */
+  /* ------------------------------------------------------------------ */
+
+  .status {
+    --status: var(--text-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--status);
+    font-family: var(--font-mono);
+    font-size: var(--fs-10);
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .status__lamp {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    background: var(--status);
+  }
+
+  .status--starting {
+    --status: var(--accent-text);
+  }
+
+  .status--starting .status__lamp {
+    background: transparent;
+    border: var(--bw) solid var(--status);
+  }
+
+  .status--idle {
+    --status: var(--ok);
+  }
+
+  .status--busy {
+    --status: var(--accent-text);
+  }
+
+  .status--waiting_permission {
+    --status: var(--warn);
+  }
+
+  .status--waiting_permission .status__lamp {
+    border: var(--bw) solid var(--warn);
+    background: transparent;
+  }
+
+  .status--failed {
+    --status: var(--danger);
+  }
+
+  .status--closed {
+    --status: var(--text-3);
+  }
+
+  .lamp {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    background: var(--text-3);
+  }
+
+  .lamp--accent {
+    background: var(--accent);
+  }
+
+  .lamp--ok {
+    background: var(--ok);
+  }
+
+  .lamp--warn {
+    background: var(--warn);
+  }
+
+  .lamp--danger {
+    background: var(--danger);
+  }
+
+  .lamp--off {
+    background: transparent;
+    border: var(--bw) solid var(--text-3);
+  }
+
+  .lamp--blink {
+    border: var(--bw) solid var(--warn);
+    background: transparent;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 18px;
+    padding: 0 6px;
+    border: var(--bw) solid var(--line-2);
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .tag--accent {
+    border-color: var(--accent-line);
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+
+  .tag--ok {
+    border-color: color-mix(in srgb, var(--ok) 42%, transparent);
+    color: var(--ok);
+  }
+
+  .tag--warn {
+    border-color: color-mix(in srgb, var(--warn) 42%, transparent);
+    color: var(--warn);
+  }
+
+  .tag--danger {
+    border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+    color: var(--danger);
+  }
+
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: var(--bw) solid var(--line-2);
+    background: var(--raise);
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  .handle {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-11);
+    font-variant-numeric: tabular-nums slashed-zero;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .handle__hash {
+    color: var(--text-3);
+  }
+}
