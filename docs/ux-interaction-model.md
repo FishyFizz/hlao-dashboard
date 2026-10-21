@@ -511,8 +511,18 @@ The numbering is stable so implementation and review can refer to it.
   user messages, and inter-session messages are first-class; none require raw. Unknown types
   fall back to `type · title/preview`.
 - **TR10 — Thoughts are secondary.** Agent thoughts are available but collapsed or de-emphasized
-  by default, with an explicit toggle. They are never mixed into final agent messages as if
-  they were output.
+  by default, with an explicit toggle. A collapsed thought shows the latest streamed line, so
+  the operator can see what the agent is thinking without opening it; the full text remains one
+  click away. Thoughts are never mixed into final agent messages as if they were output.
+- **TR14 — View modes are one exclusive choice.** The transcript offers exactly three modes:
+  Default (conversation and activity, system events hidden), System (also show usage, plan,
+  compaction, commands, stderr, and session metadata), and Minimal (messages plus one collapsed
+  activity row between them). There is no separate system toggle. Minimal counts tool calls,
+  MCP calls, and thoughts and shows the latest tool/MCP name or last thought line; opening the
+  row restores the individual events. Failures, notices, discarded prompts, and terminal
+  markers never collapse, because a compact view must not hide a decision or a problem. The
+  wire has no MCP event type, so MCP calls are recognized from adapter naming or explicit
+  markers; the count's tooltip says that this is an inference.
 - **TR11 — Agent text is untrusted.** Strip control characters; do not render raw HTML or
   script; do not auto-load remote content; make links explicit; code blocks are copyable, not
   executable. This mirrors the CLI's sanitization guarantee.
@@ -1108,7 +1118,7 @@ The treatment is an information hierarchy, not a visual spec.
 | `turn.started`, `turn.ended`, `cancel.requested` | Turn skeleton. Turn headers and end markers; stop reason shown. |
 | `prompt.sent`, `prompt.queued`, `prompt.discarded` | Conversation. One block per prompt with sender and message id; discarded prompts show the reason. |
 | `agent.message` | Primary output. Coalesced by message id; the main reading target. |
-| `agent.thought` | Secondary. Collapsed/de-emphasized by default; available on toggle. |
+| `agent.thought` | Secondary. Collapsed/de-emphasized by default; the collapsed summary shows the latest streamed line; the full text is available on toggle. |
 | `user.message` | Conversation. Provider-reported user-role content; render as a user block, but do not treat it as the authoritative record of what the operator sent (`prompt.sent` is). |
 | `session.message` | Inter-session conversation. Sender/recipient; link the sender if addressable. |
 | `tool.call`, `tool.update` | Work. One row per tool call; updates mutate in place; details/raw on demand. |

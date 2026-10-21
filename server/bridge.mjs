@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const ROOT = resolve(HERE, "..");
-const WIRE = { major: 2, minor: 5 };
+const WIRE = { major: 2, minor: 8 };
 
 function parseArgs(argv) {
   const options = {
@@ -49,7 +49,8 @@ Usage: node server/bridge.mjs [--home DIR] [--port N] [--host 127.0.0.1] [--dist
 
 The bridge reads <home>/supervisor.json, opens the supervisor's local socket,
 and serves the built dashboard on loopback. The supervisor token never reaches
-the page. Run "npm run build" first, or use "npm run dev" with the Vite proxy.`);
+the page. Run "npm run build" first, or use "npm start -- --home DIR" to run the
+bridge and Vite together.`);
       process.exit(0);
     }
   }

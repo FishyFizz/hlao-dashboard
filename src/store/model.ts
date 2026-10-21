@@ -352,6 +352,8 @@ export type RenderItem =
       name: string;
       title: string;
       status: string;
+      /** The provider reports MCP tools by name or by an explicit marker. */
+      mcp: boolean;
       input: string | null;
       output: string | null;
       at: string;
@@ -412,13 +414,26 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
   const toolIndex = new Map<string, number>();
   const compactionIndex = new Map<string, number>();
   const permissionIndex = new Map<string, number>();
+  // A provider may stream a thought without a message id. Consecutive chunks
+  // are one continuous thought, so keep extending the open item; a keyed
+  // thought or any other event closes the run.
+  let openThought: number | null = null;
 
   for (const event of events) {
+    if (event.type !== "agent.thought") openThought = null;
     const messageId = stringField(event.data, ["messageId", "id"]);
     if (MESSAGE_TYPES.has(event.type)) {
+      const text = messageChunk(event.data);
+      if (event.type === "agent.thought" && !messageId && openThought !== null) {
+        const item = items[openThought];
+        if (item && item.kind === "message") {
+          item.text += text;
+          item.events.push(event);
+          continue;
+        }
+      }
       const key = `${event.type}:${messageId ?? event.seq}`;
       const existing = messageIndex.get(key);
-      const text = messageChunk(event.data);
       if (existing !== undefined) {
         const item = items[existing];
         if (item && item.kind === "message") item.text += text;
@@ -435,6 +450,8 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
           events: [event],
         });
       }
+      openThought =
+        event.type === "agent.thought" && !messageId ? items.length - 1 : null;
       continue;
     }
 
@@ -484,6 +501,7 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
           item.name = toolNameFrom(event.data) || item.name;
           item.title = toolTitleFrom(event.data) || item.title;
           item.status = stringField(event.data, ["status", "state"]) ?? item.status;
+          item.mcp = item.mcp || toolMcpFrom(event.data);
           item.input = toolInputFrom(event.data) ?? item.input;
           item.output = toolOutputFrom(event.data) ?? item.output;
           item.at = event.at;
@@ -497,6 +515,7 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
           name: toolNameFrom(event.data) || "tool",
           title: toolTitleFrom(event.data),
           status: stringField(event.data, ["status", "state"]) ?? "running",
+          mcp: toolMcpFrom(event.data),
           input: toolInputFrom(event.data),
           output: toolOutputFrom(event.data),
           at: event.at,
@@ -548,6 +567,174 @@ export function buildRenderItems(events: readonly EventView[]): RenderItem[] {
   }
 
   return items;
+}
+
+/* ------------------------------------------------------------------ */
+/* Transcript view modes                                              */
+/* ------------------------------------------------------------------ */
+
+/** Events that belong to the provider's machinery, not the conversation. */
+const SYSTEM_EVENT_TYPES = new Set([
+  "usage",
+  "plan",
+  "plan.update",
+  "commands",
+  "stderr",
+  "session.initialized",
+  "session.info",
+]);
+
+export function isSystemItem(item: RenderItem): boolean {
+  if (item.kind === "compaction") {
+    return item.status === "completed" && !item.error;
+  }
+  return item.kind === "event" && SYSTEM_EVENT_TYPES.has(item.event.type);
+}
+
+/**
+ * The last line of a streamed thought, as one line suitable for a collapsed
+ * summary. The tail is kept when a line is too long: that is the text the
+ * agent is currently producing.
+ */
+export function lastThoughtLine(text: string, max = 160): string {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  let line = "";
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const candidate = lines[index]!
+      .trim()
+      .replace(/^(?:#{1,6}\s+|>\s?|[-*+]\s+)/, "")
+      .replace(/\s+/g, " ");
+    if (!candidate) continue;
+    if (/^`{3,}$/.test(candidate) || /^[-*_]{3,}$/.test(candidate)) continue;
+    line = candidate;
+    break;
+  }
+  if (line.length <= max) return line;
+  return `…${line.slice(line.length - (max - 1))}`;
+}
+
+/** MCP names are namespaced by the adapter; the summary does not need the prefix. */
+export function mcpToolLabel(name: string): string {
+  return name.replace(/^mcp[_:/-]+/i, "").replace(/__/g, " · ");
+}
+
+export function renderItemSeq(item: RenderItem): number {
+  return item.kind === "event" ? item.event.seq : item.seq;
+}
+
+export function renderItemTurn(item: RenderItem): number | null {
+  return item.kind === "event" ? item.event.turn : item.turn;
+}
+
+export function renderItemAt(item: RenderItem): string {
+  return item.kind === "event" ? item.event.at : item.at;
+}
+
+export type ActivityLine =
+  | { kind: "tool"; name: string; title: string; mcp: boolean }
+  | { kind: "thought"; text: string };
+
+/** One collapsed run of activity between conversation messages. */
+export type ActivityGroupRow = {
+  kind: "activity";
+  id: string;
+  items: RenderItem[];
+  tools: number;
+  mcp: number;
+  thoughts: number;
+  last: ActivityLine | null;
+  at: string;
+  turn: number | null;
+  seq: number;
+  endSeq: number;
+};
+
+export type TranscriptRow = { kind: "item"; item: RenderItem } | ActivityGroupRow;
+
+/**
+ * Minimal mode keeps the conversation anchors and collapses the work between
+ * them into one row. Failures, notices, discarded prompts, and terminal
+ * markers stay visible: a compact view must not hide a decision or a problem.
+ */
+function isMinimalAnchor(item: RenderItem): boolean {
+  if (item.kind === "message") return item.type !== "agent.thought";
+  if (item.kind === "compaction") {
+    return item.error !== null || item.status === "failed" || item.status === "error";
+  }
+  if (item.kind !== "event") return false;
+  const type = item.event.type;
+  return (
+    type === "prompt.sent" ||
+    type === "prompt.queued" ||
+    type === "prompt.discarded" ||
+    type === "notice" ||
+    type === "error" ||
+    type === "session.failed" ||
+    type === "session.closed"
+  );
+}
+
+export function buildTranscriptRows(
+  items: readonly RenderItem[],
+  minimal: boolean,
+): TranscriptRow[] {
+  if (!minimal) return items.map((item) => ({ kind: "item", item }));
+
+  const rows: TranscriptRow[] = [];
+  let pending: RenderItem[] = [];
+
+  const flush = () => {
+    if (pending.length === 0) return;
+    let tools = 0;
+    let mcp = 0;
+    let thoughts = 0;
+    let last: ActivityLine | null = null;
+    for (const item of pending) {
+      if (item.kind === "tool") {
+        if (item.mcp) mcp += 1;
+        else tools += 1;
+        last = { kind: "tool", name: item.name, title: item.title, mcp: item.mcp };
+      } else if (item.kind === "message" && item.type === "agent.thought") {
+        thoughts += 1;
+        const text = lastThoughtLine(item.text);
+        if (text) last = { kind: "thought", text };
+      }
+    }
+    // Minimal mode is about the work between messages. A run of structural
+    // or provider-state events with no tool, MCP call, or thought would render
+    // as a contentless "N events" row; leave it to Default/System instead.
+    if (tools + mcp + thoughts === 0) {
+      pending = [];
+      return;
+    }
+    const first = pending[0]!;
+    const lastItem = pending[pending.length - 1]!;
+    rows.push({
+      kind: "activity",
+      id: `activity-${renderItemSeq(first)}`,
+      items: pending,
+      tools,
+      mcp,
+      thoughts,
+      last,
+      at: renderItemAt(first),
+      turn: renderItemTurn(first),
+      seq: renderItemSeq(first),
+      endSeq: renderItemSeq(lastItem),
+    });
+    pending = [];
+  };
+
+  for (const item of items) {
+    if (isMinimalAnchor(item)) {
+      flush();
+      rows.push({ kind: "item", item });
+    } else {
+      pending.push(item);
+    }
+  }
+  flush();
+  return rows;
 }
 
 export function eventText(event: EventView): string {
@@ -642,6 +829,24 @@ function contentPayload(value: unknown): string | null {
 
 function toolNameFrom(data: Record<string, unknown>): string {
   return stringField(data, ["name", "tool", "toolName"]) ?? "";
+}
+
+/**
+ * There is no MCP event type on the wire: an MCP call is an ordinary
+ * `tool.call`. Adapters name them `mcp__<server>__<tool>` (Claude Code), and
+ * some add an explicit marker. Treat any of those as MCP; a plain tool named
+ * "mcp" would be mislabeled, which is the honest cost of a name-based hint.
+ */
+function toolMcpFrom(data: Record<string, unknown>): boolean {
+  if (data.mcp === true || data.isMcp === true || data.kind === "mcp") return true;
+  if (
+    typeof data.mcpServer === "string" ||
+    typeof data.mcpServerName === "string" ||
+    typeof data.serverName === "string"
+  ) {
+    return true;
+  }
+  return /^mcp(?:[_:/-]|$)/i.test(toolNameFrom(data));
 }
 
 function toolTitleFrom(data: Record<string, unknown>): string {

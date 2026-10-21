@@ -32,7 +32,12 @@ import {
   type AttentionItem,
 } from "../store/model";
 import type { SessionView } from "../wire/protocol";
-import { CAPABILITIES, statusLabel } from "../wire/protocol";
+import {
+  CAPABILITIES,
+  statusLabel,
+  WIRE_MAJOR,
+  WIRE_MINOR,
+} from "../wire/protocol";
 import { useNow } from "./hooks";
 import { copyWithToast } from "./ui";
 
@@ -302,7 +307,7 @@ export function FleetHome({
           error notice.
         </span>
         <span>
-          <Tag>wire 2.7</Tag>
+          <Tag>wire {WIRE_MAJOR}.{WIRE_MINOR}</Tag>
           <Tag>{state.mode === "demo" ? "demo" : "local IPC"}</Tag>
         </span>
       </footer>

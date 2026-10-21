@@ -5,6 +5,8 @@ import {
   attentionFor,
   attentionKey,
   buildRenderItems,
+  buildTranscriptRows,
+  lastThoughtLine,
   nextAttentionSession,
   resolveTarget,
   sessionLocalKey,
@@ -363,6 +365,23 @@ describe("event merge", () => {
     expect(items[1]).toMatchObject({ kind: "tool", status: "completed", output: "ok" });
   });
 
+  it("coalesces unkeyed thought chunks into one continuous thought", () => {
+    const items = buildRenderItems([
+      event(1, "agent.thought", { text: "one " }, 1),
+      event(2, "agent.thought", { text: "two" }, 1),
+      event(3, "tool.call", { toolCallId: "t1", name: "Bash" }, 1),
+      event(4, "agent.thought", { text: "three" }, 1),
+    ]);
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatchObject({
+      kind: "message",
+      type: "agent.thought",
+      text: "one two",
+    });
+    expect(items[1]).toMatchObject({ kind: "tool" });
+    expect(items[2]).toMatchObject({ kind: "message", text: "three" });
+  });
+
   it("preserves whitespace-only message chunks for markdown structure", () => {
     const items = buildRenderItems([
       event(1, "agent.message", { messageId: "m1", text: "# Result", chunk: true }, 1),
@@ -373,6 +392,114 @@ describe("event merge", () => {
       kind: "message",
       text: "# Result\n\nBody",
     });
+  });
+});
+
+describe("minimal transcript mode", () => {
+  it("shows the latest readable line of a streamed thought", () => {
+    expect(lastThoughtLine("first line\n\nsecond line\n")).toBe("second line");
+    expect(lastThoughtLine("- point\n> latest detail")).toBe("latest detail");
+    expect(lastThoughtLine("before\n```\nconst x = 1;\n```\n")).toBe("const x = 1;");
+    expect(lastThoughtLine(" \n\n")).toBe("");
+
+    const preview = lastThoughtLine(`start ${"x".repeat(300)}`, 40);
+    expect(preview).toHaveLength(40);
+    expect(preview.startsWith("…")).toBe(true);
+    expect(preview.endsWith("x")).toBe(true);
+  });
+
+  it("collapses work between messages and counts tools, MCP calls, and thoughts", () => {
+    const items = buildRenderItems([
+      event(1, "prompt.sent", { text: "go", messageId: "p1" }, 1),
+      event(2, "agent.thought", { text: "Check the mutex.", messageId: "th1" }, 1),
+      event(3, "tool.call", { toolCallId: "t1", name: "Bash", title: "npm test" }, 1),
+      event(
+        4,
+        "tool.call",
+        { toolCallId: "m1", name: "mcp__repo__lookup", title: "lookup" },
+        1,
+      ),
+      event(5, "agent.message", { text: "First finding.", messageId: "a1" }, 1),
+      event(6, "agent.thought", { text: "line one\nlast thought", messageId: "th2" }, 1),
+      event(7, "tool.call", { toolCallId: "t2", name: "Read", title: "README.md" }, 1),
+      event(8, "agent.message", { text: "Done.", messageId: "a2" }, 1),
+    ]);
+    const rows = buildTranscriptRows(items, true);
+
+    expect(rows.map((row) => row.kind)).toEqual([
+      "item",
+      "activity",
+      "item",
+      "activity",
+      "item",
+    ]);
+    expect(rows[1]).toMatchObject({
+      tools: 1,
+      mcp: 1,
+      thoughts: 1,
+      last: { kind: "tool", name: "mcp__repo__lookup", mcp: true },
+    });
+    expect(rows[3]).toMatchObject({
+      tools: 1,
+      mcp: 0,
+      thoughts: 1,
+      last: { kind: "tool", name: "Read" },
+    });
+  });
+
+  it("keeps the streamed thought line when the thought is the latest activity", () => {
+    const items = buildRenderItems([
+      event(1, "tool.call", { toolCallId: "t1", name: "Bash", title: "ls" }, 1),
+      event(2, "agent.thought", { text: "first\nchecking the retry path", messageId: "th1" }, 1),
+      event(3, "agent.message", { text: "Result.", messageId: "a1" }, 1),
+    ]);
+    const rows = buildTranscriptRows(items, true);
+    expect(rows[0]).toMatchObject({
+      kind: "activity",
+      thoughts: 1,
+      last: { kind: "thought", text: "checking the retry path" },
+    });
+  });
+
+  it("does not collapse failures, notices, or prompts", () => {
+    const items = buildRenderItems([
+      event(1, "tool.call", { toolCallId: "t1", name: "Bash" }, 1),
+      event(2, "error", { text: "adapter failed" }, 1),
+      event(3, "tool.call", { toolCallId: "t2", name: "Read" }, 2),
+      event(4, "notice", { text: "heads up", severity: "warning" }, 2),
+      event(5, "prompt.sent", { text: "continue", messageId: "p1" }, 2),
+      event(6, "session.failed", { reason: "process exited" }, 2),
+    ]);
+    const rows = buildTranscriptRows(items, true);
+    expect(rows.map((row) => (row.kind === "item" ? row.item.kind : "activity"))).toEqual([
+      "activity",
+      "event",
+      "activity",
+      "event",
+      "event",
+      "event",
+    ]);
+  });
+
+  it("drops structural-only runs instead of showing a contentless row", () => {
+    const items = buildRenderItems([
+      event(1, "session.created", { createdBy: "operator" }),
+      event(2, "turn.ended", { reason: "end_turn" }, 1),
+      event(3, "agent.message", { text: "hi", messageId: "a1" }, 1),
+    ]);
+    const rows = buildTranscriptRows(items, true);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("item");
+  });
+
+  it("leaves the transcript unchanged outside minimal mode", () => {
+    const items = buildRenderItems([
+      event(1, "agent.thought", { text: "hmm", messageId: "th1" }, 1),
+      event(2, "agent.message", { text: "hi", messageId: "a1" }, 1),
+    ]);
+    const rows = buildTranscriptRows(items, false);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.kind === "item")).toBe(true);
   });
 });
 

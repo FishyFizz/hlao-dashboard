@@ -9,6 +9,7 @@ import {
 } from "../store/store";
 import { displayLabel, nextAttentionSession } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
+import { WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
 import {
   AlwaysDialog,
   ClearLocalDialog,
@@ -510,7 +511,7 @@ function BootScreen({ state }: { state: DashboardState }) {
       <div className="boot__text">
         {state.mode === "demo" ? "Opening the demo instance…" : "Connecting to the local bridge…"}
       </div>
-      <Tag>wire 2.7</Tag>
+      <Tag>wire {WIRE_MAJOR}.{WIRE_MINOR}</Tag>
     </div>
   );
 }

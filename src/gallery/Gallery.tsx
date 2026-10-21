@@ -63,7 +63,7 @@ export function Gallery() {
             <span className="lamp lamp--accent" />
             <span className="conn__label">Instance default</span>
             <span className="conn__sep">/</span>
-            <span className="conn__dim">wire 2.7</span>
+            <span className="conn__dim">wire 2.8</span>
           </span>
           <IconButton
             className="theme-toggle"
@@ -105,7 +105,7 @@ export function Gallery() {
             </span>
             <span>Instance default</span>
             <span>Home ~/.hlao</span>
-            <span>Wire 2.7 / local IPC</span>
+            <span>Wire 2.8 / local IPC</span>
             <span>No business logic</span>
           </div>
         </aside>

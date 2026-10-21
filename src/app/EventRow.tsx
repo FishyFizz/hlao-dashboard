@@ -25,8 +25,12 @@ import {
   formatClock,
   formatDateTime,
   formatTokens,
+  lastThoughtLine,
+  mcpToolLabel,
   numberField,
+  renderItemSeq,
   stringField,
+  type ActivityGroupRow as ActivityGroupRowData,
   type RenderItem,
   type ToolPayload,
 } from "../store/model";
@@ -75,6 +79,104 @@ export function EventRow({
         ? item.request?.replay === true || item.resolution?.replay === true
         : item.events.some((event) => event.replay === true);
   return <ReplayContext.Provider value={replay}>{row}</ReplayContext.Provider>;
+}
+
+/**
+ * Minimal mode's collapsed run of work. The summary names what happened and
+ * shows the latest activity; opening it restores the individual rows.
+ */
+export function ActivityGroupRow({
+  row,
+  session,
+  focusSeq,
+  onOpenSession,
+}: {
+  row: ActivityGroupRowData;
+  session: SessionView;
+  focusSeq: number | null;
+  onOpenSession?: (sessionId: string) => void;
+}) {
+  const containsFocus =
+    focusSeq !== null && row.items.some((item) => renderItemSeq(item) === focusSeq);
+  const [open, setOpen] = useState(containsFocus);
+  useEffect(() => {
+    if (containsFocus) setOpen(true);
+  }, [containsFocus]);
+
+  const counts: string[] = [];
+  if (row.tools > 0) counts.push(`${row.tools} tool call${row.tools === 1 ? "" : "s"}`);
+  if (row.mcp > 0) counts.push(`${row.mcp} MCP call${row.mcp === 1 ? "" : "s"}`);
+  if (row.thoughts > 0) {
+    counts.push(`${row.thoughts} thought${row.thoughts === 1 ? "" : "s"}`);
+  }
+
+  let lastLabel = "last";
+  let lastText = "";
+  if (row.last?.kind === "tool") {
+    lastLabel = row.last.mcp ? "last MCP" : "last";
+    lastText = [
+      row.last.mcp ? mcpToolLabel(row.last.name) : row.last.name,
+      row.last.title,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  } else if (row.last?.kind === "thought") {
+    lastLabel = "thinking";
+    lastText = row.last.text;
+  }
+
+  const expanded = open || containsFocus;
+  return (
+    <details
+      className="activity-group"
+      open={expanded}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary
+        className={cn(
+          "event",
+          "activity-group__summary",
+          containsFocus && "event--focus",
+        )}
+      >
+        <Gutter seq={row.seq} at={row.at} />
+        <span className="event__body activity-group__summary-body">
+          <span
+            className="activity-group__counts"
+            title={
+              row.mcp > 0
+                ? "MCP calls are inferred from adapter tool names or markers; the wire has no MCP event type."
+                : undefined
+            }
+          >
+            {counts.join(" · ")}
+          </span>
+          {lastText ? (
+            <span className="activity-group__last" title={lastText}>
+              <span className="activity-group__last-label">{lastLabel}</span>{" "}
+              {lastText}
+            </span>
+          ) : null}
+          <span className="activity-group__toggle" aria-hidden="true">
+            {expanded ? "-" : "+"}
+          </span>
+        </span>
+      </summary>
+      {expanded ? (
+        <div className="activity-group__items">
+          {row.items.map((item) => (
+            <EventRow
+              key={item.id}
+              item={item}
+              session={session}
+              focused={focusSeq !== null && renderItemSeq(item) === focusSeq}
+              onOpenSession={onOpenSession}
+            />
+          ))}
+        </div>
+      ) : null}
+    </details>
+  );
 }
 
 function Gutter({ seq, at }: { seq: number; at: string }) {
@@ -206,8 +308,13 @@ function MessageRow({
       </Meta>
       {isThought ? (
         <details className="event__thought">
-          <summary>
-            Thought · {text.length.toLocaleString()} characters · secondary
+          <summary
+            title={`${text.length.toLocaleString()} characters · the latest streamed line`}
+          >
+            <span className="event__thought-label">Thought</span>{" "}
+            <span className="event__thought-preview">
+              {lastThoughtLine(text) || (text ? "(no readable line)" : "no text yet")}
+            </span>
           </summary>
           <MarkdownText
             text={text}

@@ -38,7 +38,20 @@ honoured when `--home` is omitted.
 
 ### Development
 
-Two processes, two terminals:
+One command starts the bridge and the Vite dev server, and passes the home
+through to the bridge:
+
+```bash
+npm start -- --home "C:\path\to\HLAO_HOME"
+# bridge http://127.0.0.1:4780 · app http://127.0.0.1:5173 · Ctrl-C stops both
+```
+
+`HLAO_HOME` works instead of `--home`; `--vite-port N` changes only the Vite
+port (the bridge stays on 4780 because `vite.config.ts` proxies `/api` there).
+The bridge does not autostart a supervisor, so start HLAO first in another
+terminal (`hlao list --all`).
+
+The two processes can still be run separately:
 
 ```bash
 npm run bridge -- --home "C:\path\to\HLAO_HOME"   # API only, port 4780
@@ -58,6 +71,7 @@ the interaction model. It is not a real process and no work executes.
 ### Checks
 
 ```bash
+npm start -- --home DIR   # bridge + Vite together, Ctrl-C stops both
 npm run typecheck   # tsc --noEmit (TypeScript 7)
 npm test            # Vitest: attention, event merge, transcript coalescing, routing, demo supervisor
 npm run build       # typecheck + Vite production build
@@ -92,8 +106,14 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   payload), permission request/reply pairs collapsed into one row, provider
   notice rows, unknown-type fallback with inspectable data. Raw HTML stays
   inert, external links open explicitly, and remote images are links rather
-  than auto-loads. Usage, plan, compaction, commands, stderr, and session
-  metadata are hidden by default and revealed by the **System** toggle.
+  than auto-loads. A collapsed **Thought** shows the latest streamed line, not
+  just a character count. One transcript mode control replaces the old
+  independent toggle: **Default** hides usage, plan, compaction, commands,
+  stderr, and session metadata; **System** shows them; **Minimal** keeps the
+  conversation and collapses the work between messages into one row with tool,
+  MCP, and thought counts plus the latest tool name or thought line. Opening
+  that row restores the individual events. Failures, notices, and discarded
+  prompts never collapse.
   Tail-follow only at the bottom;
   last-read divider, new-events affordance, automatic backward paging as the
   view approaches the top, and visible truncation/gap markers.
@@ -178,6 +198,7 @@ docs/adr/                    bridge and demo decisions
 STACK.md                     language/library decision and evidence
 DESIGN.md                    visual system and component inventory
 server/bridge.mjs            loopback HTTP + SSE + supervisor IPC
+server/dev.mjs               one-command bridge + Vite launcher
 src/wire/protocol.ts         wire types and capabilities
 src/wire/transport.ts        browser bridge transport
 src/demo/demoSupervisor.ts   simulated supervisor for the demo instance

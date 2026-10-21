@@ -11,6 +11,7 @@ import { Button } from "../components/Button";
 import { BrandMark } from "../components/BrandMark";
 import { Kbd, Tag } from "../components/Status";
 import type { DashboardState } from "../store/store";
+import { WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
 import { copyWithToast } from "./ui";
 
 const SETUP_TITLES: Record<string, string> = {
@@ -50,7 +51,7 @@ export function SetupScreen({
         </a>
         <span className="setup__top-meta">
           <Tag>local client</Tag>
-          <Tag>wire 2.7</Tag>
+          <Tag>wire {WIRE_MAJOR}.{WIRE_MINOR}</Tag>
           <button type="button" className="setup__theme" onClick={onTheme}>
             {state.theme === "dark" ? "Light theme" : "Dark theme"}
           </button>

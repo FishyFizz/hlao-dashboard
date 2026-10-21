@@ -489,7 +489,7 @@ export function Controls() {
                 <Tag>claude</Tag>
                 <Tag>codex</Tag>
                 <Tag>gemini</Tag>
-                <Tag tone="accent">wire 2.7</Tag>
+                <Tag tone="accent">wire 2.8</Tag>
                 <Tag tone="warn">manual</Tag>
                 <Tag tone="danger">failed</Tag>
                 <Tag tone="ok">settled</Tag>

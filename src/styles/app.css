@@ -1576,6 +1576,12 @@
     padding: 0 var(--sp-3);
   }
 
+  .transcript__modes .segmented__item {
+    height: 24px;
+    padding: 0 7px;
+    letter-spacing: 0.06em;
+  }
+
   .transcript__stale {
     display: inline-flex;
     align-items: center;
@@ -1753,11 +1759,39 @@
   }
 
   .event__thought summary {
+    overflow: hidden;
     color: var(--text-3);
     font-family: var(--font-mono);
     font-size: 9px;
     letter-spacing: 0.05em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     cursor: pointer;
+    list-style: none;
+  }
+
+  .event__thought summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .event__thought summary::before {
+    content: "+";
+    margin-right: 6px;
+    color: var(--text-3);
+  }
+
+  .event__thought[open] summary::before {
+    content: "-";
+  }
+
+  .event__thought-label {
+    text-transform: uppercase;
+  }
+
+  .event__thought-preview {
+    margin-left: 8px;
+    color: var(--text-2);
+    letter-spacing: 0.01em;
   }
 
   .event__injected {
@@ -1804,6 +1838,76 @@
 
   .event--error .event__structural-icon svg {
     color: var(--danger);
+  }
+
+  /* Minimal mode: one row for the work between messages. */
+  .activity-group {
+    min-width: 0;
+  }
+
+  .activity-group__summary {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    list-style: none;
+    background: var(--panel);
+    cursor: pointer;
+  }
+
+  .activity-group__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .activity-group__summary:hover {
+    background: var(--hover);
+  }
+
+  .activity-group__summary-body {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px var(--sp-3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+
+  .activity-group__counts {
+    flex: none;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .activity-group__last {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-2);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .activity-group__last-label {
+    margin-right: 6px;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .activity-group__toggle {
+    flex: none;
+    width: 10px;
+    margin-left: auto;
+    color: var(--text-3);
+    text-align: center;
+  }
+
+  .activity-group__items {
+    border-top: var(--bw) solid var(--line);
+  }
+
+  .activity-group__items > .event:first-child {
+    border-top: 0;
   }
 
   .tool__head-wrap {

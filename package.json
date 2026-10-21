@@ -9,6 +9,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "start": "node server/dev.mjs",
     "dev": "vite",
     "bridge": "node server/bridge.mjs",
     "serve": "node server/bridge.mjs",

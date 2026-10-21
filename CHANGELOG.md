@@ -2,12 +2,31 @@
 
 ## Unreleased
 
+- Replaced the transcript's independent **System** toggle with one view-mode
+  control: **Default**, **System**, and **Minimal**. Minimal keeps agent,
+  operator, and peer messages and collapses the work between them into one
+  expandable row: tool calls, MCP calls, and thoughts are counted, and the row
+  shows the latest tool/MCP name or the last streamed thought line. Failures,
+  notices, discarded prompts, and terminal markers stay visible. MCP calls are
+  recognized from adapter naming (`mcp__<server>__<tool>`) or explicit markers
+  because the wire has no MCP event type.
+- Collapsed thoughts now show the latest streamed line (the tail is kept when a
+  line is too long) instead of only a character count. The full thought is
+  still one click away. Consecutive thought chunks without a message id now
+  coalesce into one continuous thought, so the minimal-mode count is a count of
+  thoughts rather than chunks.
+- `npm start -- --home DIR` starts the local bridge (4780) and the Vite dev
+  server (5173) together, passes the home through to the bridge, and stops both
+  on Ctrl-C. `HLAO_HOME` is honoured when `--home` is omitted; `--vite-port`
+  changes only the page port. `server/dev.mjs` is the launcher.
 - Pinned wire projection updated to 2.8: `sessions.read` accepts
   `afterAt`/`beforeAt`, `regex`, and `context`; `ReadResult` carries optional
   `matchedSeqs`; and `SessionView.firstPrompt` is a display-only fallback for a
   session with no operator name or provider title. The fleet rail, search, and
   Inspector use it; the demo supervisor advertises the four new capabilities and
   honors the filters. `contracts/protocol.md` is re-synced from the parent repo.
+  The setup screen now reads the protocol constants instead of a hardcoded
+  wire 2.7 label.
 - Provider session identity and recovered history. Diagnostics shows the
   durable provider id and the fork source; the spawn form can resume it
   (`spawn.resume`) or fork a copy (`spawn.fork`), and the Inspector offers both

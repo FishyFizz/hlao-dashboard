@@ -3,10 +3,15 @@ import { ArrowDown, Search, WifiOff } from "lucide-react";
 import { Button } from "../components/Button";
 import {
   buildRenderItems,
+  buildTranscriptRows,
   formatAge,
   formatDateTime,
+  isSystemItem,
+  renderItemAt,
+  renderItemSeq,
+  renderItemTurn,
   sessionLocalKey,
-  type RenderItem,
+  type TranscriptRow,
 } from "../store/model";
 import {
   canUse,
@@ -16,24 +21,33 @@ import {
 } from "../store/store";
 import type { SessionView } from "../wire/protocol";
 import { asWireError, CAPABILITIES } from "../wire/protocol";
-import { EventRow } from "./EventRow";
+import { ActivityGroupRow, EventRow } from "./EventRow";
 
-const SYSTEM_EVENT_TYPES = new Set([
-  "usage",
-  "plan",
-  "plan.update",
-  "commands",
-  "stderr",
-  "session.initialized",
-  "session.info",
-]);
+type TranscriptMode = "default" | "system" | "minimal";
 
-function isSystemItem(item: RenderItem): boolean {
-  if (item.kind === "compaction") {
-    return item.status === "completed" && !item.error;
-  }
-  return item.kind === "event" && SYSTEM_EVENT_TYPES.has(item.event.type);
-}
+const TRANSCRIPT_MODES: Array<{
+  id: TranscriptMode;
+  label: string;
+  title: string;
+}> = [
+  {
+    id: "default",
+    label: "Default",
+    title: "Conversation and activity; system events are hidden.",
+  },
+  {
+    id: "system",
+    label: "System",
+    title:
+      "Show usage, plan, compaction, commands, stderr, and session metadata.",
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    title:
+      "Agent and operator messages only; tool calls, MCP calls, and thoughts collapse into one line.",
+  },
+];
 
 export function Transcript({
   state,
@@ -54,7 +68,7 @@ export function Transcript({
   const [atBottom, setAtBottom] = useState(true);
   const key = sessionLocalKey(session);
   const lastSeen = state.local.lastSeen[key] ?? 0;
-  const [showSystem, setShowSystem] = useState(false);
+  const [mode, setMode] = useState<TranscriptMode>("default");
   const renderItems = useMemo(
     () =>
       buildRenderItems(eventsState.events).filter(
@@ -66,10 +80,16 @@ export function Transcript({
     () => renderItems.filter(isSystemItem).length,
     [renderItems],
   );
-  const items = useMemo(
+  const visibleItems = useMemo(
     () =>
-      showSystem ? renderItems : renderItems.filter((item) => !isSystemItem(item)),
-    [renderItems, showSystem],
+      mode === "system"
+        ? renderItems
+        : renderItems.filter((item) => !isSystemItem(item)),
+    [renderItems, mode],
+  );
+  const rows = useMemo(
+    () => buildTranscriptRows(visibleItems, mode === "minimal"),
+    [visibleItems, mode],
   );
   const count = eventsState.events.length;
   const live = state.connection === "open" && !state.removed;
@@ -290,18 +310,25 @@ export function Transcript({
               events paused
             </span>
           ) : null}
-          {hiddenSystemCount > 0 ? (
-            <Button
-              size="sm"
-              variant={showSystem ? "secondary" : "ghost"}
-              aria-pressed={showSystem}
-              aria-label="Show or hide system events"
-              title={`${hiddenSystemCount} hidden system events: usage, plan, compaction, commands, stderr, and session metadata`}
-              onPress={() => setShowSystem((value) => !value)}
-            >
-              System
-            </Button>
-          ) : null}
+          <span
+            className="segmented transcript__modes"
+            role="group"
+            aria-label="Transcript view mode"
+          >
+            {TRANSCRIPT_MODES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="segmented__item"
+                data-selected={mode === option.id ? "true" : undefined}
+                aria-pressed={mode === option.id}
+                title={option.title}
+                onClick={() => setMode(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </span>
           <Button size="sm" variant="ghost" onPress={onSearch}>
             <Search className="btn__icon icon" />
             Find
@@ -369,9 +396,25 @@ export function Transcript({
             </span>
           </div>
         ) : null}
-        {items.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="transcript-empty">
-            {hiddenSystemCount > 0 ? (
+            {mode === "minimal" ? (
+              <>
+                <span className="transcript-empty__title">
+                  Nothing to show in minimal mode.
+                </span>
+                <span className="transcript-empty__text">
+                  {hiddenSystemCount > 0
+                    ? "The loaded events are system-only. System mode shows them."
+                    : "The loaded page has no messages, tool calls, MCP calls, or thoughts."}
+                </span>
+                {hiddenSystemCount > 0 ? (
+                  <Button size="sm" onPress={() => setMode("system")}>
+                    Show system events
+                  </Button>
+                ) : null}
+              </>
+            ) : hiddenSystemCount > 0 ? (
               <>
                 <span className="transcript-empty__title">
                   System events are hidden.
@@ -381,7 +424,7 @@ export function Transcript({
                   metadata are available via System. This session has no other
                   loaded events.
                 </span>
-                <Button size="sm" onPress={() => setShowSystem(true)}>
+                <Button size="sm" onPress={() => setMode("system")}>
                   Show system events
                 </Button>
               </>
@@ -398,25 +441,25 @@ export function Transcript({
           </div>
         ) : (
           <div className="transcript__list">
-            {items.map((item, index) => {
-              const turn = itemTurn(item);
-              const previous = index > 0 ? itemTurn(items[index - 1]!) : null;
+            {rows.map((row, index) => {
+              const turn = rowTurn(row);
+              const previous = index > 0 ? rowTurn(rows[index - 1]!) : null;
               const showTurn = turn !== null && turn !== previous;
-              const seq = itemSeq(item);
+              const seq = rowSeq(row);
               const showRead =
                 lastReadVisible &&
                 lastSeen < seq &&
-                (index === 0 || lastSeen >= previousSeq(items, index));
+                (index === 0 || lastSeen >= previousSeq(rows, index));
               const showGap =
                 gap !== null &&
                 seq > gap.to &&
-                (index === 0 || previousSeq(items, index) <= gap.to);
+                (index === 0 || previousSeq(rows, index) <= gap.to);
               return (
-                <div key={item.id}>
+                <div key={rowKey(row)}>
                   {showTurn ? (
                     <div className="event event--divider transcript-turn">
                       <span>Turn {turn}</span>
-                      <span>{formatDateTime(itemStart(item))}</span>
+                      <span>{formatDateTime(rowAt(row))}</span>
                     </div>
                   ) : null}
                   {showGap && gap ? (
@@ -424,7 +467,7 @@ export function Transcript({
                       <span>
                         History gap · seq {gap.from}–{gap.to} not retained
                       </span>
-                      <span>{formatDateTime(itemStart(item))}</span>
+                      <span>{formatDateTime(rowAt(row))}</span>
                     </div>
                   ) : null}
                   {showRead ? (
@@ -437,18 +480,31 @@ export function Transcript({
                           </button>
                         )}
                       </span>
-                      <span>{formatAge(itemStart(item), Date.now())} after</span>
+                      <span>{formatAge(rowAt(row), Date.now())} after</span>
                     </div>
                   ) : null}
-                  <EventRow
-                    item={item}
-                    session={session}
-                    focused={
-                      state.focus?.sessionId === session.id &&
-                      state.focus.seq === seq
-                    }
-                    onOpenSession={onOpenSession}
-                  />
+                  {row.kind === "item" ? (
+                    <EventRow
+                      item={row.item}
+                      session={session}
+                      focused={
+                        state.focus?.sessionId === session.id &&
+                        state.focus.seq === seq
+                      }
+                      onOpenSession={onOpenSession}
+                    />
+                  ) : (
+                    <ActivityGroupRow
+                      row={row}
+                      session={session}
+                      focusSeq={
+                        state.focus?.sessionId === session.id
+                          ? state.focus.seq
+                          : null
+                      }
+                      onOpenSession={onOpenSession}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -482,19 +538,23 @@ export function Transcript({
   );
 }
 
-function itemTurn(item: RenderItem): number | null {
-  return item.kind === "event" ? item.event.turn : item.turn;
+function rowTurn(row: TranscriptRow): number | null {
+  return row.kind === "item" ? renderItemTurn(row.item) : row.turn;
 }
 
-function itemSeq(item: RenderItem): number {
-  return item.kind === "event" ? item.event.seq : item.seq;
+function rowSeq(row: TranscriptRow): number {
+  return row.kind === "item" ? renderItemSeq(row.item) : row.seq;
 }
 
-function previousSeq(items: RenderItem[], index: number): number {
-  const previous = items[index - 1];
-  return previous ? itemSeq(previous) : 0;
+function rowAt(row: TranscriptRow): string {
+  return row.kind === "item" ? renderItemAt(row.item) : row.at;
 }
 
-function itemStart(item: RenderItem): string {
-  return item.kind === "event" ? item.event.at : item.at;
+function rowKey(row: TranscriptRow): string {
+  return row.kind === "item" ? row.item.id : row.id;
+}
+
+function previousSeq(rows: TranscriptRow[], index: number): number {
+  const previous = rows[index - 1];
+  return previous ? rowSeq(previous) : 0;
 }
