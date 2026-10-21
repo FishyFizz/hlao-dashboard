@@ -1,5 +1,5 @@
 /**
- * Wire protocol 2.7 — the subset this client speaks.
+ * Wire protocol 2.8 — the subset this client speaks.
  *
  * This is a pinned projection of `contracts/protocol.md`, not a second
  * protocol. Method semantics live on the supervisor; these types only shape
@@ -195,6 +195,8 @@ export type SessionView = {
   compaction?: SessionCompactionView | null;
   plan?: SessionPlanView | null;
   title?: string | null;
+  /** Bounded, display-only preview of the first prompt (2.8). */
+  firstPrompt?: string | null;
   agentName?: string | null;
   agentVersion?: string | null;
 };
@@ -318,6 +320,10 @@ export type ReadParams = {
   types?: EventType[];
   turn?: number;
   grep?: string;
+  afterAt?: string;
+  beforeAt?: string;
+  regex?: boolean;
+  context?: number;
 };
 
 export type ReadResult = {
@@ -329,6 +335,8 @@ export type ReadResult = {
   nextBefore: number | null;
   hasMore: boolean;
   truncated: boolean;
+  /** Present when context was requested: the seqs that matched. */
+  matchedSeqs?: number[];
 };
 
 export type QueueItemView = {
@@ -442,9 +450,9 @@ export type RpcMethod =
   | "dashboard.fs.list";
 
 export const WIRE_MAJOR = 2;
-export const WIRE_MINOR = 7;
+export const WIRE_MINOR = 8;
 
-/** `2.7` for a live hello, or the version this client speaks when offline. */
+/** `2.8` for a live hello, or the version this client speaks when offline. */
 export function wireVersionLabel(version?: ProtocolVersion | null): string {
   return version ? `${version.major}.${version.minor}` : `${WIRE_MAJOR}.${WIRE_MINOR}`;
 }
@@ -454,6 +462,9 @@ export const CAPABILITIES = {
   usage: "session.usage",
   readFilters: "read.filters",
   readBefore: "read.before",
+  readTime: "read.time",
+  readRegex: "read.regex",
+  readContext: "read.context",
   streamPersistent: "stream.persistent",
   streamSubscribe: "stream.subscribe",
   streamResume: "stream.resume",
@@ -467,6 +478,7 @@ export const CAPABILITIES = {
   notices: "session.notices",
   plan: "session.plan",
   title: "session.title",
+  firstPrompt: "session.firstPrompt",
   agent: "session.agent",
   messages: "session.messages",
   spawnResume: "spawn.resume",

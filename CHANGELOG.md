@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Pinned wire projection updated to 2.8: `sessions.read` accepts
+  `afterAt`/`beforeAt`, `regex`, and `context`; `ReadResult` carries optional
+  `matchedSeqs`; and `SessionView.firstPrompt` is a display-only fallback for a
+  session with no operator name or provider title. The fleet rail, search, and
+  Inspector use it; the demo supervisor advertises the four new capabilities and
+  honors the filters. `contracts/protocol.md` is re-synced from the parent repo.
 - Provider session identity and recovered history. Diagnostics shows the
   durable provider id and the fork source; the spawn form can resume it
   (`spawn.resume`) or fork a copy (`spawn.fork`), and the Inspector offers both

@@ -4,13 +4,14 @@ import { Button } from "../components/Button";
 import { Notice } from "../components/Notice";
 import { Handle } from "../components/Status";
 import {
+  canUse,
   store,
   type DashboardState,
   type SearchOutcome,
   type SearchScope,
 } from "../store/store";
 import { displayLabel, formatClock, formatDateTime } from "../store/model";
-import { asWireError } from "../wire/protocol";
+import { asWireError, CAPABILITIES } from "../wire/protocol";
 import { DialogShell } from "./DialogShell";
 import { ToggleRow } from "./ui";
 
@@ -29,6 +30,7 @@ export function SearchDialog({
   );
   const [includeClosed, setIncludeClosed] = useState(true);
   const [raw, setRaw] = useState(false);
+  const [regex, setRegex] = useState(false);
   const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export function SearchDialog({
     setScope(state.selection ? "session" : "instance");
     setIncludeClosed(true);
     setRaw(false);
+    setRegex(false);
     setOutcome(null);
     setError(null);
     setRunning(false);
@@ -56,7 +59,7 @@ export function SearchDialog({
     setOutcome(null);
     setError(null);
     void store
-      .search({ query, scope, includeClosed, raw })
+      .search({ query, scope, includeClosed, raw, regex })
       .then((result) => {
         if (token !== runToken.current) return;
         setOutcome(result);
@@ -113,7 +116,9 @@ export function SearchDialog({
         }}
       >
         <label className="field">
-          <span className="field__label">Literal text</span>
+          <span className="field__label">
+            {regex ? "Regular expression" : "Literal text"}
+          </span>
           <div className="field__search">
             <Search className="field__search-icon icon" />
             <input
@@ -166,6 +171,14 @@ export function SearchDialog({
           onChange={setIncludeClosed}
           disabled={scope === "session"}
         />
+        {canUse(state, CAPABILITIES.readRegex) ? (
+          <ToggleRow
+            label="Interpret the query as a regular expression"
+            description="Case-insensitive, over event type and data. Enabled only when the supervisor advertises read.regex."
+            checked={regex}
+            onChange={setRegex}
+          />
+        ) : null}
         <ToggleRow
           label="Include provider raw payloads"
           description="Explicit opt-in. Without it, private raw fields are removed by the supervisor."

@@ -1,7 +1,7 @@
 # HLAO dashboard
 
 A local operations console for one HLAO instance. It is a **client**, not core:
-it speaks wire protocol 2.7 through the supervisor's local socket and adds no
+it speaks wire protocol 2.8 through the supervisor's local socket and adds no
 server semantics. It can be replaced or omitted without changing the supervisor.
 
 **Status: working client.** The fleet, session lens, permission gate,
@@ -171,7 +171,7 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 ## Layout
 
 ```
-contracts/protocol.md        pinned wire contract (protocol 2.7)
+contracts/protocol.md        pinned wire contract (protocol 2.8)
 docs/ux-interaction-model.md interaction contract
 docs/architecture.md         module map, invariants, liveness, action boundaries
 docs/adr/                    bridge and demo decisions
@@ -190,7 +190,7 @@ src/data/fleet.ts            static specimen data (gallery only)
 
 ## Rules this client is built against
 
-From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.12, wire 2.7):
+From `docs/protocol-stability.md` and `contracts/protocol.md` (HLAO 0.13, wire 2.8):
 
 - Require wire **major 2** and feature-detect `hello.capabilities`. Do not key
   behavior off the HLAO package version or a minor number.

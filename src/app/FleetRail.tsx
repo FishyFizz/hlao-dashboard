@@ -129,13 +129,15 @@ export function FleetRail({
         data-selected={isSelected ? "true" : undefined}
         data-status={session.status}
         aria-current={isSelected ? "page" : undefined}
-        aria-label={`${session.id} ${session.name ?? session.title ?? ""} ${shortStatusLabel(session.status)}`}
+        aria-label={`${session.id} ${session.name ?? session.title ?? session.firstPrompt ?? ""} ${shortStatusLabel(session.status)}`}
         title={`${session.id} · ${absolute}`}
         onClick={() => onSelect(session)}
       >
         <span className="rail-row__top">
           <span className={statusLampClass(session.status)} aria-hidden="true" />
-          <span className="rail-row__label">{session.name ?? session.title ?? `#${session.id}`}</span>
+          <span className="rail-row__label">
+            {session.name ?? session.title ?? session.firstPrompt ?? `#${session.id}`}
+          </span>
           {session.name && session.title ? (
             <span className="rail-row__title">{session.title}</span>
           ) : null}

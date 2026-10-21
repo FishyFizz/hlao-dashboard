@@ -134,6 +134,7 @@ export type SearchOptions = {
   scope: SearchScope;
   includeClosed: boolean;
   raw: boolean;
+  regex?: boolean;
 };
 export type SearchHit = {
   session: SessionView;
@@ -2080,6 +2081,7 @@ export class DashboardStore {
           limit,
           grep: options.query,
           ...(options.raw ? { raw: true } : {}),
+          ...(options.regex ? { regex: true } : {}),
         });
         outcome.scannedSessions += 1;
         if (result.truncated) outcome.truncated = true;

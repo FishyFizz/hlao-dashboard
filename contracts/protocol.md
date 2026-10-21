@@ -263,7 +263,8 @@ The token is the instance boundary.
   `wait.filters`, `session.settled`, `session.lastEvent`, `send.messageId`, `send.idempotency`,
   `spawn.idempotency`, `spawn.createdBy`, `supervisor.lastCrash`, `prompt.injected`,
   `session.compaction`, `session.notices`, `session.plan`, `session.title`, `session.agent`,
-  `session.messages`, `session.elicitation`, `spawn.resume`, `spawn.fork`.
+  `session.messages`, `session.elicitation`, `spawn.resume`, `spawn.fork`, `read.time`,
+  `read.regex`, `read.context`, `session.firstPrompt`.
 - Adding an optional request field, a result field, a method, or an event type is a minor
   change. Changing or removing existing semantics is a major change.
 - **2.0** removes the `scope` field and makes every session in an instance addressable by every
@@ -294,6 +295,10 @@ The token is the instance boundary.
   `SpawnResult.resumed`/`forked`, `SessionView.forkedFrom`, the `session.resumed` and
   `session.forked` event types, and optional `EventView.replay`. Capabilities:
   `spawn.resume`, `spawn.fork`. A client that ignores them is unaffected.
+- **2.8** adds observation filters and a display fallback: `afterAt`/`beforeAt`, `regex`, and
+  `context` on `sessions.read`; optional `matchedSeqs` on `ReadResult`; and optional
+  `firstPrompt` on `SessionView`. Capabilities: `read.time`, `read.regex`, `read.context`,
+  `session.firstPrompt`. Additive.
 
 ## Client model
 
@@ -599,6 +604,10 @@ Params:
   types?: EventType[];           // keep only these event types
   turn?: number;                 // keep only this turn
   grep?: string;                 // case-insensitive literal over type + data JSON
+  afterAt?: string;              // events at or after this ISO timestamp (2.8)
+  beforeAt?: string;             // events strictly before this ISO timestamp (2.8)
+  regex?: boolean;               // interpret grep as a case-insensitive expression (2.8)
+  context?: number;              // 0..20 retained neighbors per match (2.8)
 }
 ```
 
@@ -624,6 +633,7 @@ Result:
   nextBefore: number | null;      // backward cursor: pass as before; null = no older page
   hasMore: boolean;               // more events in the scan direction
   truncated: boolean;             // history before the page was evicted
+  matchedSeqs?: number[];         // present with context: the seqs that matched (2.8)
 }
 ```
 
@@ -1038,6 +1048,7 @@ type SessionView = {
     updatedAt: string;
   } | null;
   title?: string | null;         // provider session title (2.5)
+  firstPrompt?: string | null;   // bounded display-only first-prompt preview (2.8)
   agentName?: string | null;     // provider agent identity (2.5)
   agentVersion?: string | null;
 };

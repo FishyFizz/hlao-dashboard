@@ -155,6 +155,7 @@ function baseSession(
     compaction: input.compaction ?? null,
     plan: input.plan ?? null,
     title: input.title ?? null,
+    firstPrompt: input.firstPrompt ?? null,
     agentName: input.agentName ?? null,
     agentVersion: input.agentVersion ?? null,
   };
@@ -1133,12 +1134,15 @@ export class DemoSupervisor {
 
   private hello(): HelloResult {
     return {
-      protocolVersion: { major: 2, minor: 7 },
+      protocolVersion: { major: 2, minor: 8 },
       capabilities: [
         "backends.list",
         "session.usage",
         "read.filters",
         "read.before",
+        "read.time",
+        "read.regex",
+        "read.context",
         "wait.multi",
         "stream.persistent",
         "stream.subscribe",
@@ -1157,6 +1161,7 @@ export class DemoSupervisor {
         "session.notices",
         "session.plan",
         "session.title",
+        "session.firstPrompt",
         "session.agent",
         "session.messages",
         "spawn.resume",
@@ -1164,7 +1169,7 @@ export class DemoSupervisor {
       ],
       pid: 4242,
       startedAt: this.startedAt,
-      version: "0.12.0-demo",
+      version: "0.13.0-demo",
       sessions: this.sessions.size,
       configHash: "demo-config",
       stream: { persistent: true },
@@ -1233,12 +1238,28 @@ export class DemoSupervisor {
     const earliestRetainedSeq = 1;
     const lastSeq = all.length;
     const limit = Math.min(1000, Math.max(1, params.limit ?? 100));
+    const afterAt = params.afterAt === undefined ? undefined : Date.parse(params.afterAt);
+    const beforeAt = params.beforeAt === undefined ? undefined : Date.parse(params.beforeAt);
+    let grepRegex: RegExp | null = null;
+    if (params.regex === true && typeof params.grep === "string" && params.grep.length > 0) {
+      try {
+        grepRegex = new RegExp(params.grep, "i");
+      } catch {
+        grepRegex = null;
+      }
+    }
     const filtered = all.filter((event) => {
       if (params.types && params.types.length > 0 && !params.types.includes(event.type)) {
         return false;
       }
       if (params.turn !== undefined && event.turn !== params.turn) return false;
-      if (typeof params.grep === "string" && params.grep.trim().length > 0) {
+      const at = Date.parse(event.at);
+      if (afterAt !== undefined && at < afterAt) return false;
+      if (beforeAt !== undefined && at >= beforeAt) return false;
+      if (grepRegex !== null) {
+        const haystack = `${event.type} ${JSON.stringify(event.data)}`;
+        if (!grepRegex.test(haystack)) return false;
+      } else if (typeof params.grep === "string" && params.grep.trim().length > 0) {
         const needle = params.grep.toLowerCase();
         const haystack = `${event.type} ${JSON.stringify(event.data)}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
@@ -1275,6 +1296,22 @@ export class DemoSupervisor {
       truncated = earliestRetainedSeq > 1;
     }
 
+    let matchedSeqs: number[] | undefined;
+    const context = Math.max(0, Math.min(20, params.context ?? 0));
+    if (context > 0 && events.length > 0) {
+      matchedSeqs = events.map((event) => event.seq);
+      const bySeq = new Map<number, EventView>();
+      for (const event of events) bySeq.set(event.seq, event);
+      for (const match of events) {
+        for (const event of all) {
+          if (event.seq >= match.seq - context && event.seq <= match.seq + context) {
+            bySeq.set(event.seq, event);
+          }
+        }
+      }
+      events = [...bySeq.values()].sort((left, right) => left.seq - right.seq);
+    }
+
     return {
       session,
       events,
@@ -1284,6 +1321,7 @@ export class DemoSupervisor {
       nextBefore,
       hasMore,
       truncated,
+      ...(matchedSeqs !== undefined ? { matchedSeqs } : {}),
     };
   }
 

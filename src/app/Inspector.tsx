@@ -56,6 +56,7 @@ export function Inspector({
   const canMessages = canUse(state, CAPABILITIES.messages);
   const canUsage = canUse(state, CAPABILITIES.usage);
   const canTitle = canUse(state, CAPABILITIES.title);
+  const canFirstPrompt = canUse(state, CAPABILITIES.firstPrompt);
   const canAgent = canUse(state, CAPABILITIES.agent);
   const pendingPolicy = Boolean(state.pending.policy);
   const pendingMode = Boolean(state.pending.mode);
@@ -107,6 +108,9 @@ export function Inspector({
             label="title"
             value={canTitle ? session.title || "not reported" : "not supported"}
           />
+          {canFirstPrompt && session.firstPrompt ? (
+            <Row label="first prompt" value={session.firstPrompt} />
+          ) : null}
           <Row label="created by" value={session.createdBy ?? "not reported"} />
           <Row label="instance" value={state.home} mono />
         </div>

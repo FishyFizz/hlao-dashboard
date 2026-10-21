@@ -219,6 +219,7 @@ export function matchesQuery(session: SessionView, query: string): boolean {
     session.id,
     session.name ?? "",
     session.title ?? "",
+    session.firstPrompt ?? "",
     session.backend,
     session.cwd,
   ]
