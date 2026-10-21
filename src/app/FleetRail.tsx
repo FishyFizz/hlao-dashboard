@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import { History, Play, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button, IconButton } from "../components/Button";
 import { shortStatusLabel, statusLampClass } from "../components/Status";
 import {
@@ -22,7 +22,7 @@ import {
   unreadFor,
   type FleetGroup,
 } from "../store/model";
-import type { SessionView } from "../wire/protocol";
+import type { RecoveryReceiptView, SessionView } from "../wire/protocol";
 import { CAPABILITIES } from "../wire/protocol";
 import { useNow } from "./hooks";
 
@@ -32,10 +32,14 @@ export function FleetRail({
   state,
   onSelect,
   onSpawn,
+  onRecover,
+  onQuickResume,
 }: {
   state: DashboardState;
   onSelect: (session: SessionView) => void;
   onSpawn: () => void;
+  onRecover: (receipt: RecoveryReceiptView) => void;
+  onQuickResume: (receipt: RecoveryReceiptView) => void;
 }) {
   const now = useNow();
   const [orderEpoch, setOrderEpoch] = useState(0);
@@ -50,6 +54,23 @@ export function FleetRail({
     if (!matchesQuery(session, queries)) return false;
     if (!showEnded && isTerminalStatus(session.status)) return false;
     return true;
+  });
+
+  const recoveryQuery = queries.trim().toLowerCase();
+  const recoverable = state.recovery.filter((receipt) => {
+    if (receipt.attached) return false;
+    if (recoveryQuery.length === 0) return true;
+    return [
+      receipt.name ?? "",
+      receipt.childProviderId,
+      receipt.backend,
+      receipt.cwd,
+      receipt.parentHlaoName ?? "",
+      receipt.parentHlaoSessionId ?? "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(recoveryQuery);
   });
 
   const order = useMemo<GroupOrder>(() => {
@@ -199,6 +220,52 @@ export function FleetRail({
     );
   };
 
+  const recoveryGroup =
+    recoverable.length > 0 ||
+    state.recoveryLoading ||
+    state.recoveryError !== null ? (
+      <section
+        className="rail-group rail-group--recovery"
+        aria-label="Recoverable agents"
+      >
+        <div className="rail-group__head">
+          <span>Recoverable</span>
+          <span className="rail-group__count">
+            {recoverable.length}
+            <IconButton
+              aria-label="Refresh recoverable agents"
+              title="Read the spawn receipts again"
+              onPress={() => void store.refreshRecovery()}
+              isDisabled={state.recoveryLoading}
+            >
+              <RefreshCw className="icon" />
+            </IconButton>
+          </span>
+        </div>
+        {state.recoveryError !== null ? (
+          <div className="rail-recovery__error">
+            <span>{state.recoveryError}</span>
+            <Button size="sm" onPress={() => void store.refreshRecovery()}>
+              Retry
+            </Button>
+          </div>
+        ) : null}
+        {recoverable.length === 0 && state.recoveryLoading ? (
+          <p className="rail-quiet">Reading spawn receipts…</p>
+        ) : null}
+        {recoverable.map((receipt) => (
+          <RecoveryRow
+            key={`${receipt.backend}:${receipt.childProviderId}`}
+            receipt={receipt}
+            now={now}
+            busy={Boolean(state.pending.spawn)}
+            onRecover={onRecover}
+            onQuickResume={onQuickResume}
+          />
+        ))}
+      </section>
+    ) : null;
+
   return (
     <aside className="dash-rail" aria-label="Fleet">
       <div className="rail-head">
@@ -270,34 +337,45 @@ export function FleetRail({
 
       <div className="rail-scroll">
         {sessions.length === 0 ? (
-          <div className="rail-empty">
-            <span className="rail-empty__title">No sessions</span>
-            <span className="rail-empty__text">
-              This instance has no live or retained sessions.
-            </span>
-            <Button size="sm" variant="primary" onPress={onSpawn}>
-              <Plus className="btn__icon icon" />
-              Spawn
-            </Button>
-          </div>
+          <>
+            {recoveryGroup}
+            {recoverable.length === 0 &&
+            !state.recoveryLoading &&
+            state.recoveryError === null ? (
+              <div className="rail-empty">
+                <span className="rail-empty__title">No sessions</span>
+                <span className="rail-empty__text">
+                  This instance has no live or retained sessions.
+                </span>
+                <Button size="sm" variant="primary" onPress={onSpawn}>
+                  <Plus className="btn__icon icon" />
+                  Spawn
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : shown === 0 ? (
-          <div className="rail-empty">
-            <span className="rail-empty__title">No matches</span>
-            <span className="rail-empty__text">
-              The filter hides every session. It is a view, not a scope.
-            </span>
-            <Button
-              size="sm"
-              onPress={() => {
-                store.setFilters({ query: "", showEnded: true });
-              }}
-            >
-              Clear filter
-            </Button>
-          </div>
+          <>
+            {recoveryGroup}
+            <div className="rail-empty">
+              <span className="rail-empty__title">No matches</span>
+              <span className="rail-empty__text">
+                The filter hides every session. It is a view, not a scope.
+              </span>
+              <Button
+                size="sm"
+                onPress={() => {
+                  store.setFilters({ query: "", showEnded: true });
+                }}
+              >
+                Clear filter
+              </Button>
+            </div>
+          </>
         ) : (
           <>
             {group("needs", "Needs you", order.needs)}
+            {recoveryGroup}
             {group("running", "Running", order.running)}
             {group("quiet", "Quiet", order.quiet)}
             {group("ended", "Ended", order.ended)}
@@ -320,9 +398,68 @@ export function FleetRail({
           onClick={onSpawn}
         >
           <Plus className="icon" />
-          <span>Spawn session</span>
+          <span>New session</span>
         </button>
       </div>
     </aside>
+  );
+}
+
+function RecoveryRow({
+  receipt,
+  now,
+  busy,
+  onRecover,
+  onQuickResume,
+}: {
+  receipt: RecoveryReceiptView;
+  now: number;
+  busy: boolean;
+  onRecover: (receipt: RecoveryReceiptView) => void;
+  onQuickResume: (receipt: RecoveryReceiptView) => void;
+}) {
+  const parent = receipt.parentHlaoName
+    ? `under ${receipt.parentHlaoName}`
+    : receipt.parentHlaoSessionId
+      ? `under #${receipt.parentHlaoSessionId}`
+      : null;
+  return (
+    <div className="rail-recovery">
+      <button
+        type="button"
+        className="rail-recovery__main"
+        onClick={() => onRecover(receipt)}
+        title="Open the resume dialog with this provider id"
+      >
+        <span className="rail-recovery__top">
+          <History className="rail-recovery__icon icon" />
+          <span className="rail-recovery__label">
+            {receipt.name ?? receipt.childProviderId}
+          </span>
+          <span className="rail-recovery__age">
+            {formatAge(receipt.recordedAt, now)}
+          </span>
+        </span>
+        <span className="rail-recovery__meta">
+          {receipt.backend} · {receipt.cwd}
+        </span>
+        <span className="rail-recovery__meta rail-recovery__provider">
+          {receipt.childProviderId}
+          {parent ? ` · ${parent}` : ""}
+        </span>
+      </button>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="rail-recovery__resume"
+        onPress={() => onQuickResume(receipt)}
+        isDisabled={busy}
+        aria-label={`Quick resume ${receipt.name ?? receipt.childProviderId}`}
+        title="Resume with the recorded backend, cwd, and name"
+      >
+        <Play className="icon" />
+        Resume
+      </Button>
+    </div>
   );
 }

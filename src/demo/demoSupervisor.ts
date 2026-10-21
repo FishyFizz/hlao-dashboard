@@ -22,6 +22,8 @@ import type {
   ProviderSessionView,
   ProviderSessionsResult,
   QueueDropResult,
+  RecoveryReceiptView,
+  RecoveryReceiptsResult,
   QueueItemView,
   QueueResult,
   ReadParams,
@@ -231,6 +233,8 @@ export class DemoSupervisor {
         return this.backends();
       case "backends.sessions":
         return this.providerSessions(params);
+      case "recovery.receipts":
+        return this.recoveryReceipts();
       case "sessions.list":
         return this.list(params.includeClosed === true);
       case "sessions.get":
@@ -1192,6 +1196,7 @@ export class DemoSupervisor {
         "session.messages",
         "spawn.resume",
         "spawn.fork",
+        "recovery.receipts",
       ],
       pid: 4242,
       startedAt: this.startedAt,
@@ -1246,6 +1251,66 @@ export class DemoSupervisor {
         cwd === null ? rows : rows.filter((row) => row.cwd === cwd),
       nextCursor: null,
     };
+  }
+
+  private recoveryReceipts(): RecoveryReceiptsResult {
+    const live = (providerId: string, backend?: string): SessionView | null =>
+      [...this.sessions.values()].find(
+        (session) =>
+          session.agentSessionId === providerId &&
+          (backend === undefined || session.backend === backend) &&
+          session.status !== "closed" &&
+          session.status !== "failed",
+      ) ?? null;
+    const seeds = [
+      {
+        parentProviderId: "acp-8812",
+        parentSessionId: "old-refactor",
+        childProviderId: "demo-provider-claude-1",
+        childSessionId: "old-auth-tests",
+        backend: "claude",
+        cwd: "D:\\work\\auth",
+        name: "auth-tests",
+        recordedAt: ago(this.now, 2 * HOUR),
+      },
+      {
+        parentProviderId: "acp-9101",
+        parentSessionId: "old-probe",
+        childProviderId: "demo-provider-codex-1",
+        childSessionId: "old-probe-helper",
+        backend: "codex",
+        cwd: "D:\\work\\svc",
+        name: "probe-helper",
+        recordedAt: ago(this.now, 3 * HOUR),
+      },
+      {
+        parentProviderId: "acp-8812",
+        parentSessionId: "old-refactor",
+        childProviderId: "acp-9101",
+        childSessionId: "old-codex-probe",
+        backend: "codex",
+        cwd: "D:\\work\\svc",
+        name: "codex-probe",
+        recordedAt: ago(this.now, 30 * MINUTE),
+      },
+    ];
+    const receipts: RecoveryReceiptView[] = seeds
+      .map((seed) => {
+        const child = live(seed.childProviderId, seed.backend);
+        const parent = live(seed.parentProviderId);
+        return {
+          ...seed,
+          attached: child !== null,
+          hlaoSessionId: child?.id ?? null,
+          hlaoName: child?.name ?? null,
+          hlaoStatus: child?.status ?? null,
+          parentHlaoSessionId: parent?.id ?? null,
+          parentHlaoName: parent?.name ?? null,
+          parentHlaoStatus: parent?.status ?? null,
+        };
+      })
+      .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+    return { receipts };
   }
 
   private backends(): BackendsListResult {

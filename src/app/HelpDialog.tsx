@@ -130,7 +130,7 @@ export function HelpDialog({
         </div>
         <div className="shortcut-table">
           <Shortcut keys={["Ctrl", "K"]} label="Command palette" />
-          <Shortcut keys={["Ctrl", "N"]} label="Spawn a session" />
+          <Shortcut keys={["Ctrl", "N"]} label="Start a new session" />
           <Shortcut keys={["Ctrl", "Shift", "F"]} label="Find in retained history" />
           <Shortcut keys={["J"]} label="Next attention item" />
           <Shortcut keys={["K"]} label="Previous attention item" />

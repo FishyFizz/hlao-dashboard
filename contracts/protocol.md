@@ -259,7 +259,8 @@ The token is the instance boundary.
   compatible with an older client; a newer client must use capabilities or version checks
   before relying on an addition.
 - `capabilities` lists additive features this supervisor implements. Unknown capabilities must
-  be ignored. Known values: `backends.list`, `backends.sessions`, `session.usage`, `read.filters`, `read.before`,
+  be ignored. Known values: `backends.list`, `backends.sessions`, `recovery.receipts`,
+  `session.usage`, `read.filters`, `read.before`,
   `wait.multi`, `stream.persistent`, `stream.subscribe`, `stream.resume`, `wait.settled`,
   `wait.filters`, `session.settled`, `session.lastEvent`, `send.messageId`, `send.idempotency`,
   `spawn.idempotency`, `spawn.createdBy`, `supervisor.lastCrash`, `prompt.injected`,
@@ -323,8 +324,10 @@ The token is the instance boundary.
   own `session/list` for a backend and an optional cwd, joined to the live table. New types
   `ProviderSessionsParams`, `ProviderSessionView`, and `ProviderSessionsResult`; new
   capability `backends.sessions`. The read creates no HLAO session and stores no mapping. A
-  resume or fork keeps the provider's mode; `defaultMode` applies to new sessions only. A
-  3.0 client that does not call the method is unaffected.
+  resume or fork keeps the provider's mode; `defaultMode` applies to new sessions only.
+  It also adds `recovery.receipts`, the historical spawn-receipt read, live-joined for
+  attachment status; capability `recovery.receipts`. A 3.0 client that does not call the
+  methods is unaffected.
 
 ## Client model
 
@@ -422,6 +425,7 @@ Method index:
 | `hello` | `HelloParams` | `HelloResult` |
 | `backends.list` | `{ cwd? }` | `{ backends: AgentView[] }` |
 | `backends.sessions` | `{ backend, cwd?, cursor? }` | `ProviderSessionsResult` |
+| `recovery.receipts` | `{ parentProviderId? }` | `{ receipts: RecoveryReceiptView[] }` |
 | `sessions.spawn` | `SpawnParams` | `SpawnResult` |
 | `sessions.list` | `{ includeClosed?, cwd? }` | `{ sessions: SessionView[] }` |
 | `sessions.get` | `{ sessionId }` | `{ session: SessionView }` |
@@ -565,6 +569,48 @@ kills it after the read. `attached` is a live lookup by provider id; a row witho
 provider-only and must not be presented as an HLAO session. A provider session already
 live in this instance is marked attached; adopting it through `sessions.spawn` returns a
 duplicate instead of opening a second adapter.
+
+### `recovery.receipts`
+
+Params:
+
+```ts
+{
+  parentProviderId?: string; // filter to one parent's receipts; omit for every receipt
+}
+```
+
+Result:
+
+```ts
+{
+  receipts: RecoveryReceiptView[];
+}
+
+type RecoveryReceiptView = {
+  parentProviderId: string;
+  parentSessionId: string | null;  // historical HLAO id at attach time
+  childProviderId: string;         // the durable handle to adopt
+  childSessionId: string;          // historical HLAO id at attach time
+  backend: string;
+  cwd: string;
+  name: string | null;
+  recordedAt: string;
+  attached: boolean;
+  hlaoSessionId: string | null;
+  hlaoName: string | null;
+  hlaoStatus: SessionStatus | null;
+  parentHlaoSessionId: string | null;
+  parentHlaoName: string | null;
+  parentHlaoStatus: SessionStatus | null;
+};
+```
+
+This reads the append-only spawn-receipt ledger, deduped to the latest
+parent/backend/child receipt and sorted newest first. It starts no adapter and creates no
+session. `attached` is a live-table lookup for the child provider id; `parentHlao*` is the
+same lookup for the parent. The dashboard uses it for the **Recoverable** rail group and
+for prefilling Resume. Receipts are history, not liveness.
 
 ### `sessions.spawn`
 

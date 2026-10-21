@@ -58,7 +58,7 @@ dashboard is their home base while that work runs. It is hired for five jobs:
 | **Triage** | Does anything need me right now? | Attention derived from state, visible from anywhere, quiet otherwise. |
 | **Inspect** | What is this session doing, and what just happened? | Status, current turn, plan, usage, and a readable transcript with provenance. |
 | **Intervene** | Answer, stop, redirect, rename, spawn. | The action is next to the fact, exact about its consequence, and confirmed by the server. |
-| **Spawn** | Start another session without a wizard or a manual. | One honest form with visible defaults and provider availability. |
+| **Spawn** | Start another session without a wizard or a manual. | A session-shaped draft with visible defaults, plus a separate provider picker for recovery. |
 | **Return** | I looked away; what changed? | Resumable selection, drafts, read position, and a truthful reconnect story. |
 
 It is **not** hired to decide what the work means, to summarize the agent, to manage a task
@@ -441,6 +441,14 @@ The numbering is stable so implementation and review can refer to it.
   visible session advances the local cursor for its own effect. If a read reports
   `earliestRetainedSeq > lastSeenSeq`, the unread range is partly evicted: show "new activity"
   without a count and explain on open. It never implies the agent knows what the operator read.
+- **FL14 — Recoverable is history, not a live row.** With `recovery.receipts`, show a
+  **Recoverable** group for receipts whose child provider id is not attached. Each row shows
+  the recorded name, backend, cwd, provider id, age, and its live parent when one exists. It
+  is not an HLAO session: never give it a live status, a session handle, or a fleet-footer
+  count. Clicking the row prefills **Resume** with those exact facts; the row's **Resume**
+  action reattaches by provider id with the same backend, cwd, name, and live parent, without
+  the dialog. A failed quick resume opens the prefilled dialog. Without the capability, do not
+  show the group; the ledger is a historical claim, not a liveness claim.
 
 ### 5.2 Session lens: state
 
@@ -631,25 +639,35 @@ The numbering is stable so implementation and review can refer to it.
 
 ### 5.6 Spawn
 
-- **SP1 — One form, no wizard.** Spawn is a single, honest form. No multi-step flow that hides
-  defaults or freezes choices before the operator sees them.
-- **SP2 — Fields and defaults.** Backend (required), cwd (explicit; empty means "supervisor
-  default" and is labelled as such), name (optional), first prompt (optional), the selected
-  backend's operator `defaultMode` (shown as a new-session default; "provider default" when
-  unset), parent (default root; explicit child option), skill pointer (default on), and
-  advanced provider values only when the operator chooses to open them. There is no
-  permission-policy field. The wire's operator-only spawn `mode` is not exposed pre-spawn by
-  this client; a mode is set after spawn from the advertised values.
-- **SP2b — Provider sessions are chosen from the provider's catalog when available.** If the
-  supervisor advertises `backends.sessions`, read the provider's own rows on demand and show
-  provider id, title, cwd, age, and live attachment. Selecting a row fills the id and its cwd;
-  a cwd edit that disagrees with the row is refused. A provider-only row is labelled as such,
-  and adopting it creates a new HLAO session — never restore an old HLAO name or handle. Keep
-  the manual id and the live-session datalist for an older supervisor or an unlisted row.
-  Resuming or forking keeps the provider's persisted mode; only a new session uses the
-  backend `defaultMode`.
+- **SP1 — Two surfaces, no wizard.** Starting a new session and recovering a provider session
+  are distinct actions. **New session** opens a temporary draft in the session pane, shaped
+  like the session it will become; it is not a modal and not a multi-step flow. **Resume**
+  opens a separate provider-session popup. Neither hides defaults or freezes a choice before
+  the operator sees it.
+- **SP2 — The draft carries the first prompt and the start parameters.** Backend (required),
+  cwd (explicit; empty means "supervisor default" and is labelled as such), name (optional),
+  first prompt (optional), parent (default root; explicit child option), a permission-mode
+  override (optional; empty uses the backend default, then the provider's own default), skill
+  pointer (default on), and advanced provider values only when the operator chooses to open
+  them. The right-hand inspector summarizes the draft’s parameters. The prompt and the start
+  action are one gesture: an empty prompt is a valid start with no first turn. Provider mode
+  ids are provider-native, so the override is free text with suggestions from modes live
+  sessions of the same backend have reported; it is sent as the wire's operator-only spawn
+  `mode` only when non-empty.
+- **SP2b — Resume and fork are two buttons, not a mode.** The resume popup reads the provider's
+  own catalog when the supervisor advertises `backends.sessions`. It is a two-column picker:
+  providers on the left, that provider's sessions on the right, searchable by id, title, or
+  cwd. Rows show provider id, title, cwd, age, live attachment, and whether the adapter can
+  load/fork them. Below the picker are the resume parameters (name, parent, permission-mode
+  override, skill); the footer has two complete actions, **Fork copy** and **Resume**. Picking
+  a row supplies its cwd; there is no separate cwd-edit step. A provider-only row is labelled
+  as such, and adopting it creates a new HLAO session — never restore an old HLAO name or
+  handle. Keep the manual id/cwd inputs for an older supervisor or an unlisted row. An empty
+  permission-mode override keeps the provider's persisted mode; only a new session uses the
+  backend `defaultMode`. The same suggestion list is used here, from modes reported by live
+  sessions of the backend.
 - **SP3 — Backends are discovered, not assumed.** Use `backends.list`; unavailable backends are
-  listed with the reason and cannot be submitted. When the spawn cwd changes, refresh
+  listed with the reason and cannot be submitted. When the draft cwd changes, refresh
   `backends.list` with that cwd so project-config backends and availability are current. If the
   `backends.list` capability is unavailable, explain the limitation and either accept a typed
   backend name or disable spawn; never invent a backend. The last-used backend may be
@@ -668,7 +686,7 @@ The numbering is stable so implementation and review can refer to it.
   handle visible. If no first prompt was given, an idle session is a valid outcome, not an
   incomplete task.
 - **SP7 — Failure is clean.** No phantom row. Show the adapter's stderr tail and preserve the
-  form for correction/retry.
+  draft (and the resume popup's selection and parameters) for correction/retry.
 - **SP8 — Parent is lineage, not authority.** Choosing a parent sets `parentSessionId` and is
   explained as lineage only. It grants no visibility or control that the operator did not
   already have.
@@ -825,8 +843,9 @@ The numbering is stable so implementation and review can refer to it.
   or — when connected — spawn.
 - **FR3 — Connection before theater.** Do not show a fleet scaffold that implies data before
   `hello` succeeds; show the connection state. When connected, load the real fleet.
-- **FR4 — The first spawn is the tutorial.** The spawn form, with visible defaults, is the
-  primary onboarding path; help is inline where terms appear, not a separate manual.
+- **FR4 — The first spawn is the tutorial.** The new-session draft, with visible defaults and
+  the same composer as a live session, is the primary onboarding path; help is inline where
+  terms appear, not a separate manual.
 
 ### 5.12 Notifications and unread
 
@@ -1139,7 +1158,9 @@ may offer in v1.
 | Session state | `sessions.get` / fleet view | Prefer the subscribed view; `get` for a one-off refresh. |
 | Session history | `sessions.read` (tail, `since`, `before`, filters, `raw` on demand) | Bounded pages; cursors preserved per session. |
 | Live session events | `stream.subscribe { sessionIds }` | Re-subscribe with the new id set and current cursors; no update method. |
-| Spawn | `sessions.spawn` | Idempotency key; optional prompt/wait; explicit parent. The form shows the backend `defaultMode`; an operator `mode` is wire-supported and operator-only. |
+| New session | `sessions.spawn` | Idempotency key; optional prompt/wait; explicit parent. The draft shows the backend `defaultMode`; an operator `mode` is wire-supported and operator-only. |
+| Resume / fork | `backends.sessions` read, then `sessions.spawn` | The popup picks a provider row, then calls spawn with `resumeSessionId` or `forkSessionId`. Both are complete buttons; no mode step. The provider row supplies the cwd, and the provider's persisted mode wins. |
+| Recoverable rail | `recovery.receipts`, then `sessions.spawn` | Historical spawn receipts plus a live attachment join. Clicking a row prefills Resume with backend/provider id/cwd/name/parent; the row's Resume calls spawn directly with those fields. Receipts are history, not liveness. |
 | Send | `sessions.send` | Idempotency key; reconcile by `messageId`. |
 | Queue inspect | `sessions.queue` | Active + queued with previews/ids. |
 | Drop queued prompt | `sessions.queue_drop` | By message id, after preview. |

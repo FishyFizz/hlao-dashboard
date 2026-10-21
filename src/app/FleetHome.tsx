@@ -3,6 +3,7 @@ import {
   ChevronRight,
   CircleAlert,
   Copy,
+  History,
   Plus,
   Search,
   Shield,
@@ -45,11 +46,13 @@ export function FleetHome({
   state,
   onSelect,
   onSpawn,
+  onResume,
   onSearch,
 }: {
   state: DashboardState;
   onSelect: (sessionId: string) => void;
   onSpawn: () => void;
+  onResume: () => void;
   onSearch: () => void;
 }) {
   const now = useNow();
@@ -102,7 +105,11 @@ export function FleetHome({
           <div className="fleet-empty__actions">
             <Button variant="primary" onPress={onSpawn}>
               <Plus className="btn__icon icon" />
-              Spawn a session
+              Start a session
+            </Button>
+            <Button onPress={onResume}>
+              <History className="btn__icon icon" />
+              Resume a provider session
             </Button>
             <Button onPress={onSearch}>
               <Search className="btn__icon icon" />
@@ -136,9 +143,13 @@ export function FleetHome({
             <Search className="btn__icon icon" />
             Search
           </Button>
+          <Button size="sm" onPress={onResume}>
+            <History className="btn__icon icon" />
+            Resume
+          </Button>
           <Button size="sm" variant="primary" onPress={onSpawn}>
             <Plus className="btn__icon icon" />
-            Spawn
+            New session
           </Button>
         </div>
       </header>

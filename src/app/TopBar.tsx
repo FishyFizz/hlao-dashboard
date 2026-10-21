@@ -1,4 +1,4 @@
-import { Command, Moon, Plus, Search, Settings, Sun } from "lucide-react";
+import { Command, History, Moon, Plus, Search, Settings, Sun } from "lucide-react";
 import { BrandMark } from "../components/BrandMark";
 import { Button, IconButton } from "../components/Button";
 import { Tag } from "../components/Status";
@@ -24,6 +24,7 @@ export function TopBar({
   state,
   onPalette,
   onSpawn,
+  onResume,
   onSearch,
   onHelp,
   onFleet,
@@ -33,6 +34,7 @@ export function TopBar({
   state: DashboardState;
   onPalette: () => void;
   onSpawn: () => void;
+  onResume: () => void;
   onSearch: () => void;
   onHelp: () => void;
   onFleet: () => void;
@@ -127,9 +129,20 @@ export function TopBar({
         </Button>
         <Button
           size="sm"
+          variant="ghost"
+          className="dash-top__resume"
+          onPress={onResume}
+          aria-label="Resume or fork a provider session"
+          title="Resume or fork an existing provider session"
+        >
+          <History className="btn__icon icon" />
+          <span className="dash-top__label">Resume</span>
+        </Button>
+        <Button
+          size="sm"
           variant="primary"
           onPress={onSpawn}
-          aria-label="Spawn a session"
+          aria-label="Start a new session"
           isDisabled={Boolean(state.instance?.configError)}
           title={
             state.instance?.configError
@@ -138,7 +151,7 @@ export function TopBar({
           }
         >
           <Plus className="btn__icon icon" />
-          <span className="dash-top__label">Spawn</span>
+          <span className="dash-top__label">New</span>
         </Button>
         <IconButton
           aria-label="Open command palette"

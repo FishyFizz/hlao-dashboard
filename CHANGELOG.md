@@ -2,21 +2,43 @@
 
 ## Unreleased
 
-- **Provider session discovery (wire 3.1).** The spawn form reads the
+- **Recoverable agents in the fleet rail.** The left panel gains a dedicated
+  **Recoverable** group fed by the supervisor's `recovery.receipts` ledger
+  (historical parent-provider-id → child-provider-id receipts, live-joined).
+  Rows not currently attached show the recorded name, backend, cwd, provider
+  id, age, and live parent. Clicking a row opens the Resume popup prefilled
+  with the exact backend, provider id, cwd, name, and parent; the row's
+  **Resume** button skips the dialog and reattaches with those settings. A
+  quick-resume failure opens the prefilled dialog. The group has a refresh
+  control and is hidden when the supervisor does not advertise the capability.
+- **Spawn and recovery are two distinct actions.** “New session” no longer
+  opens a modal form: it opens a temporary draft in the session pane, shaped
+  like a real session, where the first prompt and the start parameters
+  (backend, cwd, name, parent, permission mode, skill) live together. Starting
+  the draft is the send action; a failure preserves the draft and the same
+  idempotency key. “Resume” opens a separate provider-session popup: a
+  two-column picker (provider → its sessions) with search, followed by the
+  resume parameters (name, parent, permission mode, skill) and two complete
+  actions, **Fork copy** and **Resume**. There is no resume/fork mode selector
+  and no wizard step. Both surfaces offer a permission-mode override, suggested
+  from modes reported by live sessions of the same backend; it is free text
+  because provider mode ids are provider-native. The top bar, fleet home, and
+  command palette expose both actions separately, and `Ctrl/Cmd+N` opens the
+  draft.
+- **Provider session discovery (wire 3.1).** The resume popup reads the
   provider's own catalog through `backends.sessions` when the supervisor
   advertises it: rows show provider id, title, cwd, age, and whether this
-  instance already drives them. Selecting a row fills the provider id and its
-  cwd; a mismatched cwd edit is refused before the request. Provider-only rows
-  are labelled and can be adopted as new HLAO sessions. The manual provider-id
-  input and live-session datalist remain for older supervisors or an unlisted
-  row. The catalog read is on demand (it starts an adapter) and is never
-  persisted by the dashboard.
+  instance already drives them. A picked row supplies its cwd; the provider is
+  the left column. Provider-only rows are labelled and can be adopted as new
+  HLAO sessions. Manual id/cwd inputs remain for older supervisors or a row
+  that the catalog does not list. The catalog read is on demand (it starts an
+  adapter) and is never persisted by the dashboard.
 - The demo supervisor speaks **3.1** and serves a provider catalog with both
   attached and provider-only rows, so the picker is exercisable without a real
   adapter.
-- Resume and fork keep the provider's persisted mode; the spawn form and
-  Inspector now say so, and the backend `defaultMode` is described as a
-  new-session default only.
+- Resume and fork keep the provider's persisted mode unless an explicit
+  permission-mode override is set; the resume popup and Inspector now say so,
+  and the backend `defaultMode` remains a new-session default only.
 - Pinned wire projection updated to **3.0** (breaking). Removed
   `PermissionPolicy`/`SessionView.permissionPolicy`,
   `SessionView.pendingPermission`, `SpawnParams.permissionPolicy`,
@@ -35,8 +57,8 @@
   gate appears; timeout and queue-full resolutions are attributed events.
 - The **provider mode** is the coarse policy. The Inspector reads
   `modes.currentModeId`/`availableModes`, sets the mode through
-  `sessions.set_mode`, and shows the backend's `defaultMode`; the spawn form
-  shows that default as well. The dashboard never sends `callerSessionId` and
+  `sessions.set_mode`, and shows the backend's `defaultMode`; the new-session
+  draft shows that default as well. The dashboard never sends `callerSessionId` and
   offers no agent-side permit or mode action; the bridge no longer sends the
   field at all.
 - The demo supervisor speaks 3.0: it advertises `session.pendingPermissions` and

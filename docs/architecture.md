@@ -97,22 +97,47 @@ or mode action. Two actions are client assemblies and are labelled as such:
 No client-side task, job, workflow, or rollup status exists.
 
 Provider session discovery is a wire read, not a client cache. When the
-supervisor advertises `backends.sessions`, the spawn form reads the provider's
-own catalog on demand and joins it to the live views the dashboard already
-has. A provider-only row is labelled as such; the dashboard never invents an
-HLAO session for it. The read starts an adapter, so it is loaded when the
-provider-session surface opens, not on every render. Without the capability,
-the form keeps the manual provider-id input. The dashboard persists no
+supervisor advertises `backends.sessions`, the **Resume** popup reads the
+provider's own catalog on demand and joins it to the live views the dashboard
+already has. The picker is two columns — provider, then that provider's
+sessions with search — and ends in two complete actions, **Fork copy** and
+**Resume**. A provider-only row is labelled as such; the dashboard never
+invents an HLAO session for it. The read starts an adapter, so it is loaded
+when the popup opens, not on every render. Without the capability, the popup
+keeps the manual provider-id and cwd inputs. The dashboard persists no
 provider-to-agent mapping.
+
+Recovery receipts are a separate wire read, not a catalog probe.
+`recovery.receipts` returns the supervisor's historical spawn ledger with a
+live attachment join; it starts no adapter and creates no session. The store
+loads it on connect/resync, after a spawn, after a close/forget, and when a
+live session transitions to terminal. The fleet rail filters to receipts whose
+child provider id is not attached and renders them under **Recoverable**.
+Clicking a row passes the exact backend/provider id/cwd/name/parent to the
+Resume popup; the row's Resume button calls `sessions.spawn` with the same
+fields and falls back to the prefilled popup on failure. The ledger is history,
+so the group does not claim a provider conversation still exists.
+
+Starting a new session is a separate surface. **New session** opens a
+temporary draft in the main pane, shaped like the session lens it will become:
+start parameters plus the composer, with a draft inspector on the right that
+summarizes the pending parameters. The draft is local UI state; the supervisor
+learns nothing until `sessions.spawn` succeeds. There is no pre-spawn session
+row, no placeholder handle, and no task.
 
 ## Tests
 
 `src/store/model.test.ts` covers attention ranking and cycling, local
 acknowledgements, target resolution ambiguity, event sequencing, transcript
 coalescing (including whitespace-only chunks), the demo supervisor's wire 3.1
-hello/default-mode projection, and its parallel permission queue (request-id
-answering, multi-pending errors, and the removed policy method).
+hello/default-mode projection, its recovery receipt projection (attached and
+provider-only rows), and its parallel permission queue (request-id answering,
+multi-pending errors, and the removed policy method).
 `src/store/store.test.ts` covers the notification coalescing window.
+`src/app/providerSessions.test.ts` covers provider-catalog search and the
+loadable/forkable gates behind the two resume actions.
+`src/app/PermissionModeField.test.ts` covers merging the mode lists reported by
+live sessions into the override suggestions.
 `src/app/routing.test.ts` covers session-hash parsing and round trips.
 `src/app/MarkdownText.test.tsx` covers GFM
 blocks, soft breaks, code-copy controls, inert raw HTML, explicit external

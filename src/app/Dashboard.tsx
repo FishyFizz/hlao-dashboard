@@ -8,8 +8,13 @@ import {
   type DashboardState,
 } from "../store/store";
 import { displayLabel, nextAttentionSession } from "../store/model";
-import type { QueueItemView, SessionView } from "../wire/protocol";
-import { WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
+import type {
+  QueueItemView,
+  RecoveryReceiptView,
+  SessionView,
+} from "../wire/protocol";
+import { asWireError, WIRE_MAJOR, WIRE_MINOR } from "../wire/protocol";
+import { newId } from "../lib/id";
 import {
   ClearLocalDialog,
   CloseDialog,
@@ -27,10 +32,11 @@ import { FleetRail } from "./FleetRail";
 import { HelpDialog } from "./HelpDialog";
 import { IntroDialog } from "./IntroDialog";
 import { RenameDialog } from "./RenameDialog";
+import { ResumeDialog, type ResumePrefill } from "./ResumeDialog";
 import { SearchDialog } from "./SearchDialog";
 import { SessionLens } from "./SessionLens";
 import { SetupScreen } from "./SetupScreen";
-import { SpawnDialog } from "./SpawnDialog";
+import { SpawnDraft } from "./SpawnDraft";
 import { StatusBar } from "./StatusBar";
 import { ToastRegion } from "./ToastRegion";
 import { TopBar } from "./TopBar";
@@ -52,7 +58,9 @@ type ActionDialog =
 export function Dashboard() {
   const state = useDashboard();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [spawnOpen, setSpawnOpen] = useState(false);
+  const [spawnDraftOpen, setSpawnDraftOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumePrefill, setResumePrefill] = useState<ResumePrefill | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -139,8 +147,68 @@ export function Dashboard() {
     setRailOpen(false);
   }, [state.selection?.id]);
 
+  // Selecting a session (from the palette, the rail, or a successful spawn)
+  // ends the temporary new-session view. Opening the draft itself does not
+  // change the selection, so this never closes it by accident.
+  useEffect(() => {
+    if (state.selection) setSpawnDraftOpen(false);
+  }, [state.selection?.id, state.selection?.createdAt]);
+
   const announcement = useAttentionAnnouncement(attention);
   useAttentionNotifications(state, attention);
+
+  const openSpawnDraft = () => {
+    setResumeOpen(false);
+    setSpawnDraftOpen(true);
+  };
+  const openResume = () => {
+    setSpawnDraftOpen(false);
+    setResumePrefill(null);
+    setResumeOpen(true);
+  };
+
+  const prefillFromReceipt = (receipt: RecoveryReceiptView): ResumePrefill => ({
+    backend: receipt.backend,
+    providerId: receipt.childProviderId,
+    cwd: receipt.cwd,
+    ...(receipt.name ? { name: receipt.name } : {}),
+    parentSessionId: receipt.parentHlaoSessionId,
+  });
+
+  const openRecovery = (receipt: RecoveryReceiptView) => {
+    setSpawnDraftOpen(false);
+    setResumePrefill(prefillFromReceipt(receipt));
+    setResumeOpen(true);
+  };
+
+  const quickResume = (receipt: RecoveryReceiptView) => {
+    if (state.pending.spawn) return;
+    const prefill = prefillFromReceipt(receipt);
+    setResumePrefill(prefill);
+    void store
+      .spawnSession({
+        backend: receipt.backend,
+        cwd: receipt.cwd,
+        ...(receipt.name ? { name: receipt.name } : {}),
+        ...(receipt.parentHlaoSessionId
+          ? { parentSessionId: receipt.parentHlaoSessionId }
+          : {}),
+        resumeSessionId: receipt.childProviderId,
+        idempotencyKey: newId("spawn"),
+      })
+      .then(() => setResumePrefill(null))
+      .catch((cause: unknown) => {
+        const wire = asWireError(cause);
+        store.addToast({
+          tone: "danger",
+          title: "Quick resume failed",
+          text: `${wire.message} The dialog is prefilled so you can adjust it or fork.`,
+        });
+        setSpawnDraftOpen(false);
+        setResumePrefill(prefill);
+        setResumeOpen(true);
+      });
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -150,7 +218,7 @@ export function Dashboard() {
         event.target.closest('[role="menu"], [role="listbox"], [role="dialog"]') !== null;
       const overlayOpen =
         paletteOpen ||
-        spawnOpen ||
+        resumeOpen ||
         searchOpen ||
         helpOpen ||
         detailsOpen ||
@@ -166,7 +234,7 @@ export function Dashboard() {
         }
         if (key === "n") {
           event.preventDefault();
-          setSpawnOpen(true);
+          openSpawnDraft();
           return;
         }
         if (key === "f" && event.shiftKey) {
@@ -195,6 +263,11 @@ export function Dashboard() {
           (event.target as HTMLElement).blur();
           return;
         }
+        if (spawnDraftOpen) {
+          event.preventDefault();
+          setSpawnDraftOpen(false);
+          return;
+        }
         if (store.getSnapshot().selection) {
           event.preventDefault();
           store.backToFleet();
@@ -217,7 +290,8 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     paletteOpen,
-    spawnOpen,
+    resumeOpen,
+    spawnDraftOpen,
     searchOpen,
     helpOpen,
     detailsOpen,
@@ -245,9 +319,13 @@ export function Dashboard() {
     store.selectSession(sessionId);
     setPaletteOpen(false);
     setRailOpen(false);
+    setSpawnDraftOpen(false);
+    setResumeOpen(false);
   };
 
   const focusFleet = () => {
+    setSpawnDraftOpen(false);
+    setResumeOpen(false);
     if (store.getSnapshot().selection) {
       store.backToFleet();
     } else {
@@ -280,7 +358,8 @@ export function Dashboard() {
       <TopBar
         state={state}
         onPalette={() => setPaletteOpen(true)}
-        onSpawn={() => setSpawnOpen(true)}
+        onSpawn={openSpawnDraft}
+        onResume={openResume}
         onSearch={() => setSearchOpen(true)}
         onHelp={() => setHelpOpen(true)}
         onFleet={focusFleet}
@@ -296,55 +375,72 @@ export function Dashboard() {
         <FleetRail
           state={state}
           onSelect={(session) => openSession(session.id)}
-          onSpawn={() => setSpawnOpen(true)}
+          onSpawn={openSpawnDraft}
+          onRecover={openRecovery}
+          onQuickResume={quickResume}
         />
-        <main className="dash-main">
-          {displayed ? (
-            <SessionLens
-              state={state}
-              session={displayed}
-              onBack={() => store.backToFleet()}
-              onSpawn={() => setSpawnOpen(true)}
-              onSearch={() => setSearchOpen(true)}
-              onOpenSession={openSession}
-              onRename={() => setAction({ kind: "rename" })}
-              onStop={() => setAction({ kind: "stop" })}
-              onClose={() => setAction({ kind: "close" })}
-              onCloseSubtree={() => setAction({ kind: "close-subtree" })}
-              onForget={() => setAction({ kind: "forget" })}
-              onDrop={(item) => {
-                setDropItem(item);
-                setAction({ kind: "stop" });
-              }}
-              onDetails={() => setDetailsOpen(true)}
-              onSpawnReplacement={() => setSpawnOpen(true)}
-            />
-          ) : state.selection ? (
-            <div className="fleet-home">
-              <div className="fleet-empty">
-                <span className="fleet-empty__title">
-                  Session #{state.selection.id} is no longer in this instance.
-                </span>
-                <p className="fleet-empty__text">
-                  No local snapshot was retained for it. The fleet is unchanged.
-                </p>
-                <Button onPress={() => store.backToFleet()}>Return to fleet</Button>
-              </div>
-            </div>
-          ) : (
-            <FleetHome
-              state={state}
-              onSelect={openSession}
-              onSpawn={() => setSpawnOpen(true)}
-              onSearch={() => setSearchOpen(true)}
-            />
-          )}
-        </main>
-        {displayed ? (
-          <aside className="dash-inspector" aria-label="Session inspector">
-            <Inspector state={state} session={displayed} onOpenSession={openSession} />
-          </aside>
-        ) : null}
+        {spawnDraftOpen ? (
+          <SpawnDraft
+            state={state}
+            onClose={() => setSpawnDraftOpen(false)}
+            onResume={openResume}
+          />
+        ) : (
+          <>
+            <main className="dash-main">
+              {displayed ? (
+                <SessionLens
+                  state={state}
+                  session={displayed}
+                  onBack={() => store.backToFleet()}
+                  onSpawn={openSpawnDraft}
+                  onSearch={() => setSearchOpen(true)}
+                  onOpenSession={openSession}
+                  onRename={() => setAction({ kind: "rename" })}
+                  onStop={() => setAction({ kind: "stop" })}
+                  onClose={() => setAction({ kind: "close" })}
+                  onCloseSubtree={() => setAction({ kind: "close-subtree" })}
+                  onForget={() => setAction({ kind: "forget" })}
+                  onDrop={(item) => {
+                    setDropItem(item);
+                    setAction({ kind: "stop" });
+                  }}
+                  onDetails={() => setDetailsOpen(true)}
+                  onSpawnReplacement={openSpawnDraft}
+                />
+              ) : state.selection ? (
+                <div className="fleet-home">
+                  <div className="fleet-empty">
+                    <span className="fleet-empty__title">
+                      Session #{state.selection.id} is no longer in this instance.
+                    </span>
+                    <p className="fleet-empty__text">
+                      No local snapshot was retained for it. The fleet is unchanged.
+                    </p>
+                    <Button onPress={() => store.backToFleet()}>Return to fleet</Button>
+                  </div>
+                </div>
+              ) : (
+                <FleetHome
+                  state={state}
+                  onSelect={openSession}
+                  onSpawn={openSpawnDraft}
+                  onResume={openResume}
+                  onSearch={() => setSearchOpen(true)}
+                />
+              )}
+            </main>
+            {displayed ? (
+              <aside className="dash-inspector" aria-label="Session inspector">
+                <Inspector
+                  state={state}
+                  session={displayed}
+                  onOpenSession={openSession}
+                />
+              </aside>
+            ) : null}
+          </>
+        )}
       </div>
       <StatusBar state={state} />
       <ToastRegion state={state} />
@@ -356,7 +452,8 @@ export function Dashboard() {
         open={paletteOpen}
         state={state}
         onClose={() => setPaletteOpen(false)}
-        onSpawn={() => setSpawnOpen(true)}
+        onSpawn={openSpawnDraft}
+        onResume={openResume}
         onSearch={() => setSearchOpen(true)}
         onHelp={() => setHelpOpen(true)}
         onDetails={() => setDetailsOpen(true)}
@@ -364,7 +461,15 @@ export function Dashboard() {
         onStop={() => setAction({ kind: "stop" })}
         onCloseSession={() => setAction({ kind: "close" })}
       />
-      <SpawnDialog open={spawnOpen} state={state} onClose={() => setSpawnOpen(false)} />
+      <ResumeDialog
+        open={resumeOpen}
+        state={state}
+        initial={resumePrefill ?? undefined}
+        onClose={() => {
+          setResumeOpen(false);
+          setResumePrefill(null);
+        }}
+      />
       <SearchDialog open={searchOpen} state={state} onClose={() => setSearchOpen(false)} />
       <HelpDialog
         open={helpOpen}

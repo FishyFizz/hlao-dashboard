@@ -43,6 +43,8 @@ import type {
   PermitParams,
   PermitResult,
   ProviderSessionsResult,
+  RecoveryReceiptView,
+  RecoveryReceiptsResult,
   QueueDropResult,
   QueueResult,
   ReadResult,
@@ -110,6 +112,11 @@ export type DashboardState = {
   connectError: WireError | null;
   lastUpdatedAt: string | null;
   fleetLoaded: boolean;
+  /** Historical spawn receipts, live-joined. Empty when unsupported. */
+  recovery: RecoveryReceiptView[];
+  recoveryLoading: boolean;
+  recoveryError: string | null;
+  recoveryLoadedAt: string | null;
   sessions: Record<string, SessionView>;
   removedIds: Record<string, true>;
   events: Record<string, SessionEventsState>;
@@ -244,6 +251,7 @@ export class DashboardStore {
   private connectToken = 0;
   private subscribeGeneration = 0;
   private resyncing = false;
+  private recoveryAgain = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollBusy = false;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -272,6 +280,10 @@ export class DashboardStore {
       connectError: null,
       lastUpdatedAt: null,
       fleetLoaded: false,
+      recovery: [],
+      recoveryLoading: false,
+      recoveryError: null,
+      recoveryLoadedAt: null,
       sessions: {},
       removedIds: {},
       events: {},
@@ -523,6 +535,10 @@ export class DashboardStore {
       local,
       ...(fresh
         ? {
+            recovery: [],
+            recoveryLoading: false,
+            recoveryError: null,
+            recoveryLoadedAt: null,
             sessions: {},
             removedIds: {},
             events: {},
@@ -562,6 +578,7 @@ export class DashboardStore {
       return;
     }
     if (connectToken !== this.connectToken) return;
+    void this.refreshRecovery();
 
     let selection: Selection | null = null;
     if (!fresh && this.state.selection) {
@@ -671,10 +688,18 @@ export class DashboardStore {
     let selection = this.state.selection;
     let removed = this.state.removed;
     let changedSelectedQueue = false;
+    let becameTerminal = false;
     const selectedBefore = selectedSession(this.state);
 
     for (const view of views) {
       const current = sessions[view.id];
+      if (
+        current !== undefined &&
+        !isTerminalStatus(current.status) &&
+        isTerminalStatus(view.status)
+      ) {
+        becameTerminal = true;
+      }
       if (selection && selection.id === view.id && selection.createdAt !== view.createdAt) {
         selection = null;
         removed = false;
@@ -693,6 +718,7 @@ export class DashboardStore {
     }
 
     this.setState({ sessions, removedIds, selection, removed });
+    if (becameTerminal) void this.refreshRecovery();
     if (changedSelectedQueue) this.maybeRefreshQueue();
   }
 
@@ -816,6 +842,7 @@ export class DashboardStore {
         ? this.state.sessions[this.state.selection.id] ?? null
         : null;
       await this.loadFleet();
+      void this.refreshRecovery();
       const selection = this.state.selection;
       if (selection) {
         const current = this.state.sessions[selection.id];
@@ -1550,6 +1577,7 @@ export class DashboardStore {
           : "It remains readable for the retention period. The event log is not permanent.",
       });
       void this.refreshQueue(session.id);
+      void this.refreshRecovery();
     } catch (error) {
       this.addToast({
         tone: "danger",
@@ -1592,6 +1620,7 @@ export class DashboardStore {
           : "Descendants were closed deepest-first.",
     });
     void this.refreshQueue(session.id);
+    void this.refreshRecovery();
   }
 
   async forget(): Promise<void> {
@@ -1620,6 +1649,7 @@ export class DashboardStore {
         title: "Session forgotten",
         text: "The retained event log was discarded. Drafts stay local and copyable.",
       });
+      void this.refreshRecovery();
       void this.subscribeToFleet();
     } catch (error) {
       this.addToast({
@@ -1803,6 +1833,7 @@ export class DashboardStore {
         selected: { id: session.id, createdAt: session.createdAt },
       });
       await this.afterSelection(session);
+      void this.refreshRecovery();
       return result;
     } finally {
       this.setPending("spawn", false);
@@ -1842,6 +1873,52 @@ export class DashboardStore {
       ...(cwd ? { cwd } : {}),
       ...(cursor ? { cursor } : {}),
     });
+  }
+
+  /**
+   * Read historical spawn receipts for the "Recoverable" rail group. This is a
+   * local ledger read in the supervisor; it starts no adapter and never claims
+   * liveness. Unsupported supervisors yield an empty list rather than an error.
+   */
+  async refreshRecovery(): Promise<void> {
+    const transport = this.transport;
+    if (!transport || !canUse(this.state, CAPABILITIES.recoveryReceipts)) {
+      this.setState({
+        recovery: [],
+        recoveryLoading: false,
+        recoveryError: null,
+        recoveryLoadedAt: null,
+      });
+      return;
+    }
+    if (this.state.recoveryLoading) {
+      this.recoveryAgain = true;
+      return;
+    }
+    this.setState({ recoveryLoading: true, recoveryError: null });
+    try {
+      const result = await transport.request<RecoveryReceiptsResult>(
+        "recovery.receipts",
+        {},
+      );
+      if (this.transport !== transport) return;
+      this.setState({
+        recovery: result.receipts,
+        recoveryLoading: false,
+        recoveryLoadedAt: nowIso(),
+      });
+    } catch (error) {
+      if (this.transport !== transport) return;
+      this.setState({
+        recoveryLoading: false,
+        recoveryError: asWireError(error).message,
+      });
+    } finally {
+      if (this.recoveryAgain) {
+        this.recoveryAgain = false;
+        void this.refreshRecovery();
+      }
+    }
   }
 
   async listDirectories(path?: string): Promise<DirectoryListing> {

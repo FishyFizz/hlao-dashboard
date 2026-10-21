@@ -20,6 +20,7 @@ import type {
   EventView,
   HelloResult,
   ProviderSessionsResult,
+  RecoveryReceiptsResult,
   SessionView,
 } from "../wire/protocol";
 
@@ -573,6 +574,20 @@ describe("demo supervisor", () => {
     expect(hello.capabilities).toContain("session.pendingPermissions");
     expect(hello.capabilities).toContain("permit.request");
     expect(hello.capabilities).toContain("backends.sessions");
+    expect(hello.capabilities).toContain("recovery.receipts");
+
+    const recovery = await supervisor.request<RecoveryReceiptsResult>(
+      "recovery.receipts",
+      {},
+    );
+    expect(recovery.receipts.length).toBeGreaterThan(0);
+    expect(recovery.receipts.some((receipt) => receipt.attached)).toBe(true);
+    const recoverable = recovery.receipts.find((receipt) => !receipt.attached);
+    expect(recoverable).toBeTruthy();
+    expect(recoverable?.childProviderId).toBeTruthy();
+    expect(recoverable?.backend).toBeTruthy();
+    expect(recoverable?.cwd).toBeTruthy();
+    expect(recoverable?.parentHlaoSessionId).toBeTruthy();
 
     const providers = await supervisor.request<ProviderSessionsResult>(
       "backends.sessions",

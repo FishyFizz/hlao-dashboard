@@ -488,6 +488,33 @@ export type ProviderSessionsResult = {
   sessions: ProviderSessionView[];
   nextCursor: string | null;
 };
+
+/** A historical spawn receipt, live-joined to the current instance (wire 3.1). */
+export type RecoveryReceiptView = {
+  parentProviderId: string;
+  parentSessionId: string | null;
+  childProviderId: string;
+  childSessionId: string;
+  backend: string;
+  cwd: string;
+  name: string | null;
+  recordedAt: string;
+  attached: boolean;
+  hlaoSessionId: string | null;
+  hlaoName: string | null;
+  hlaoStatus: SessionStatus | null;
+  parentHlaoSessionId: string | null;
+  parentHlaoName: string | null;
+  parentHlaoStatus: SessionStatus | null;
+};
+
+export type RecoveryReceiptsParams = {
+  parentProviderId?: string;
+};
+
+export type RecoveryReceiptsResult = {
+  receipts: RecoveryReceiptView[];
+};
 export type ReloadResult = { configHash: string; configError: string | null };
 export type ShutdownResult = {
   sessionsClosed: number;
@@ -498,6 +525,7 @@ export type RpcMethod =
   | "hello"
   | "backends.list"
   | "backends.sessions"
+  | "recovery.receipts"
   | "sessions.spawn"
   | "sessions.list"
   | "sessions.get"
@@ -530,6 +558,7 @@ export function wireVersionLabel(version?: ProtocolVersion | null): string {
 export const CAPABILITIES = {
   backendsList: "backends.list",
   providerSessions: "backends.sessions",
+  recoveryReceipts: "recovery.receipts",
   pendingPermissions: "session.pendingPermissions",
   permitRequest: "permit.request",
   usage: "session.usage",

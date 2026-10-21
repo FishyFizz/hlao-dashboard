@@ -123,17 +123,18 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   last-read divider, new-events affordance, automatic backward paging as the
   view approaches the top, and visible truncation/gap markers.
 - **Provider identity and recovered history**: the durable provider session id
-  is shown in Diagnostics and printed by spawn. The spawn form can resume it or
-  fork a copy (`spawn.resume` / `spawn.fork`), and the Inspector offers both.
-  When the supervisor advertises `backends.sessions` (wire 3.1), the form also
-  reads the provider's own catalog: rows show title, cwd, age, and whether this
-  instance already drives them. A provider-only row can be adopted, which
-  creates a new HLAO session and keeps the provider's cwd and mode. A resume or
-  fork keeps the provider's persisted mode. Events restored by ACP
-  `session/load` are marked `history` in the gutter and are not counted as new
-  activity. When the live log evicts, the transcript banner explains that the
-  provider still holds the record and can fork it into a new session with the
-  full history.
+  is shown in Diagnostics and printed by spawn. The **Resume** action opens a
+  provider-session popup that can resume or fork it (`spawn.resume` /
+  `spawn.fork`), and the Inspector offers both. When the supervisor advertises
+  `backends.sessions` (wire 3.1), that popup reads the provider's own catalog:
+  providers are the left column, their sessions the right, with search; rows
+  show title, cwd, age, and whether this instance already drives them. A
+  provider-only row can be adopted, which creates a new HLAO session and keeps
+  the provider's cwd and mode. A resume or fork keeps the provider's persisted
+  mode. Events restored by ACP `session/load` are marked `history` in the gutter
+  and are not counted as new activity. When the live log evicts, the transcript
+  banner explains that the provider still holds the record and can fork it into
+  a new session with the full history.
 - **Composer and queue**: drafts per session, multi-line text, explicit send,
   queue when busy or permission-parked, idempotent retry, message-id
   reconciliation, queue previews, and permanent drop confirmation. Ended
@@ -148,28 +149,49 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
   selector. Effort options use a cyan-filled segmented bar. Plan and compaction
   are read-only. Usage is labelled as the latest reported snapshot.
 
-### Spawn, search, keyboard
+### Spawn, resume, search, keyboard
 
-- One truthful spawn form: prompt first, backend/name on one row, bridge-backed
-  cwd browsing, discovered backends, cwd-driven refresh, the selected backend's
-  `defaultMode` (or "provider default"), lineage-only parent, skill toggle,
-  idempotency per attempt, preserved form and adapter stderr on failure. The
-  provider-session section reads the provider catalog when the supervisor
-  advertises `backends.sessions`; a picked row supplies its cwd, and a mismatched
-  edit is refused. The manual provider-id input remains for an older supervisor
-  or a row the catalog does not list. The form does not invent a pre-spawn
-  mode; an operator mode can be set after spawn from the advertised values.
+- **New session** opens a temporary draft in the session pane, not a modal. It
+  looks like the session it will become: a header, a draft body with start
+  parameters (backend/name/cwd, bridge-backed cwd browsing, lineage-only
+  parent, permission-mode override, skill toggle), and the same composer. The
+  first prompt and the start action are one gesture; an empty prompt starts a
+  session with no first turn. The right-hand inspector summarizes the draft’s
+  parameters. The draft keeps an idempotency key per attempt and preserves the
+  text plus adapter stderr on failure. The permission-mode field is free text
+  with suggestions from modes reported by live sessions of the same backend;
+  other provider options are set after the session starts, from the values it
+  advertises.
+- **Resume or fork** is a separate popup, with a different shape: a two-column
+  picker lists providers on the left and that provider's catalog sessions on
+  the right, searchable by id, title, or cwd. Rows show the provider id, cwd,
+  age, live HLAO attachment, and whether the adapter allows loading/forking.
+  Below the picker are the resume parameters (name, parent, permission-mode
+  override, skill) and two complete buttons, **Fork copy** and **Resume** — no
+  mode-selection step. A selected row supplies its cwd. The manual id/cwd entry
+  remains for an older supervisor or an unlisted row. Empty permission mode
+  keeps the provider’s persisted mode; an override is sent only when typed and
+  is suggested from modes the same backend has reported.
+- **Recoverable** is a dedicated fleet-rail group fed by
+  `recovery.receipts`: historical spawn receipts whose child provider id is not
+  currently attached. Each row shows the recorded name, backend, cwd, provider
+  id, and the live parent when one exists. Clicking the row opens the Resume
+  dialog prefilled with the exact backend, provider id, cwd, name, and parent;
+  its **Resume** button skips the dialog and reattaches with those settings. A
+  quick-resume failure opens the prefilled dialog instead of losing context.
+  The group has its own refresh control; it is history, not a liveness view.
 - Search has two explicit scopes (current session, instance), live/retained and
   raw-payload filters, visible caps and as-of time, cancellable scans, and
   provenance (session, handle, seq, time, type, snippet). Selecting a result
   opens that event in context.
-- Command palette (`Ctrl/Cmd+K`) covers navigation, spawn, search, attention,
-  selected-session actions, theme, help, retry, and demo/real switching. It shows
-  the exact target and does not silently resolve ambiguous names.
-- Keyboard: `Ctrl/Cmd+K` palette, `Ctrl/Cmd+N` spawn, `Ctrl/Cmd+Shift+F` search,
-  `J`/`K` next/previous attention, `Esc` leaves a transient state or returns to
-  the fleet, `Ctrl/Cmd+Enter` sends. All intents are also in the palette; the
-  shortcut set is documented in Help.
+- Command palette (`Ctrl/Cmd+K`) covers navigation, starting a session,
+  resuming from a provider catalog, search, attention, selected-session
+  actions, theme, help, retry, and demo/real switching. It shows the exact
+  target and does not silently resolve ambiguous names.
+- Keyboard: `Ctrl/Cmd+K` palette, `Ctrl/Cmd+N` new-session draft,
+  `Ctrl/Cmd+Shift+F` search, `J`/`K` next/previous attention, `Esc` leaves a
+  transient state or returns to the fleet, `Ctrl/Cmd+Enter` sends or starts.
+  All intents are also in the palette; the shortcut set is documented in Help.
 
 ### Connection, persistence, honesty
 

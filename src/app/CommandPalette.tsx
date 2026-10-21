@@ -37,6 +37,7 @@ export function CommandPalette({
   state,
   onClose,
   onSpawn,
+  onResume,
   onSearch,
   onHelp,
   onDetails,
@@ -48,6 +49,7 @@ export function CommandPalette({
   state: DashboardState;
   onClose: () => void;
   onSpawn: () => void;
+  onResume: () => void;
   onSearch: () => void;
   onHelp: () => void;
   onDetails: () => void;
@@ -81,9 +83,15 @@ export function CommandPalette({
       {
         id: "spawn",
         group: "Actions",
-        label: "Spawn a session",
+        label: "Start a new session",
         shortcut: "Ctrl/Cmd N",
         run: onSpawn,
+      },
+      {
+        id: "resume-provider",
+        group: "Actions",
+        label: "Resume or fork a provider session",
+        run: onResume,
       },
       {
         id: "search",
@@ -243,6 +251,7 @@ export function CommandPalette({
     onHelp,
     onRename,
     onSpawn,
+    onResume,
     onSearch,
     onStop,
     selected,
@@ -321,7 +330,7 @@ export function CommandPalette({
               ref={inputRef}
               className="palette__input"
               value={query}
-              placeholder="Go to a session, spawn, answer, search…"
+              placeholder="Go to a session, start one, resume, search…"
               aria-label="Command palette query"
               autoComplete="off"
               spellCheck={false}
