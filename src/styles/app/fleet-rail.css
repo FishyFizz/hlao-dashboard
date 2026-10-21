@@ -86,25 +86,6 @@
     cursor: pointer;
   }
 
-  .rail-control {
-    height: 24px;
-    padding: 0 6px;
-    border: var(--bw) solid var(--line);
-    background: transparent;
-    color: var(--text-3);
-    font-family: var(--font-mono);
-    font-size: 9px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .rail-control[data-active] {
-    border-color: var(--accent-line);
-    background: var(--accent-soft);
-    color: var(--accent-text);
-  }
-
   .rail-scroll {
     flex: 1;
     min-height: 0;
@@ -135,6 +116,38 @@
   .rail-group:first-child .rail-group__head {
     color: var(--warn);
   }
+
+  .rail-group__head--toggle {
+    width: 100%;
+    border: 0;
+    appearance: none;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .rail-group__head--toggle:hover {
+    background: var(--hover);
+  }
+
+  .rail-group__head--toggle:focus-visible {
+    outline: var(--bw) solid var(--focus);
+    outline-offset: -1px;
+  }
+
+  .rail-group__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .rail-group__caret {
+    flex: none;
+    width: 8px;
+    color: var(--text-3);
+    text-align: center;
+  }
+
 
   .rail-group--quiet .rail-group__head {
     color: var(--text-3);

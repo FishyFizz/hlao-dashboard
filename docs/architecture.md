@@ -186,9 +186,8 @@ multi-pending errors, and the removed policy method).
 `src/store/store.test.ts` covers the notification coalescing window.
 `src/store/eventState.test.ts` covers tail-page construction, dedupe/out-of-order
 append, forward-gap reporting, live cursor advancement, and older-page merge.
-`src/store/model/fleet.test.ts` covers fleet counts, query/ended filtering,
-attention-first grouping, and the rule that attention stays visible when ended
-sessions are hidden.
+`src/store/model/fleet.test.ts` covers fleet counts, query filtering,
+attention-first grouping, and the attention-first home ordering.
 `src/demo/demoEngine.test.ts` covers turn start/queue/next-turn, queue drop,
 spawn plus first prompt, and scoped session/event notifications.
 `src/app/spawn/providerSessions.test.ts` covers provider-catalog search and the

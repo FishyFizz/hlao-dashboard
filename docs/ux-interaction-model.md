@@ -154,7 +154,8 @@ Instance (one HLAO_HOME, one authority)
 │   ├── Needs you        permission · failed · error notice
 │   ├── Running          busy
 │   ├── Quiet            idle / starting, queue visible
-│   └── Ended            retained closed/failed
+│   ├── Recoverable      unattached provider spawn receipts
+│   └── Closed           retained closed/failed
 │
 └── Session lens — one selected session
     ├── state area       identity · status · turn · queue · mode · pending · usage · plan
@@ -229,8 +230,9 @@ The model requires:
 - **NAV5** Links between sessions (parent, root, child, `session.message` sender) switch the
   lens to that session. They never open a modal that hides the fleet.
 - **NAV6** The fleet is a view over every session in the instance, including retained closed
-  sessions in an explicitly labelled Ended group. Filtering or grouping never changes what
-  exists or what is addressable.
+  sessions in an explicitly labelled Closed group. Filtering or grouping never changes what
+  exists or what is addressable. Every fleet-rail section is collapsible; collapsing a section
+  changes only what is rendered, never what exists.
 
 ### 4.3 Attention: the core ranking
 
@@ -408,9 +410,10 @@ The numbering is stable so implementation and review can refer to it.
 - **FL3 — Last activity is a fact.** Show `lastEvent` type/title/time. If `lastEvent` is null
   and the `session.lastEvent` capability is present, say "no events yet"; if the capability is
   absent, say "not reported by this supervisor". Do not synthesize a preview from anything else.
-- **FL4 — Grouping.** Attention is a pinned group. Other groups (Running, Quiet, Ended) are
-  views. Optional lineage grouping uses `rootId`/`depth` and is never a containment boundary:
-  every row remains addressable and actionable.
+- **FL4 — Grouping.** Attention is a pinned group. Other groups (Running, Quiet, Closed) are
+  collapsible views; Recoverable is a separate collapsible list of unattached provider spawn
+  receipts. Optional lineage grouping uses `rootId`/`depth` and is never a containment
+  boundary: every row remains addressable and actionable.
 - **FL5 — Ordering.** Order is deterministic: the attention block uses the ranks in §4.3;
   non-attention groups use the operator's chosen sort. To keep the surface calm, the rendered
   order is committed on group/rank transitions and on explicit refresh or sort changes, not on
@@ -1154,7 +1157,7 @@ may offer in v1.
 | UI action | Wire method / assembly | Notes |
 |---|---|---|
 | Connect / identify | `hello` | Require major 3; no compatibility shim. |
-| Fleet views | `sessions.list` + `stream.subscribe { fleet: true }` | Include retained closed sessions for the Ended group. |
+| Fleet views | `sessions.list` + `stream.subscribe { fleet: true }` | Include retained closed sessions for the Closed group. |
 | Session state | `sessions.get` / fleet view | Prefer the subscribed view; `get` for a one-off refresh. |
 | Session history | `sessions.read` (tail, `since`, `before`, filters, `raw` on demand) | Bounded pages; cursors preserved per session. |
 | Live session events | `stream.subscribe { sessionIds }` | Re-subscribe with the new id set and current cursors; no update method. |

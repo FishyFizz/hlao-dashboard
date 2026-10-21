@@ -56,7 +56,7 @@ export function RecoveryRow({
         aria-label={`Quick resume ${receipt.name ?? receipt.childProviderId}`}
         title="Resume with the recorded backend, cwd, and name"
       >
-        <Play className="icon" />
+        <Play className="btn__icon icon" />
         Resume
       </Button>
     </div>

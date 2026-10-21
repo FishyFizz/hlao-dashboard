@@ -37,7 +37,7 @@ export function FleetTable({
       <div className="fleet-table-section__head">
         <span>
           All sessions
-          {state.local.filters.query.trim() || !state.local.filters.showEnded ? (
+          {state.local.filters.query.trim() ? (
             <span className="fleet-table-section__filter">
               {" "}
               · showing {rows.length} of {total}
@@ -130,7 +130,7 @@ export function FleetTable({
             has {total}.
             <Button
               size="sm"
-              onPress={() => store.setFilters({ query: "", showEnded: true })}
+              onPress={() => store.setFilters({ query: "" })}
             >
               Clear filter
             </Button>

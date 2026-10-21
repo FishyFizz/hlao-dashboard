@@ -21,7 +21,7 @@ export function StatusBar({ state }: { state: DashboardState }) {
         <button
           type="button"
           className="dash-status__link"
-          onClick={() => store.setFilters({ query: "", showEnded: true })}
+          onClick={() => store.setFilters({ query: "" })}
           title="Clear fleet filters"
         >
           {state.local.filters.query ? "filtered" : "all sessions"}

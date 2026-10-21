@@ -84,7 +84,8 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 - Structural attention: waiting permission (oldest first), unacknowledged failure
   (newest first), error-severity notice (newest first). Everything else is quiet.
-- Attention is always pinned. Running, Quiet, and Ended are views, not scopes.
+- Attention is always pinned. Running, Quiet, and Closed are collapsible views,
+  not scopes.
 - Live/retained counts, filter, sort, explicit re-sort, unread markers, and a
   rendered order that is stable across activity updates. Re-sorting is explicit
   or caused by a group/rank transition.

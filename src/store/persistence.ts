@@ -10,7 +10,6 @@ export type DraftRecord = {
 export type InstanceFilters = {
   query: string;
   sort: FleetSort;
-  showEnded: boolean;
 };
 
 export type InstanceLocalState = {
@@ -45,7 +44,7 @@ export function emptyInstanceState(): InstanceLocalState {
     acknowledged: {},
     dismissedNotices: {},
     dismissedEvictions: {},
-    filters: { query: "", sort: "created", showEnded: true },
+    filters: { query: "", sort: "created" },
     lastBackend: null,
     lastCwd: null,
   };
@@ -127,7 +126,6 @@ function sanitizeInstances(value: unknown): Record<string, InstanceLocalState> {
       filters: {
         query: typeof source.filters?.query === "string" ? source.filters.query : "",
         sort: sanitizeSort(source.filters?.sort),
-        showEnded: source.filters?.showEnded !== false,
       },
       lastBackend:
         typeof source.lastBackend === "string" ? source.lastBackend : null,

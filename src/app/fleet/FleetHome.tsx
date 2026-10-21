@@ -34,7 +34,7 @@ export function FleetHome({
   const attention = attentionItems(state);
   const sessions = Object.values(state.sessions);
   const filters = state.local.filters;
-  const rows = orderedFleet(sessions, attention, filters, filters.sort);
+  const rows = orderedFleet(sessions, attention, filters.query, filters.sort);
   const counts = fleetCounts(sessions);
   const orphans = orphanedDrafts(state);
 

@@ -11,11 +11,6 @@ export type FleetGroup = "needs" | "running" | "quiet" | "ended";
 
 export type FleetGroups = Record<FleetGroup, SessionView[]>;
 
-export type FleetFilters = {
-  query: string;
-  showEnded: boolean;
-};
-
 export type FleetCounts = {
   live: number;
   running: number;
@@ -66,21 +61,11 @@ export function matchesQuery(session: SessionView, query: string): boolean {
   return haystack.includes(needle);
 }
 
-/** The local fleet filter. Attention membership is applied by the caller. */
-export function matchesFleetFilters(
-  session: SessionView,
-  filters: FleetFilters,
-): boolean {
-  if (!matchesQuery(session, filters.query)) return false;
-  if (!filters.showEnded && isTerminalStatus(session.status)) return false;
-  return true;
-}
-
 export function filterFleet(
   sessions: readonly SessionView[],
-  filters: FleetFilters,
+  query: string,
 ): SessionView[] {
-  return sessions.filter((session) => matchesFleetFilters(session, filters));
+  return sessions.filter((session) => matchesQuery(session, query));
 }
 
 export function fleetCounts(sessions: readonly SessionView[]): FleetCounts {
@@ -128,16 +113,16 @@ export function groupFleet(
 export function orderedFleet(
   sessions: readonly SessionView[],
   attention: readonly AttentionItem[],
-  filters: FleetFilters,
+  query: string,
   sort: FleetSort,
 ): SessionView[] {
   const ranked = new Set(attention.map((item) => item.session.id));
   const attentionRows = attention
     .map((item) => item.session)
-    .filter((session) => matchesQuery(session, filters.query));
+    .filter((session) => matchesQuery(session, query));
   const rest = sortSessions(
     sessions.filter(
-      (session) => !ranked.has(session.id) && matchesFleetFilters(session, filters),
+      (session) => !ranked.has(session.id) && matchesQuery(session, query),
     ),
     sort,
   );

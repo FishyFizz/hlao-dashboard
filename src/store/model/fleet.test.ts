@@ -93,13 +93,16 @@ describe("fleet projections", () => {
     });
   });
 
-  it("filters by query and the ended toggle", () => {
-    expect(
-      filterFleet(all, { query: "", showEnded: false }).map((item) => item.id),
-    ).toEqual(["run001", "quiet1", "perm01"]);
-    expect(
-      filterFleet(all, { query: "runner", showEnded: true }).map((item) => item.id),
-    ).toEqual(["run001"]);
+  it("filters by query", () => {
+    expect(filterFleet(all, "").map((item) => item.id)).toEqual([
+      "run001",
+      "quiet1",
+      "end001",
+      "fail01",
+      "perm01",
+    ]);
+    expect(filterFleet(all, "runner").map((item) => item.id)).toEqual(["run001"]);
+    expect(filterFleet(all, "no-such-session")).toEqual([]);
   });
 
   it("groups attention first and sorts the rest inside their group", () => {
@@ -115,23 +118,19 @@ describe("fleet projections", () => {
     expect(groups.ended.map((item) => item.id)).toEqual(["end001"]);
   });
 
-  it("keeps an attention session visible when ended sessions are hidden", () => {
+  it("keeps attention first and sorts the rest by creation", () => {
     const attention = attentionFor(
       all,
       {},
       { acknowledged: {}, dismissedNotices: {} },
     );
-    const rows = orderedFleet(
-      all,
-      attention,
-      { query: "", showEnded: false },
-      "created",
-    );
+    const rows = orderedFleet(all, attention, "", "created");
     expect(rows.map((item) => item.id)).toEqual([
       "perm01",
       "fail01",
       "run001",
       "quiet1",
+      "end001",
     ]);
   });
 });

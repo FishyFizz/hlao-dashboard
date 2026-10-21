@@ -20,6 +20,8 @@ import { useNow } from "../hooks";
 import { RailRow } from "./RailRow";
 import { RecoveryRow } from "./RecoveryRow";
 
+type SectionKey = FleetGroup | "recoverable";
+
 export function FleetRail({
   state,
   onSelect,
@@ -35,13 +37,24 @@ export function FleetRail({
 }) {
   const now = useNow();
   const [orderEpoch, setOrderEpoch] = useState(0);
+  const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
+    needs: false,
+    running: false,
+    quiet: false,
+    recoverable: false,
+    ended: false,
+  });
+  const toggleSection = (key: SectionKey) => {
+    setCollapsed((current) => ({ ...current, [key]: !current[key] }));
+  };
   const attention = attentionItems(state);
   const attentionById = new Map(attention.map((item) => [item.session.id, item]));
   const queries = state.local.filters.query;
-  const showEnded = state.local.filters.showEnded;
   const sort = state.local.filters.sort;
   const sessions = Object.values(state.sessions);
-  const visible = filterFleet(sessions, { query: queries, showEnded });
+  // The rail always includes retained sessions; the collapsible Closed section
+  // replaces the old "Ended" filter toggle.
+  const visible = filterFleet(sessions, queries);
   const recoverable = recoverableReceipts(state.recovery, queries);
 
   const order = useMemo<FleetGroups>(() => {
@@ -53,7 +66,6 @@ export function FleetRail({
   }, [
     orderEpoch,
     queries,
-    showEnded,
     sort,
     attention.map((item) => `${item.session.id}:${item.rank}`).join("|"),
     visible
@@ -69,38 +81,55 @@ export function FleetRail({
   const shown =
     order.needs.length + order.running.length + order.quiet.length + order.ended.length;
 
-  const group = (key: FleetGroup, title: string, rows: SessionView[]) => {
-    if (rows.length === 0) {
-      if (key === "needs") {
-        return (
-          <div className="rail-group rail-group--quiet" key={key}>
-            <div className="rail-group__head">
-              <span>{title}</span>
-              <span>0</span>
-            </div>
-            <p className="rail-quiet">Nothing needs you.</p>
-          </div>
-        );
-      }
-      return null;
-    }
+  const header = (key: SectionKey, title: string, count: number) => {
+    const expanded = !collapsed[key];
     return (
-      <section className="rail-group" key={key} aria-label={title}>
-        <div className="rail-group__head">
+      <button
+        type="button"
+        className="rail-group__head rail-group__head--toggle"
+        aria-expanded={expanded}
+        title={expanded ? "Collapse section" : "Expand section"}
+        onClick={() => toggleSection(key)}
+      >
+        <span className="rail-group__title">
+          <span className="rail-group__caret" aria-hidden="true">
+            {expanded ? "-" : "+"}
+          </span>
           <span>{title}</span>
-          <span>{rows.length}</span>
-        </div>
-        {rows.map((session) => (
-          <RailRow
-            key={session.id}
-            state={state}
-            session={session}
-            attentionItem={attentionById.get(session.id)}
-            group={key}
-            now={now}
-            onSelect={onSelect}
-          />
-        ))}
+        </span>
+        <span className="rail-group__count">{count}</span>
+      </button>
+    );
+  };
+
+  const group = (key: FleetGroup, title: string, rows: SessionView[]) => {
+    if (rows.length === 0 && key !== "needs") return null;
+    const expanded = !collapsed[key];
+    const empty = rows.length === 0;
+    return (
+      <section
+        className={empty ? "rail-group rail-group--quiet" : "rail-group"}
+        key={key}
+        aria-label={title}
+      >
+        {header(key, title, rows.length)}
+        {expanded ? (
+          empty ? (
+            <p className="rail-quiet">Nothing needs you.</p>
+          ) : (
+            rows.map((session) => (
+              <RailRow
+                key={session.id}
+                state={state}
+                session={session}
+                attentionItem={attentionById.get(session.id)}
+                group={key}
+                now={now}
+                onSelect={onSelect}
+              />
+            ))
+          )
+        ) : null}
       </section>
     );
   };
@@ -113,41 +142,32 @@ export function FleetRail({
         className="rail-group rail-group--recovery"
         aria-label="Recoverable agents"
       >
-        <div className="rail-group__head">
-          <span>Recoverable</span>
-          <span className="rail-group__count">
-            {recoverable.length}
-            <IconButton
-              aria-label="Refresh recoverable agents"
-              title="Read the spawn receipts again"
-              onPress={() => void store.refreshRecovery()}
-              isDisabled={state.recoveryLoading}
-            >
-              <RefreshCw className="icon" />
-            </IconButton>
-          </span>
-        </div>
-        {state.recoveryError !== null ? (
-          <div className="rail-recovery__error">
-            <span>{state.recoveryError}</span>
-            <Button size="sm" onPress={() => void store.refreshRecovery()}>
-              Retry
-            </Button>
-          </div>
+        {header("recoverable", "Recoverable", recoverable.length)}
+        {!collapsed.recoverable ? (
+          <>
+            {state.recoveryError !== null ? (
+              <div className="rail-recovery__error">
+                <span>{state.recoveryError}</span>
+                <Button size="sm" onPress={() => void store.refreshRecovery()}>
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+            {recoverable.length === 0 && state.recoveryLoading ? (
+              <p className="rail-quiet">Reading spawn receipts…</p>
+            ) : null}
+            {recoverable.map((receipt) => (
+              <RecoveryRow
+                key={`${receipt.backend}:${receipt.childProviderId}`}
+                receipt={receipt}
+                now={now}
+                busy={Boolean(state.pending.spawn)}
+                onRecover={onRecover}
+                onQuickResume={onQuickResume}
+              />
+            ))}
+          </>
         ) : null}
-        {recoverable.length === 0 && state.recoveryLoading ? (
-          <p className="rail-quiet">Reading spawn receipts…</p>
-        ) : null}
-        {recoverable.map((receipt) => (
-          <RecoveryRow
-            key={`${receipt.backend}:${receipt.childProviderId}`}
-            receipt={receipt}
-            now={now}
-            busy={Boolean(state.pending.spawn)}
-            onRecover={onRecover}
-            onQuickResume={onQuickResume}
-          />
-        ))}
       </section>
     ) : null;
 
@@ -198,16 +218,6 @@ export function FleetRail({
               <option value="name">Name</option>
             </select>
           </label>
-          <button
-            type="button"
-            className="rail-control"
-            data-active={showEnded ? "true" : undefined}
-            aria-pressed={showEnded}
-            onClick={() => store.setFilters({ showEnded: !showEnded })}
-            title="Show retained closed and failed sessions"
-          >
-            Ended
-          </button>
           <IconButton
             aria-label="Re-sort the fleet from current state"
             title="Re-sort now"
@@ -247,9 +257,7 @@ export function FleetRail({
               </span>
               <Button
                 size="sm"
-                onPress={() => {
-                  store.setFilters({ query: "", showEnded: true });
-                }}
+                onPress={() => store.setFilters({ query: "" })}
               >
                 Clear filter
               </Button>
@@ -258,10 +266,10 @@ export function FleetRail({
         ) : (
           <>
             {group("needs", "Needs you", order.needs)}
-            {recoveryGroup}
             {group("running", "Running", order.running)}
             {group("quiet", "Quiet", order.quiet)}
-            {group("ended", "Ended", order.ended)}
+            {recoveryGroup}
+            {group("ended", "Closed", order.ended)}
           </>
         )}
       </div>
