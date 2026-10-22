@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **The bridge is gated by an operator token.** Every `/api` route now requires
+  a dashboard token, separate from the supervisor token. The bridge reads
+  `HLAO_DASHBOARD_TOKEN` or `--token-file`, or generates a per-home token file
+  (mode 0600) and logs its path. The page signs in once and receives a signed,
+  `HttpOnly`, `SameSite=Strict` cookie scoped to `/api`; scripts may send the
+  token as a bearer credential. `/api/session` is no longer public, and the
+  static SPA shell remains public because it carries no data. Rotating the token
+  signs out every open dashboard. A reverse proxy can allow the exact browser
+  origin with `--public-origin` / `HLAO_DASHBOARD_PUBLIC_ORIGIN`.
 - **Recoverable sessions started by the operator.** The Recoverable group now
   receives a receipt for root spawns as well: the supervisor records a null
   parent for an operator- or dashboard-started agent, so after a machine

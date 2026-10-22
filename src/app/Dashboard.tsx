@@ -29,6 +29,8 @@ import { FleetHome } from "./fleet/FleetHome";
 import { FleetRail } from "./fleet/FleetRail";
 import { HelpDialog } from "./HelpDialog";
 import { IntroDialog } from "./IntroDialog";
+import { LoginScreen } from "./LoginScreen";
+import { stripTokenFragment } from "./routing";
 import { RenameDialog } from "./RenameDialog";
 import { ResumeDialog, type ResumePrefill } from "./spawn/ResumeDialog";
 import { SearchDialog } from "./SearchDialog";
@@ -99,10 +101,18 @@ export function Dashboard() {
   useEffect(() => {
     void store.boot();
     const flush = () => store.flushPersistence();
+    // A #token= link opened while the dashboard is already mounted still signs
+    // in; the fragment is removed before the request leaves the page.
+    const acceptTokenLink = () => {
+      const token = stripTokenFragment();
+      if (token) void store.signIn(token);
+    };
     window.addEventListener("pagehide", flush);
+    window.addEventListener("hashchange", acceptTokenLink);
     document.addEventListener("visibilitychange", flush);
     return () => {
       window.removeEventListener("pagehide", flush);
+      window.removeEventListener("hashchange", acceptTokenLink);
       document.removeEventListener("visibilitychange", flush);
     };
   }, []);
@@ -114,9 +124,11 @@ export function Dashboard() {
   useEffect(() => {
     document.title = selected
       ? `${displayLabel(selected)} · HLAO`
-      : state.phase === "live"
-        ? "Fleet · HLAO"
-        : "HLAO dashboard";
+      : state.phase === "login"
+        ? "Sign in · HLAO"
+        : state.phase === "live"
+          ? "Fleet · HLAO"
+          : "HLAO dashboard";
   }, [selected, state.phase]);
 
   useEffect(() => {
@@ -263,6 +275,20 @@ export function Dashboard() {
           state.mode === "demo"
             ? "Opening the demo instance…"
             : "Connecting to the local bridge…"
+        }
+      />
+    );
+  }
+
+  if (state.phase === "login") {
+    return (
+      <LoginScreen
+        state={state}
+        onSignIn={(token) => store.signIn(token)}
+        onRetry={() => void store.retry()}
+        onDemo={() => void store.connectDemo()}
+        onTheme={() =>
+          store.setTheme(state.theme === "dark" ? "light" : "dark")
         }
       />
     );

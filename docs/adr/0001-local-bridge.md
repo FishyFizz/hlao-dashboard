@@ -19,8 +19,7 @@ persistent NDJSON stream, and serves the built SPA on `127.0.0.1`.
 - `/api/session` returns a loopback UI key, a home path, and a platform. The key
   is required on RPC and SSE; it is a UI capability, not the supervisor token.
   It is stable per home (stored under the OS temp directory) so an open
-  EventSource can reconnect after a bridge restart without refreshing the page.
-- Origin checks accept the bridge's own origin and the local Vite development
+  EventSource can reconnect after a bridge restart without refreshing the page.- Origin checks accept the bridge's own origin and the local Vite development
   origin only.
 - The bridge forwards frames. It does not reinterpret methods or store
   orchestration state.
@@ -48,3 +47,10 @@ local-storage entry.
 - Static serving is part of the bridge, so a production run needs `npm run build`.
 - The SSE channel is same-origin and loopback-only. The supervisor token remains
   the only authority boundary.
+
+## Amendment — operator authentication
+
+ADR 0003 (2026-10-22) gates every `/api` route behind a dashboard operator token.
+`/api/session` and the UI key are issued only after the browser signs in; the key
+is no longer a public capability. The Origin allowlist and stable-per-home key
+described above are unchanged and remain defense in depth.

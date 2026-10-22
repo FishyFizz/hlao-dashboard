@@ -159,6 +159,13 @@
     margin-top: var(--sp-4);
   }
 
+  .login__form {
+    display: grid;
+    gap: var(--sp-3);
+    max-width: 460px;
+    margin-top: var(--sp-5);
+  }
+
   .setup__demo-note {
     max-width: 580px;
     margin-top: var(--sp-2);

@@ -49,7 +49,9 @@ type RpcResponse =
 /**
  * Browser half of the local bridge. It talks same-origin to a loopback Node
  * process; the supervisor token never exists in this origin. The bridge key is
- * a per-run UI capability, not an authority boundary.
+ * a per-run UI capability issued after the operator signs in with the dashboard
+ * token. The sign-in itself sets an HttpOnly cookie, so no credential is kept
+ * in page storage or in a request URL.
  */
 export class BridgeTransport implements SupervisorTransport {
   readonly kind = "bridge" as const;
@@ -57,6 +59,7 @@ export class BridgeTransport implements SupervisorTransport {
   private source: EventSource | null = null;
   private home = "unknown";
   private sink: TransportSink | null = null;
+  private probing = false;
 
   async start(sink: TransportSink): Promise<TransportStart> {
     this.sink = sink;
@@ -64,9 +67,12 @@ export class BridgeTransport implements SupervisorTransport {
     try {
       const response = await fetch("/api/session", {
         cache: "no-store",
+        credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
       if (!response.ok) {
+        const mapped = statusError(response.status);
+        if (mapped) return { home: this.home, hello: null, error: mapped };
         throw new Error(`bridge responded ${response.status}`);
       }
       session = (await response.json()) as SessionResponse;
@@ -161,8 +167,35 @@ export class BridgeTransport implements SupervisorTransport {
           code: "bridge_unavailable",
           message: "The local bridge connection closed; reconnecting.",
         });
+        void this.probeSession();
       };
     });
+  }
+
+  /**
+   * EventSource does not expose the HTTP status. Probe once after a settled
+   * stream fails so an expired cookie moves the operator to sign-in instead of
+   * reconnecting forever. A network failure keeps the normal reconnect loop.
+   */
+  private async probeSession(): Promise<void> {
+    if (this.probing) return;
+    this.probing = true;
+    try {
+      const response = await fetch("/api/session", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (response.status === 401) {
+        this.sink?.onConnection("offline", {
+          code: "bridge_unauthorized",
+          message: "The bridge session expired; sign in again.",
+        });
+      }
+    } catch {
+      // The bridge may be restarting; keep reconnecting.
+    } finally {
+      this.probing = false;
+    }
   }
 
   async request<T>(method: RpcMethod, params?: unknown): Promise<T> {
@@ -176,6 +209,8 @@ export class BridgeTransport implements SupervisorTransport {
     try {
       response = await fetch("/api/rpc", {
         method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           "x-hlao-key": this.key,
@@ -190,6 +225,15 @@ export class BridgeTransport implements SupervisorTransport {
       } satisfies WireError;
     }
     if (!response.ok) {
+      const mapped = statusError(response.status);
+      if (mapped) {
+        // An expired cookie during live use should return the operator to
+        // sign-in, not leave the page issuing doomed requests.
+        if (mapped.code === "bridge_unauthorized") {
+          this.sink?.onConnection("offline", mapped);
+        }
+        throw mapped;
+      }
       throw {
         code: "bridge_unavailable",
         message: `The local bridge refused the request (${response.status}).`,
@@ -205,7 +249,61 @@ export class BridgeTransport implements SupervisorTransport {
     this.source = null;
     this.key = null;
     this.sink = null;
+    this.probing = false;
   }
+}
+
+/**
+ * Exchange the dashboard operator token for a session cookie. The token is sent
+ * once in the request body; it never reaches page storage, the URL, or a
+ * returned error.
+ */
+export async function signInToBridge(
+  token: string,
+  fetcher: typeof fetch = fetch,
+): Promise<WireError | null> {
+  let response: Response;
+  try {
+    response = await fetcher("/api/login", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ token }),
+    });
+  } catch (error) {
+    return {
+      code: "bridge_unavailable",
+      message: "The local bridge is unreachable.",
+      details: error instanceof Error ? error.message : String(error),
+    };
+  }
+  if (response.ok) return null;
+  const mapped = statusError(response.status);
+  if (mapped) return mapped;
+  return {
+    code: "bridge_unavailable",
+    message: `The local bridge refused the sign-in (${response.status}).`,
+  };
+}
+
+function statusError(status: number): WireError | null {
+  if (status === 401) {
+    return {
+      code: "bridge_unauthorized",
+      message: "The bridge requires an operator token.",
+    };
+  }
+  if (status === 429) {
+    return {
+      code: "too_many_requests",
+      message: "Too many sign-in attempts; wait before trying again.",
+    };
+  }
+  return null;
 }
 
 function parseEvent<T>(event: Event): T | null {

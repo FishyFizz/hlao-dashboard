@@ -18,6 +18,7 @@ import {
 } from "./persistence";
 import {
   BridgeTransport,
+  signInToBridge,
   type ConnectionStatus,
   type SupervisorTransport,
   type TransportSink,
@@ -47,6 +48,7 @@ import { AdminActions } from "./actions/admin";
 import { SessionActions } from "./actions/session";
 import { SpawnActions } from "./actions/spawn";
 import type { StoreActionsHost } from "./actionsHost";
+import { stripTokenFragment } from "../app/routing";
 import { appendedLiveEvents } from "./eventState";
 import { HistoryController, type HistoryHost } from "./history";
 import { SearchActions } from "./search";
@@ -103,6 +105,7 @@ export class DashboardStore {
   private transport: SupervisorTransport | null = null;
   private bootStarted = false;
   private connectToken = 0;
+  private authAttempt = 0;
   private subscribeGeneration = 0;
   private resyncing = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -166,6 +169,7 @@ export class DashboardStore {
       home: "",
       instance: null,
       connectError: null,
+      authError: null,
       lastUpdatedAt: null,
       fleetLoaded: false,
       recovery: [],
@@ -254,10 +258,20 @@ export class DashboardStore {
   async boot(): Promise<void> {
     if (this.bootStarted) return;
     this.bootStarted = true;
+    // Consume the one-time sign-in fragment before any await or route write.
+    const token = typeof window !== "undefined" ? stripTokenFragment() : null;
     const demo =
       typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).get("demo") === "1";
-    await this.connect(demo ? "demo" : "bridge");
+    if (demo) {
+      await this.connect("demo");
+      return;
+    }
+    if (token) {
+      await this.signIn(token);
+      return;
+    }
+    await this.connect("bridge");
   }
 
   async connect(mode: Mode): Promise<void> {
@@ -270,6 +284,7 @@ export class DashboardStore {
       mode,
       connection: "connecting",
       connectError: null,
+      authError: null,
       fleetLoaded: false,
       restartNotice: null,
     });
@@ -297,6 +312,19 @@ export class DashboardStore {
       const start = await transport.start(sink);
       if (token !== this.connectToken) return;
       if (!start.hello) {
+        if (start.error?.code === "bridge_unauthorized") {
+          this.disposeTransport();
+          this.setState({
+            phase: "login",
+            mode: "bridge",
+            connection: "offline",
+            home: start.home,
+            instance: null,
+            connectError: null,
+            authError: null,
+          });
+          return;
+        }
         this.setState({
           phase: "setup",
           connection: "offline",
@@ -328,6 +356,51 @@ export class DashboardStore {
     await this.connect(this.state.mode ?? "bridge");
   }
 
+  /** Exchange a dashboard token for a cookie, then connect. */
+  async signIn(rawToken: string): Promise<void> {
+    const attempt = ++this.authAttempt;
+    this.connectToken += 1;
+    this.disposeTransport();
+    const error = await signInToBridge(rawToken.trim());
+    if (attempt !== this.authAttempt) return;
+    if (error) {
+      this.setState({
+        phase: "login",
+        mode: "bridge",
+        connection: "offline",
+        instance: null,
+        connectError: null,
+        authError: error,
+      });
+      return;
+    }
+    this.setState({ authError: null, connectError: null });
+    await this.connect("bridge");
+  }
+
+  async signOut(): Promise<void> {
+    this.authAttempt += 1;
+    this.connectToken += 1;
+    this.disposeTransport();
+    try {
+      await fetch("/api/logout", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+    } catch {
+      // The bridge may already be gone; a reachable one clears the cookie.
+    }
+    this.setState({
+      phase: "login",
+      mode: "bridge",
+      connection: "offline",
+      instance: null,
+      connectError: null,
+      authError: null,
+    });
+  }
+
   private disposeTransport(): void {
     this.transport?.close();
     this.transport = null;
@@ -349,6 +422,19 @@ export class DashboardStore {
       return;
     }
     if (status === "offline") {
+      if (error?.code === "bridge_unauthorized") {
+        this.connectToken += 1;
+        this.disposeTransport();
+        this.setState({
+          phase: "login",
+          mode: "bridge",
+          connection: "offline",
+          instance: null,
+          connectError: null,
+          authError: null,
+        });
+        return;
+      }
       this.setState({
         connection: "offline",
         connectError:

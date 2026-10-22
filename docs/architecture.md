@@ -16,18 +16,21 @@ HLAO supervisor ── sessions, events, pending permissions, provider modes
 
 The supervisor token is read by the bridge from `<HLAO_HOME>/supervisor.json`
 and never crosses into the page. The bridge forwards results and notifications;
-it does not reimplement method semantics. The one bridge-only helper,
-`dashboard.fs.list`, enumerates directories for the spawn cwd picker; it never
-reads file contents and is gated by the same UI key and Origin checks. The page
-can also run a **demo transport** implementing the same request and notification
-shapes against a simulated supervisor. Demo mode is always named in the UI.
+it does not reimplement method semantics. Every `/api` route requires the
+dashboard operator token (ADR 0003), exchanged by the browser for a signed
+`HttpOnly` cookie; scripts may send it as a bearer token. The one bridge-only
+helper, `dashboard.fs.list`, enumerates directories for the spawn cwd picker; it
+never reads file contents and is gated by the same operator session, UI key, and
+Origin checks. The page can also run a **demo transport** implementing the same
+request and notification shapes against a simulated supervisor. Demo mode is
+always named in the UI.
 
 ## Modules
 
 | Path | Responsibility | Public surface |
 |---|---|---|
 | `src/wire/protocol.ts` | Wire 3.1 types, capabilities, permission-queue, mode, and provider-catalog shapes, status language | types + `hasCapability`, `statusLabel` |
-| `src/wire/transport.ts` | Browser bridge transport | `SupervisorTransport`, `BridgeTransport` |
+| `src/wire/transport.ts` | Browser bridge transport and sign-in exchange | `SupervisorTransport`, `BridgeTransport`, `signInToBridge` |
 | `src/store/model/` | Pure rules, split by concern: `identity`, `attention`, `fleet`, `events`, `transcript`, `format`. `index.ts` is the stable barrel. | exported functions and types only; no store, transport, or DOM imports |
 | `src/store/types.ts` | `DashboardState`, event-history, toast, search, and directory shapes | types + `EMPTY_EVENTS` |
 | `src/store/selectors.ts` | Derived views over one state (selection, events, attention, counts, orphaned drafts, recoverable receipts) | functions; no mutation |
@@ -47,7 +50,8 @@ shapes against a simulated supervisor. Demo mode is always named in the UI.
 | `src/app/fleet/` | Fleet home, table, rail, attention card, rail/recovery rows | React components |
 | `src/app/spawn/` | Draft, resume picker, backend/provider catalog hooks, idempotency and failure shapes | React components + hooks |
 | `src/app/` | Shell, dialogs, routing, shortcuts, and the remaining interaction surfaces | React components |
-| `server/bridge.mjs` | Loopback HTTP + SSE entry point; stable-per-home UI key, never the supervisor token | `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
+| `server/bridge.mjs` | Loopback HTTP + SSE entry point and operator auth gate; stable-per-home UI key, never the supervisor token | `/api/login`, `/api/logout`, `/api/session`, `/api/rpc`, `/api/events`, `/api/retry`, `/api/health` |
+| `server/auth.mjs` | Operator token resolution, constant-time comparison, signed session cookies, login throttle | token and cookie helpers |
 | `server/supervisor-connection.mjs` | Persistent NDJSON IPC, hello, reconnect/backoff, token | `SupervisorConnection`, `normalizeError` |
 | `server/http-utils.mjs` | JSON responses, bounded bodies, static SPA serving | `sendJson`, `readBody`, `serveStatic` |
 | `server/directories.mjs` | The bridge-only `dashboard.fs.list` helper | `listDirectories` |

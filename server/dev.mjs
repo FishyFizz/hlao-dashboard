@@ -27,14 +27,17 @@ const DEFAULT_VITE_PORT = 5173;
 function usage(stream = console.log) {
   stream(`hlao dashboard — start the bridge and the dev server together
 
-Usage: npm start -- [--home DIR] [--vite-port N] [--open]
+Usage: npm start -- [--home DIR] [--vite-port N] [--token-file PATH] [--open]
 
-  --home DIR      HLAO home the bridge should read (default: $HLAO_HOME or ~/.hlao)
-  --vite-port N   port for the Vite dev server (default: ${DEFAULT_VITE_PORT})
-  --open          ask Vite to open the page in a browser
-  -h, --help      this help
+  --home DIR        HLAO home the bridge should read (default: $HLAO_HOME or ~/.hlao)
+  --vite-port N     port for the Vite dev server (default: ${DEFAULT_VITE_PORT})
+  --token-file PATH read the dashboard operator token from PATH
+  --open            ask Vite to open the page in a browser
+  -h, --help        this help
 
 The bridge listens on http://127.0.0.1:${BRIDGE_PORT}; Vite proxies /api there.
+Without --token-file (or HLAO_DASHBOARD_TOKEN) the bridge generates a per-home
+token file and prints its path; paste that token into the sign-in screen.
 Ctrl-C stops both processes. The bridge does not start a supervisor: start HLAO
 first in another terminal (for example "hlao list --all").
 `);
@@ -44,6 +47,7 @@ function parseArgs(argv) {
   const options = {
     home: process.env.HLAO_HOME || join(homedir(), ".hlao"),
     vitePort: DEFAULT_VITE_PORT,
+    tokenFile: process.env.HLAO_DASHBOARD_TOKEN_FILE || null,
     open: false,
     help: false,
   };
@@ -59,6 +63,10 @@ function parseArgs(argv) {
         throw new Error("--vite-port must be an integer between 1 and 65535");
       }
       options.vitePort = value;
+    } else if (arg === "--token-file") {
+      const value = argv[++index];
+      if (value === undefined) throw new Error("--token-file needs a path");
+      options.tokenFile = value;
     } else if (arg === "--open") {
       options.open = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -68,6 +76,7 @@ function parseArgs(argv) {
     }
   }
   options.home = resolve(options.home);
+  if (options.tokenFile) options.tokenFile = resolve(options.tokenFile);
   return options;
 }
 
@@ -102,12 +111,23 @@ console.log(`  app     http://127.0.0.1:${options.vitePort}`);
 console.log(`Ctrl-C stops both.`);
 
 const env = { ...process.env, HLAO_HOME: options.home };
+// The bridge needs the token; Vite and its plugins do not.
+const viteEnv = { ...process.env };
+delete viteEnv.HLAO_DASHBOARD_TOKEN;
+const bridgeArgs = [
+  bridgePath,
+  "--home",
+  options.home,
+  "--vite-port",
+  String(options.vitePort),
+];
+if (options.tokenFile) bridgeArgs.push("--token-file", options.tokenFile);
 // POSIX: put the children in their own process group so a terminal Ctrl-C
 // reaches only this launcher, which then stops both cleanly. Windows would
 // open a new console for a detached child, so keep it attached there.
 const detached = process.platform !== "win32";
 const children = [
-  spawn(process.execPath, [bridgePath, "--home", options.home], {
+  spawn(process.execPath, bridgeArgs, {
     cwd: ROOT,
     env,
     stdio: "inherit",
@@ -122,7 +142,7 @@ const children = [
       "--strictPort",
       ...(options.open ? ["--open"] : []),
     ],
-    { cwd: ROOT, env: process.env, stdio: "inherit", detached },
+    { cwd: ROOT, env: viteEnv, stdio: "inherit", detached },
   ),
 ];
 

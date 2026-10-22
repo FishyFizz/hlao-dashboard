@@ -33,6 +33,35 @@ pipe or Unix socket, and serves `dist/` on loopback. If no supervisor is running
 start one in a terminal (`hlao list --all`) and retry. The dashboard does not
 silently autostart or stop the supervisor.
 
+The dashboard is gated by an operator token, which is separate from the
+supervisor token. Without configuration the bridge generates one per home,
+stores it with owner-only permissions in the OS temp directory, and logs its
+path:
+
+```
+auth operator token from C:\Users\<you>\AppData\Local\Temp\hlao-dashboard-<hash>.token
+```
+
+Open the page and paste the file's single line into the sign-in screen. To supply
+the token yourself, set `HLAO_DASHBOARD_TOKEN` or pass `--token-file PATH`. A
+`#token=<value>` fragment is also accepted as a one-time link; the page removes it
+before the first request. The bridge never logs the token value. Signing in sets
+an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api`; rotating the token
+invalidates every open session.
+
+Behind a reverse proxy, allow the exact browser origin with `--public-origin`
+(repeatable) or `HLAO_DASHBOARD_PUBLIC_ORIGIN` (comma-separated):
+
+```bash
+npm run bridge -- --home "C:\path\to\HLAO_HOME" \
+  --public-origin https://agentgate.example.net:8795
+```
+
+Use the origin the browser shows, including a non-default port. This is narrower
+than `--allow-remote`, which trusts any origin whose host matches the forwarded
+`Host` header. Nginx/proxy configs must forward `X-Forwarded-Proto` so the
+session cookie is marked `Secure`.
+
 Default home is `%USERPROFILE%\.hlao` (or `$HOME/.hlao`). `HLAO_HOME` is
 honoured when `--home` is omitted.
 
@@ -48,18 +77,20 @@ npm start -- --home "C:\path\to\HLAO_HOME"
 
 `HLAO_HOME` works instead of `--home`; `--vite-port N` changes only the Vite
 port (the bridge stays on 4780 because `vite.config.ts` proxies `/api` there).
-The bridge does not autostart a supervisor, so start HLAO first in another
-terminal (`hlao list --all`).
+`--token-file PATH` supplies the dashboard token; otherwise the bridge prints
+the generated token file path. The bridge does not autostart a supervisor, so
+start HLAO first in another terminal (`hlao list --all`).
 
 The two processes can still be run separately:
 
 ```bash
-npm run bridge -- --home "C:\path\to\HLAO_HOME"   # API only, port 4780
-npm run dev                                       # http://localhost:5173
+npm run bridge -- --home "C:\path\to\HLAO_HOME" --vite-port 5173   # API only, port 4780
+npm run dev                                                        # http://localhost:5173
 ```
 
 Vite proxies `/api` to the bridge. The bridge also serves the built SPA for a
-production run.
+production run. `--vite-port` adds that Vite origin to the bridge's allowlist;
+`npm start` passes it automatically.
 
 ### Demo
 
@@ -196,9 +227,13 @@ npm run preview     # preview the built SPA without the bridge (setup screen)
 
 ### Connection, persistence, honesty
 
-- The bridge owns the token. It serves a loopback UI key (stable per home, so an
-  open EventSource survives a bridge restart) and enforces loopback Origin
-  checks. The page never sees `supervisor.json`.
+- The bridge owns the supervisor token and a separate dashboard operator token.
+  Every `/api` route requires a signed, `HttpOnly`, `SameSite=Strict` session
+  cookie (or a bearer token for scripts). Once authenticated, the bridge also
+  issues the loopback UI key used by RPC and SSE; the key is stable per home so
+  an open EventSource survives a bridge restart. Origin checks remain the browser
+  fence, and cookie-authenticated state changes require an allowed Origin. The
+  page never sees `supervisor.json`.
 - Full session views replace by handle; events append by `seq`; responses and
   notifications may arrive in either order. Reconnect reloads the fleet,
   resumes with cursors, and marks only server-reported gaps.
@@ -239,7 +274,8 @@ docs/architecture.md         module map, invariants, liveness, action boundaries
 docs/adr/                    bridge and demo decisions
 STACK.md                     language/library decision and evidence
 DESIGN.md                    visual system and component inventory
-server/bridge.mjs            loopback HTTP + SSE entry point
+server/bridge.mjs            loopback HTTP + SSE entry point, auth gate
+server/auth.mjs              operator token resolution and signed session cookies
 server/supervisor-connection.mjs  supervisor IPC, hello, reconnect, token
 server/http-utils.mjs        JSON/static responses and bounded bodies
 server/directories.mjs       dashboard.fs.list (directory names only)
@@ -293,6 +329,9 @@ changes.
 - No changes to the supervisor or the wire protocol.
 - No second protocol or semantic reimplementation in the bridge; it forwards
   frames.
-- No token in the page, a URL, a log line, or client storage.
+- No supervisor token in the page, a URL, a log line, or client storage. The
+  dashboard operator token is a separate credential: it is exchanged for an
+  `HttpOnly` cookie and is never persisted by the page.
 - No durable client-side session store; the supervisor's live table is truth.
-- No token-bearing cross-origin API; the bridge is loopback-only.
+- No token-bearing cross-origin API; the bridge is loopback-only unless
+  `--allow-remote` is explicit, and that mode needs TLS in front.

@@ -11,7 +11,7 @@ import type {
 import type { InstanceLocalState, Theme } from "./persistence";
 import type { NoticeRecord } from "./model";
 
-export type Phase = "boot" | "connecting" | "setup" | "live";
+export type Phase = "boot" | "connecting" | "setup" | "login" | "live";
 export type Mode = "bridge" | "demo";
 
 export type Selection = { id: string; createdAt: string };
@@ -56,6 +56,8 @@ export type DashboardState = {
   home: string;
   instance: HelloResult | null;
   connectError: WireError | null;
+  /** A rejected dashboard token; kept separate from supervisor setup errors. */
+  authError: WireError | null;
   lastUpdatedAt: string | null;
   fleetLoaded: boolean;
   /** Historical spawn receipts, live-joined. Empty when unsupported. */

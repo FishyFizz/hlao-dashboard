@@ -38,7 +38,7 @@ export type ErrorCode =
   | "internal";
 
 export type WireError = {
-  code: ErrorCode | "bridge_unavailable";
+  code: ErrorCode | "bridge_unavailable" | "bridge_unauthorized";
   message: string;
   details?: unknown;
 };

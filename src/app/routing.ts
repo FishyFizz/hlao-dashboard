@@ -28,3 +28,27 @@ export function replaceLocation(search: string, hash: string): void {
   const next = `${window.location.pathname}${search}${hash}`;
   if (current !== next) window.history.replaceState(null, "", next);
 }
+
+/**
+ * `#token=<value>` is a one-time sign-in handoff. Fragments never reach the
+ * server; removing it before the first request keeps it out of history too.
+ */
+export function parseTokenFragment(hash: string): string | null {
+  const match = /^#token=(.+)$/.exec(hash);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]!);
+  } catch {
+    return match[1]!;
+  }
+}
+
+export function stripTokenFragment(
+  location: Pick<Location, "pathname" | "search" | "hash"> = window.location,
+  history: Pick<History, "replaceState"> = window.history,
+): string | null {
+  const token = parseTokenFragment(location.hash);
+  if (token === null) return null;
+  history.replaceState(null, "", `${location.pathname}${location.search}`);
+  return token;
+}

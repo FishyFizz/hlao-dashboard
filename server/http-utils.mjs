@@ -23,12 +23,13 @@ export const MIME = {
   ".ico": "image/x-icon",
 };
 
-export function sendJson(res, status, value) {
+export function sendJson(res, status, value, headers = null) {
   const body = JSON.stringify(value);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Content-Length": Buffer.byteLength(body),
+    ...headers,
   });
   res.end(body);
 }

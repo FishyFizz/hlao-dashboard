@@ -236,6 +236,21 @@ export function HelpDialog({
         </Button>
       </section>
 
+      {state.mode !== "demo" ? (
+        <section className="help-section">
+          <div className="help-section__head">
+            <Shield className="icon" />
+            <span>Bridge session</span>
+          </div>
+          <p className="help-text">
+            Signing out clears this browser’s session cookie. The bridge keeps
+            running and other open tabs keep their own session until it expires.
+            Rotate the operator token to revoke every session.
+          </p>
+          <Button onPress={() => void store.signOut()}>Sign out of the bridge</Button>
+        </section>
+      ) : null}
+
       <section className="help-section help-danger">
         <div className="help-section__head">
           <TriangleAlert className="icon" />

@@ -83,7 +83,7 @@ requirement below must be consistent with them.
 | **C7** | Reads are bounded and cursor-addressed. Eviction is reported through `truncated` / `earliestRetainedSeq`; a stream close is not loss until resume reports truncation. | Gaps are shown where they occur. No view ever pretends history is complete. |
 | **C8** | Event `data` is an open object; unknown event types and fields are expected. | Unknown events render generically. No crash, no silent drop, no dependence on `raw`. |
 | **C9** | Every session is addressable by every caller; `parentId`/`rootId`/`depth` are lineage and context, not authority. | Grouping is a lens, never a permission boundary. Any session can be inspected or acted on regardless of which group it is in. |
-| **C10** | The supervisor token is full operator authority and must never reach a browser origin. | The UI never displays, copies, or puts the token in a link. A browser front end talks to a local bridge and holds no supervisor credential. |
+| **C10** | The supervisor token is full operator authority and must never reach a browser origin. | The UI never displays, copies, or puts the supervisor token in a link. A browser front end talks to a local bridge and holds no supervisor credential. The bridge has its own operator token; the page exchanges it for an `HttpOnly` session cookie and never persists it. |
 | **C11** | The provider's mode is the coarse permission policy. Every provider ask is relayed to the operator; the pending queue is bounded (default 16) and a one-shot `permissionTimeoutMs` (default 30m, `0` = park) fails closed at its deadline, never allowing. | The dashboard never auto-answers a request, never offers a second HLAO policy, and never sends an agent identity. Multiple asks are shown as a FIFO queue, and the queue bound and timeout are stated where they matter. |
 | **C12** | Provider modes, config options, plan shapes, titles, and usage are provider-native values carried through generic ACP shapes. A backend manifest may set an operator `defaultMode`. | Render what the provider advertises. Do not hardcode Claude/Codex model or mode lists. Missing provider state is "not reported", not an error. Show `defaultMode` as the backend's operator default, not as a normalized mode value. |
 
@@ -827,9 +827,11 @@ The numbering is stable so implementation and review can refer to it.
   Switching is explicit and restores that instance's local UI state. Handles resolve only in
   the active instance. Drafts and selections are keyed by instance. No cross-instance merged
   notifications; if a notification from a background instance is shown, it names the instance.
-- **IN13 — No credential leakage.** The token never appears in the UI, a copy action, a URL, a
-  log line, or a browser origin. A browser front end talks to a local bridge that holds the
-  token.
+- **IN13 — No credential leakage.** The supervisor token never appears in the UI, a copy action, a
+  URL, a log line, or a browser origin. A browser front end talks to a local bridge that holds the
+  token. The dashboard operator token is separate: it is typed into the sign-in screen or passed in
+  a `#token=` fragment that is removed before the first request, exchanged for an `HttpOnly`
+  cookie, and never written to browser storage or a request URL.
 - **IN14 — Closing the app ends observation.** Say that notifications and live updates stop
   when the app is not running. Do not imply a background daemon.
 - **IN15 — Local diagnostics are separate.** If the dashboard exposes supervisor logs or a
