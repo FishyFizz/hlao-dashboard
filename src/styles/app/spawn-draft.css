@@ -81,6 +81,14 @@
     border-top: var(--bw) solid var(--line);
   }
 
+  .spawn-draft__hint-key {
+    padding: 0 3px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
   .spawn-draft__error {
     margin: 4px 8px 0;
   }

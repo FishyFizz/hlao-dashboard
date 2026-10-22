@@ -33,6 +33,7 @@ import { RenameDialog } from "./RenameDialog";
 import { ResumeDialog, type ResumePrefill } from "./spawn/ResumeDialog";
 import { SearchDialog } from "./SearchDialog";
 import { SessionLens } from "./SessionLens";
+import type { SessionMenuActions } from "./SessionActionsMenu";
 import { SetupScreen } from "./SetupScreen";
 import { SpawnDraft } from "./spawn/SpawnDraft";
 import { StatusBar } from "./StatusBar";
@@ -67,11 +68,33 @@ export function Dashboard() {
   const [introOpen, setIntroOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [action, setAction] = useState<ActionDialog | null>(null);
+  const [actionTarget, setActionTarget] = useState<SessionView | null>(null);
   const [dropItem, setDropItem] = useState<QueueItemView | null>(null);
   const attention = attentionItems(state);
   const selected = selectedSession(state);
   const removedSnapshot = state.removed ? state.removedSession : null;
   const displayed = selected ?? removedSnapshot;
+  // A fleet-rail menu acts on its row without selecting it. The dialog keeps
+  // the row as its target; a selection-opened dialog falls back to the lens.
+  const sessionForDialogs = actionTarget ?? selected;
+  const detailsSession = actionTarget ?? displayed;
+
+  const openAction = (next: ActionDialog) => {
+    setActionTarget(null);
+    setAction(next);
+  };
+  const openActionFor = (target: SessionView, next: ActionDialog) => {
+    setActionTarget(target);
+    setAction(next);
+  };
+  const openDetails = () => {
+    setActionTarget(null);
+    setDetailsOpen(true);
+  };
+  const openDetailsFor = (target: SessionView) => {
+    setActionTarget(target);
+    setDetailsOpen(true);
+  };
 
   useEffect(() => {
     void store.boot();
@@ -103,15 +126,15 @@ export function Dashboard() {
   useDashboardLocation(state);
 
   useEffect(() => {
-    if (selected || !state.selection) return;
+    if (sessionForDialogs || !state.selection) return;
     if (["rename", "stop", "close", "close-subtree", "forget"].includes(action?.kind ?? "")) {
       setAction(null);
     }
-  }, [selected, state.selection, action?.kind]);
+  }, [sessionForDialogs, state.selection, action?.kind]);
 
   useEffect(() => {
-    if (!selected) setDetailsOpen(false);
-  }, [selected]);
+    if (!detailsSession) setDetailsOpen(false);
+  }, [detailsSession]);
 
   useEffect(() => {
     setRailOpen(false);
@@ -258,8 +281,15 @@ export function Dashboard() {
     );
   }
 
-  const sessionForDialogs: SessionView | null = selected;
   const queue = state.queue;
+  const sessionMenuActions: SessionMenuActions = {
+    onRename: (target) => openActionFor(target, { kind: "rename" }),
+    onClose: (target) => openActionFor(target, { kind: "close" }),
+    onCloseSubtree: (target) =>
+      openActionFor(target, { kind: "close-subtree" }),
+    onForget: (target) => openActionFor(target, { kind: "forget" }),
+    onDetails: (target) => openDetailsFor(target),
+  };
 
   return (
     <div className="dash">
@@ -286,6 +316,7 @@ export function Dashboard() {
           onSpawn={openSpawnDraft}
           onRecover={openRecovery}
           onQuickResume={quickResume}
+          menuActions={sessionMenuActions}
         />
         {spawnDraftOpen ? (
           <SpawnDraft
@@ -304,16 +335,16 @@ export function Dashboard() {
                   onSpawn={openSpawnDraft}
                   onSearch={() => setSearchOpen(true)}
                   onOpenSession={openSession}
-                  onRename={() => setAction({ kind: "rename" })}
-                  onStop={() => setAction({ kind: "stop" })}
-                  onClose={() => setAction({ kind: "close" })}
-                  onCloseSubtree={() => setAction({ kind: "close-subtree" })}
-                  onForget={() => setAction({ kind: "forget" })}
+                  onRename={() => openAction({ kind: "rename" })}
+                  onStop={() => openAction({ kind: "stop" })}
+                  onClose={() => openAction({ kind: "close" })}
+                  onCloseSubtree={() => openAction({ kind: "close-subtree" })}
+                  onForget={() => openAction({ kind: "forget" })}
                   onDrop={(item) => {
                     setDropItem(item);
-                    setAction({ kind: "stop" });
+                    openAction({ kind: "stop" });
                   }}
-                  onDetails={() => setDetailsOpen(true)}
+                  onDetails={openDetails}
                   onSpawnReplacement={openSpawnDraft}
                 />
               ) : state.selection ? (
@@ -364,10 +395,10 @@ export function Dashboard() {
         onResume={openResume}
         onSearch={() => setSearchOpen(true)}
         onHelp={() => setHelpOpen(true)}
-        onDetails={() => setDetailsOpen(true)}
-        onRename={() => setAction({ kind: "rename" })}
-        onStop={() => setAction({ kind: "stop" })}
-        onCloseSession={() => setAction({ kind: "close" })}
+        onDetails={openDetails}
+        onRename={() => openAction({ kind: "rename" })}
+        onStop={() => openAction({ kind: "stop" })}
+        onCloseSession={() => openAction({ kind: "close" })}
       />
       <ResumeDialog
         open={resumeOpen}
@@ -385,18 +416,18 @@ export function Dashboard() {
         onClose={() => setHelpOpen(false)}
         onClearLocal={() => {
           setHelpOpen(false);
-          setAction({ kind: "clear" });
+          openAction({ kind: "clear" });
         }}
         onShutdown={() => {
           setHelpOpen(false);
-          setAction({ kind: "shutdown" });
+          openAction({ kind: "shutdown" });
         }}
       />
-      {displayed ? (
+      {detailsSession ? (
         <DetailsDialog
           open={detailsOpen}
           state={state}
-          session={displayed}
+          session={detailsSession}
           onClose={() => setDetailsOpen(false)}
         />
       ) : null}
@@ -434,7 +465,7 @@ export function Dashboard() {
             onClose={() => setAction(null)}
             onConfirm={(force) => {
               setAction(null);
-              void store.close(force);
+              void store.close(force, sessionForDialogs.id);
             }}
           />
           <CloseSubtreeDialog
@@ -445,7 +476,7 @@ export function Dashboard() {
             onClose={() => setAction(null)}
             onConfirm={() => {
               setAction(null);
-              void store.closeSubtree();
+              void store.closeSubtree(sessionForDialogs.id);
             }}
           />
           <ForgetDialog
@@ -455,7 +486,7 @@ export function Dashboard() {
             onClose={() => setAction(null)}
             onConfirm={() => {
               setAction(null);
-              void store.forget();
+              void store.forget(sessionForDialogs.id);
             }}
             onExport={() => {
               void exportTranscript(sessionForDialogs);

@@ -1,48 +1,33 @@
 import { useEffect, useRef } from "react";
 import {
   ChevronLeft,
-  CircleAlert,
   Download,
-  GitFork,
   MoreHorizontal,
   PanelRight,
-  Pencil,
-  Power,
   Square,
-  Trash2,
 } from "lucide-react";
-import {
-  Menu,
-  MenuItem,
-  MenuTrigger,
-  Popover,
-  Separator,
-} from "react-aria-components";
+import { MenuTrigger, Popover } from "react-aria-components";
 import { Button, IconButton } from "../components/Button";
 import { Handle, Status, Tag } from "../components/Status";
 import { cn } from "../lib/cn";
 import {
   attentionItems,
-  canUse,
   store,
   type DashboardState,
 } from "../store/store";
 import {
-  descendantsOf,
   displayLabel,
   failureReason,
   formatDateTime,
   isTerminalStatus,
 } from "../store/model";
 import type { QueueItemView, SessionView } from "../wire/protocol";
-import { CAPABILITIES } from "../wire/protocol";
-import { cli } from "./cli";
 import { exportTranscript } from "./export";
 import { Composer } from "./Composer";
 import { PermissionGate } from "./PermissionGate";
+import { SessionActionsMenu } from "./SessionActionsMenu";
 import { StateStrip } from "./StateStrip";
 import { Transcript } from "./transcript/Transcript";
-import { forkProviderSession } from "./providerActions";
 import { copyWithToast } from "./ui";
 
 export function SessionLens({
@@ -82,9 +67,7 @@ export function SessionLens({
   }, [session.id]);
   const attention = attentionItems(state).find((item) => item.session.id === session.id);
   const terminal = isTerminalStatus(session.status);
-  const descendants = descendantsOf(session.id, Object.values(state.sessions));
   const active = session.status === "busy" || session.status === "waiting_permission";
-  const canForkProvider = canUse(state, CAPABILITIES.spawnFork);
 
   return (
     <div className="session-lens" ref={lensRef}>
@@ -159,116 +142,15 @@ export function SessionLens({
                 <MoreHorizontal className="btn__icon icon" />
               </IconButton>
               <Popover className="popover" placement="bottom end">
-                <Menu
-                  className="menu"
-                  onAction={(key) => {
-                    switch (String(key)) {
-                      case "rename":
-                        onRename();
-                        break;
-                      case "copy-handle":
-                        void copyWithToast(`#${session.id}`, "handle");
-                        break;
-                      case "copy-cli":
-                        void copyWithToast(cli.read(session), "CLI command");
-                        break;
-                      case "export":
-                        void exportTranscript(session);
-                        break;
-                      case "details":
-                        onDetails();
-                        break;
-                      case "fork-provider":
-                        forkProviderSession(session);
-                        break;
-                      case "close-subtree":
-                        onCloseSubtree();
-                        break;
-                      case "close":
-                        onClose();
-                        break;
-                      case "forget":
-                        onForget();
-                        break;
-                      case "ack":
-                        store.acknowledgeFailure(session.id);
-                        break;
-                      case "dismiss-notice":
-                        store.dismissNotice(session.id);
-                        break;
-                    }
-                  }}
-                >
-                  <MenuItem className="menu__item" id="rename" textValue="Rename">
-                    <Pencil className="icon" />
-                    Rename…
-                  </MenuItem>
-                  <MenuItem className="menu__item" id="copy-handle" textValue="Copy handle">
-                    Copy handle
-                  </MenuItem>
-                  <MenuItem className="menu__item" id="copy-cli" textValue="Copy as CLI">
-                    Copy as CLI
-                  </MenuItem>
-                  <MenuItem className="menu__item" id="export" textValue="Export transcript">
-                    <Download className="icon" />
-                    Export transcript (JSON)
-                  </MenuItem>
-                  <MenuItem className="menu__item" id="details" textValue="Session details">
-                    <PanelRight className="icon" />
-                    Session details
-                  </MenuItem>
-                  {session.agentSessionId && canForkProvider ? (
-                    <MenuItem
-                      className="menu__item"
-                      id="fork-provider"
-                      textValue="Fork provider session"
-                    >
-                      <GitFork className="icon" />
-                      Fork provider session
-                    </MenuItem>
-                  ) : null}
-                  <Separator className="menu__sep" />
-                  {session.status === "failed" ? (
-                    <MenuItem className="menu__item" id="ack" textValue="Acknowledge failure">
-                      <CircleAlert className="icon" />
-                      Acknowledge failure locally
-                    </MenuItem>
-                  ) : null}
-                  {attention?.kind === "notice" ? (
-                    <MenuItem className="menu__item" id="dismiss-notice" textValue="Dismiss notice">
-                      Dismiss notice locally
-                    </MenuItem>
-                  ) : null}
-                  {descendants.length > 0 && !terminal ? (
-                    <MenuItem
-                      className="menu__item menu__item--danger"
-                      id="close-subtree"
-                      textValue="Close subtree"
-                    >
-                      <Power className="icon" />
-                      Close subtree ({descendants.length + 1})
-                    </MenuItem>
-                  ) : null}
-                  {!terminal ? (
-                    <MenuItem
-                      className="menu__item menu__item--danger"
-                      id="close"
-                      textValue="Close session"
-                    >
-                      <Power className="icon" />
-                      Close session…
-                    </MenuItem>
-                  ) : (
-                    <MenuItem
-                      className="menu__item menu__item--danger"
-                      id="forget"
-                      textValue="Forget session"
-                    >
-                      <Trash2 className="icon" />
-                      Forget session…
-                    </MenuItem>
-                  )}
-                </Menu>
+                <SessionActionsMenu
+                  state={state}
+                  session={session}
+                  onRename={onRename}
+                  onClose={onClose}
+                  onCloseSubtree={onCloseSubtree}
+                  onForget={onForget}
+                  onDetails={onDetails}
+                />
               </Popover>
             </MenuTrigger>
           ) : null}

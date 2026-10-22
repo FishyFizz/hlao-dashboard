@@ -329,13 +329,26 @@ export function SpawnDraft({
             </div>
           </div>
 
+          <Notice tone="info" title="Provider options">
+            <span>
+              <mark className="spawn-draft__hint-key">
+                Provider modes, model, and config options can be set after the
+                session is created and before the first prompt.
+              </mark>{" "}
+              Start with an empty prompt, then set them in the session
+              inspector; the available values come from the provider once the
+              session exists. A prompt entered here runs as the first turn
+              immediately.
+            </span>
+          </Notice>
+
           <details className="form-advanced">
             <summary>Advanced</summary>
             <p>
               Provider modes, model, and config options are provider-native and
               may not be enumerable before a session exists. This view
-              deliberately does not invent them; set them after the session
-              starts from the values it advertises.
+              deliberately does not invent them; start without a prompt to set
+              them from the values the session advertises.
             </p>
             <div className="form-advanced__facts">
               <span>

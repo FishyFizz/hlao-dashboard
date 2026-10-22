@@ -1000,20 +1000,20 @@ export class DashboardStore {
     return this.sessionActions.cancel(keepQueue);
   }
 
-  async close(force: boolean): Promise<void> {
-    return this.sessionActions.close(force);
+  async close(force: boolean, sessionId?: string): Promise<void> {
+    return this.sessionActions.close(force, sessionId);
   }
 
-  async closeSubtree(): Promise<void> {
-    return this.sessionActions.closeSubtree();
+  async closeSubtree(sessionId?: string): Promise<void> {
+    return this.sessionActions.closeSubtree(sessionId);
   }
 
-  async forget(): Promise<void> {
-    return this.sessionActions.forget();
+  async forget(sessionId?: string): Promise<void> {
+    return this.sessionActions.forget(sessionId);
   }
 
-  async rename(name: string): Promise<boolean> {
-    return this.sessionActions.rename(name);
+  async rename(name: string, sessionId?: string): Promise<boolean> {
+    return this.sessionActions.rename(name, sessionId);
   }
 
   async setMode(modeId: string): Promise<void> {

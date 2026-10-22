@@ -36,7 +36,7 @@ export function RenameDialog({
   );
   const submit = () => {
     if (pending) return;
-    void store.rename(name).then((ok) => {
+    void store.rename(name, session.id).then((ok) => {
       if (ok) onClose();
     });
   };

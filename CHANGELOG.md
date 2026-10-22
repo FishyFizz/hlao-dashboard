@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Recoverable sessions started by the operator.** The Recoverable group now
+  receives a receipt for root spawns as well: the supervisor records a null
+  parent for an operator- or dashboard-started agent, so after a machine
+  restart those agents appear in the group instead of only agent-spawned
+  children. Rows for roots simply omit the parent line; resume, fork, and
+  filtering are unchanged.
+- **No recoverable row for an unused session.** A fresh session gets a provider
+  id before the provider writes a transcript. The supervisor now records the
+  receipt only when the conversation is durable (a resume/fork at once, a fresh
+  session at its first turn), so quick resume is no longer offered for a
+  provider id the adapter answers with `Resource not found`.
 - **Recoverable agents in the fleet rail.** The left panel gains a dedicated
   **Recoverable** group fed by the supervisor's `recovery.receipts` ledger
   (historical parent-provider-id → child-provider-id receipts, live-joined).

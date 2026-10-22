@@ -588,7 +588,7 @@ Result:
 }
 
 type RecoveryReceiptView = {
-  parentProviderId: string;
+  parentProviderId: string | null; // null for a root spawn
   parentSessionId: string | null;  // historical HLAO id at attach time
   childProviderId: string;         // the durable handle to adopt
   childSessionId: string;          // historical HLAO id at attach time
@@ -607,10 +607,14 @@ type RecoveryReceiptView = {
 ```
 
 This reads the append-only spawn-receipt ledger, deduped to the latest
-parent/backend/child receipt and sorted newest first. It starts no adapter and creates no
-session. `attached` is a live-table lookup for the child provider id; `parentHlao*` is the
-same lookup for the parent. The dashboard uses it for the **Recoverable** rail group and
-for prefilling Resume. Receipts are history, not liveness.
+parent/backend/child receipt and sorted newest first. A receipt exists once the provider
+conversation is durable: immediately for a resume or fork, and at a fresh session's first
+turn. A spawn that never ran a turn is absent, because the provider has no transcript to
+load. A root spawn has a null parent, so an operator-started agent is recoverable after a
+restart too. It starts no adapter and creates no session. `attached` is a live-table lookup
+for the child provider id; `parentHlao*` is the same lookup for the parent. The dashboard
+uses it for the **Recoverable** rail group and for prefilling Resume. Receipts are history,
+not liveness.
 
 ### `sessions.spawn`
 

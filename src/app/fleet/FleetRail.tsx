@@ -17,6 +17,7 @@ import {
 } from "../../store/store";
 import type { RecoveryReceiptView, SessionView } from "../../wire/protocol";
 import { useNow } from "../hooks";
+import type { SessionMenuActions } from "../SessionActionsMenu";
 import { RailRow } from "./RailRow";
 import { RecoveryRow } from "./RecoveryRow";
 
@@ -28,12 +29,14 @@ export function FleetRail({
   onSpawn,
   onRecover,
   onQuickResume,
+  menuActions,
 }: {
   state: DashboardState;
   onSelect: (session: SessionView) => void;
   onSpawn: () => void;
   onRecover: (receipt: RecoveryReceiptView) => void;
   onQuickResume: (receipt: RecoveryReceiptView) => void;
+  menuActions: SessionMenuActions;
 }) {
   const now = useNow();
   const [orderEpoch, setOrderEpoch] = useState(0);
@@ -71,7 +74,7 @@ export function FleetRail({
     visible
       .map(
         (session) =>
-          `${session.id}:${fleetGroupFor(session, attentionById.has(session.id) ? 1 : undefined)}`,
+          `${session.id}:${fleetGroupFor(session, attentionById.has(session.id) ? 1 : undefined)}:${session.name ?? ""}:${session.title ?? ""}`,
       )
       .sort()
       .join("|"),
@@ -125,6 +128,7 @@ export function FleetRail({
                 attentionItem={attentionById.get(session.id)}
                 group={key}
                 now={now}
+                menuActions={menuActions}
                 onSelect={onSelect}
               />
             ))

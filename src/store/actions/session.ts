@@ -18,6 +18,21 @@ type SessionResult = { session: SessionView };
 type SendAttempt = { key: string; messageId: string; text: string };
 
 /**
+ * The target of an operator action. Most commands default to the selection;
+ * a surface that acts on an explicit session (a fleet context menu) passes its
+ * id so the action does not depend on, or change, the selection.
+ */
+function actionTarget(
+  host: StoreActionsHost,
+  sessionId: string | undefined,
+): SessionView | null {
+  const state = host.getState();
+  return sessionId === undefined
+    ? selectedSession(state)
+    : state.sessions[sessionId] ?? null;
+}
+
+/**
  * Session-scoped operator actions. Every method acts on the selected session;
  * the supervisor stays the authority for every outcome.
  */
@@ -205,8 +220,8 @@ export class SessionActions {
     }
   }
 
-  async close(force: boolean): Promise<void> {
-    const session = selectedSession(this.host.getState());
+  async close(force: boolean, sessionId?: string): Promise<void> {
+    const session = actionTarget(this.host, sessionId);
     const transport = this.host.getTransport();
     if (!session || !transport) return;
     if (this.host.getState().pending.close) return;
@@ -226,7 +241,9 @@ export class SessionActions {
           ? "No change was made by this action."
           : "It remains readable for the retention period. The event log is not permanent.",
       });
-      void this.host.refreshQueue(session.id);
+      if (this.host.getState().selection?.id === session.id) {
+        void this.host.refreshQueue(session.id);
+      }
       void this.host.refreshRecovery();
     } catch (error) {
       this.host.addToast({
@@ -239,8 +256,8 @@ export class SessionActions {
     }
   }
 
-  async closeSubtree(): Promise<void> {
-    const session = selectedSession(this.host.getState());
+  async closeSubtree(sessionId?: string): Promise<void> {
+    const session = actionTarget(this.host, sessionId);
     const transport = this.host.getTransport();
     if (!session || !transport || this.host.getState().pending.close) return;
     const descendants = descendantsOf(
@@ -272,12 +289,14 @@ export class SessionActions {
           ? `${errors.length} failed. ${errors[0]}`
           : "Descendants were closed deepest-first.",
     });
-    void this.host.refreshQueue(session.id);
+    if (this.host.getState().selection?.id === session.id) {
+      void this.host.refreshQueue(session.id);
+    }
     void this.host.refreshRecovery();
   }
 
-  async forget(): Promise<void> {
-    const session = selectedSession(this.host.getState());
+  async forget(sessionId?: string): Promise<void> {
+    const session = actionTarget(this.host, sessionId);
     const transport = this.host.getTransport();
     if (!session || !transport) return;
     if (this.host.getState().pending.forget) return;
@@ -285,6 +304,7 @@ export class SessionActions {
     try {
       await transport.request("sessions.forget", { sessionId: session.id });
       const state = this.host.getState();
+      const forgettingSelection = state.selection?.id === session.id;
       const sessions = { ...state.sessions };
       delete sessions[session.id];
       const events = { ...state.events };
@@ -292,12 +312,18 @@ export class SessionActions {
       this.host.setState({
         sessions,
         events,
-        selection: null,
-        removed: false,
-        removedSession: null,
-        queue: null,
+        ...(forgettingSelection
+          ? {
+              selection: null,
+              removed: false,
+              removedSession: null,
+              queue: null,
+            }
+          : {}),
       });
-      this.host.setLocal({ ...this.host.getState().local, selected: null });
+      if (forgettingSelection) {
+        this.host.setLocal({ ...this.host.getState().local, selected: null });
+      }
       this.host.addToast({
         tone: "ok",
         title: "Session forgotten",
@@ -316,8 +342,8 @@ export class SessionActions {
     }
   }
 
-  async rename(name: string): Promise<boolean> {
-    const session = selectedSession(this.host.getState());
+  async rename(name: string, sessionId?: string): Promise<boolean> {
+    const session = actionTarget(this.host, sessionId);
     const transport = this.host.getTransport();
     if (!session || !transport) return false;
     if (this.host.getState().pending.rename) return false;
